@@ -14,6 +14,10 @@
 <div class="grid">
   <section class="card">
     <h2>Balances</h2>
+    {% if my_team %}
+      <p class="muted small">You manage <b>{{ my_team.name }}</b> — your wallet is the team's
+        money (purse {{ my_team.purse_remaining }}).</p>
+    {% endif %}
     <div class="balance-row">
       <div class="balance-box">
         <div class="muted small">Liquid Cash</div>
@@ -36,7 +40,7 @@
     <h2>Vault — lock funds</h2>
     <p class="muted small">7% yield per match. Default = compounding (auto-reinvest).
       Manual harvest pays 7% of the original principal to liquid cash each match.
-      Locked capital is untouchable until the season ends.</p>
+      Locked capital is untouchable until the season ends (after Match 12).</p>
     <form id="vault-lock-form">
       <select name="season_id" required>
         <option value="">— season —</option>
@@ -57,7 +61,10 @@
             <span>Principal: {{ pos.principal }}</span>
             <span>Locked: {{ pos.locked_capital }}</span>
             <span>Mode: {% if pos.reinvest %}compound{% else %}manual{% endif %}</span>
-            <span>Last yield: match {{ pos.last_yield_match }}</span>
+            <span>Yield: match {{ pos.last_yield_match }} of 12
+              ({{ finalized_counts.get(pos.season_id, 0) }} finalized)</span>
+            <span>{% if pos.unlocked %}<span class="tag tag-active">Unlocked</span>
+              {% else %}<span class="tag">Locked until M12</span>{% endif %}</span>
           </div>
           <button class="btn btn-small js-reinvest" data-id="{{ pos.id }}"
                   data-reinvest="{{ 0 if pos.reinvest else 1 }}">

@@ -16,13 +16,25 @@ def _my_account(bank_service, user):
 @login_required()
 def account():
     bank_service = current_app.extensions["bank_service"]
+    db = current_app.extensions["db"]
     user = session.get("user") or {}
     account = _my_account(bank_service, user)
     vault_positions = bank_service.vault_positions(account["id"]) if account else []
     seasons = current_app.extensions["auction_service"].list_seasons()
     txns = bank_service.transactions(account["id"], limit=50) if account else []
+    finalized_counts = {}
+    with db.read() as conn:
+        for row in conn.execute("SELECT season_id, COUNT(*) AS n FROM match_stats GROUP BY season_id"):
+            finalized_counts[row["season_id"]] = row["n"]
+    my_team = None
+    if user.get("global_player_id"):
+        with db.read() as conn:
+            my_team = conn.execute(
+                "SELECT id, name, season_id, purse_remaining FROM teams "
+                "WHERE manager_player_id = ? LIMIT 1", (user["global_player_id"],)).fetchone()
     return render_template("banking/account.html", account=account,
-                           vault_positions=vault_positions, seasons=seasons, txns=txns)
+                           vault_positions=vault_positions, seasons=seasons, txns=txns,
+                           finalized_counts=finalized_counts, my_team=dict(my_team) if my_team else None)
 
 
 @banking_bp.post("/vault/lock")

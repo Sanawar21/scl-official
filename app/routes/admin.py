@@ -1,6 +1,7 @@
 import json
+import re
 
-from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, url_for
+from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, session, url_for
 
 from .. import rules as R
 from ..authz import login_required
@@ -405,3 +406,151 @@ def bank_adjust():
 @login_required(role=R.ROLE_ADMIN)
 def state_json(season_id):
     return jsonify(current_app.extensions["auction_service"].get_state(season_id))
+
+
+# ---------------------------------------------------------------------------
+# Finances + Vault (season finance ledger, match rewards, yield, M12 unlock)
+# ---------------------------------------------------------------------------
+def _finance_context(season_id=None):
+    finance = current_app.extensions["finance_service"]
+    auction = current_app.extensions["auction_service"]
+    scorer = current_app.extensions["scorer_service"]
+    db = current_app.extensions["db"]
+    seasons = auction.list_seasons()
+    if not seasons:
+        return {"seasons": [], "season_id": "", "board": [], "entries": [], "hints": [],
+                "vault_positions": [], "finalized_count": 0, "max_match": 0,
+                "match_reward_amount": 0, "registry": []}
+    if not season_id or season_id not in {s["id"] for s in seasons}:
+        season_id = seasons[0]["id"]
+    board = finance.list_season_finances(season_id)
+    entries = finance.list_finance_entries(season_id)
+    hints = finance.credit_refund_hint(season_id)
+    registry = scorer.list_match_registry(season_id)
+    finalized_count = 0
+    max_match = 0
+    with db.read() as conn:
+        finalized_count = conn.execute(
+            "SELECT COUNT(*) FROM match_stats WHERE season_id = ?", (season_id,)).fetchone()[0]
+        vault_positions = conn.execute(
+            "SELECT v.*, a.owner_type, a.owner_id FROM vault_positions v "
+            "JOIN bank_accounts a ON a.id = v.account_id WHERE v.season_id = ? "
+            "ORDER BY v.created_at", (season_id,)).fetchall()
+        ruleset = auction._get_ruleset(conn, season_id)
+        for r in conn.execute(
+                "SELECT r.match_number, r.match_id FROM match_stats s "
+                "JOIN match_registry r ON r.match_key = s.match_key WHERE s.season_id = ?",
+                (season_id,)).fetchall():
+            text = str(r["match_number"] or r["match_id"] or "")
+            m = re.search(r"\d+", text)
+            if m and int(m.group(0)) > max_match:
+                max_match = int(m.group(0))
+    return {
+        "seasons": seasons,
+        "season_id": season_id,
+        "board": board,
+        "entries": entries,
+        "hints": hints,
+        "vault_positions": [dict(v) for v in vault_positions],
+        "finalized_count": finalized_count,
+        "max_match": max_match,
+        "match_reward_amount": ruleset.match_reward_amount,
+        "registry": registry,
+    }
+
+
+@admin_bp.get("/finances")
+@login_required(role=R.ROLE_ADMIN)
+def finances():
+    return render_template("admin/finances.html", **_finance_context(_season_id()))
+
+
+@admin_bp.post("/finances/adjust")
+@login_required(role=R.ROLE_ADMIN)
+def finances_adjust():
+    finance = current_app.extensions["finance_service"]
+    season_id = (request.form.get("season_id") or "").strip().lower()
+    try:
+        finance.post_adjust(
+            season_id,
+            request.form.get("team_id", ""),
+            request.form.get("operation", "add"),
+            _safe_int(request.form.get("amount"), 0),
+            request.form.get("comment", ""),
+            actor=session.get("user", {}).get("username", "admin"),
+        )
+        flash("Adjustment posted.", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("admin.finances", season=season_id))
+
+
+@admin_bp.post("/finances/transfer")
+@login_required(role=R.ROLE_ADMIN)
+def finances_transfer():
+    finance = current_app.extensions["finance_service"]
+    season_id = (request.form.get("season_id") or "").strip().lower()
+    try:
+        finance.post_transfer(
+            season_id,
+            request.form.get("from_team_id", ""),
+            request.form.get("to_team_id", ""),
+            _safe_int(request.form.get("amount"), 0),
+            request.form.get("comment", ""),
+            actor=session.get("user", {}).get("username", "admin"),
+        )
+        flash("Transfer posted.", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("admin.finances", season=season_id))
+
+
+@admin_bp.post("/finances/process-pending")
+@login_required(role=R.ROLE_ADMIN)
+def finances_process_pending():
+    finance = current_app.extensions["finance_service"]
+    season_id = (request.form.get("season_id") or "").strip().lower()
+    results = finance.process_pending(season_id)
+    flash(f"Processed {len(results)} finalized match(es).", "success")
+    return redirect(url_for("admin.finances", season=season_id))
+
+
+@admin_bp.post("/finances/yield")
+@login_required(role=R.ROLE_ADMIN)
+def finances_yield():
+    bank = current_app.extensions["bank_service"]
+    season_id = (request.form.get("season_id") or "").strip().lower()
+    match_number = _safe_int(request.form.get("match_number"), 0)
+    try:
+        results = bank.apply_match_yield(season_id, match_number)
+        flash(f"Yield applied for {len(results)} position-step(s).", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("admin.finances", season=season_id))
+
+
+@admin_bp.post("/finances/unlock")
+@login_required(role=R.ROLE_ADMIN)
+def finances_unlock():
+    bank = current_app.extensions["bank_service"]
+    season_id = (request.form.get("season_id") or "").strip().lower()
+    try:
+        results = bank.unlock_vault(season_id, force=_boolish(request.form.get("force")))
+        released = sum(r["released"] for r in results)
+        flash(f"Vault unlocked: {len(results)} position(s), {released} released to liquid.", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("admin.finances", season=season_id))
+
+
+@admin_bp.post("/finances/undo")
+@login_required(role=R.ROLE_ADMIN)
+def finances_undo():
+    finance = current_app.extensions["finance_service"]
+    season_id = (request.form.get("season_id") or "").strip().lower()
+    try:
+        result = finance.undo_last_finance_entry(season_id)
+        flash(f"Undid {result['type']} of {result['amount']}.", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("admin.finances", season=season_id))

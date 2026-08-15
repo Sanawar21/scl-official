@@ -71,6 +71,30 @@ def match_summary(season_id, match_id):
     return render_template("matches/summary.html", summary=summary)
 
 
+@matches_bp.get("/finances")
+def finances_index():
+    finance = _finance_service()
+    season_id, match_seasons = _pick_season(_season_id())
+    board = finance.list_season_finances(season_id) if season_id else []
+    entries = finance.list_finance_entries(season_id) if season_id else []
+    return render_template("matches/finances.html", season_id=season_id,
+                           match_seasons=match_seasons, board=board, entries=entries)
+
+
+@matches_bp.get("/finances/<season_id>")
+def finances_season(season_id):
+    season_id = season_id.lower()
+    if season_id not in {s["slug"] for s in _scorer_service().list_match_seasons()}:
+        flash("Season not found.", "error")
+        return redirect(url_for("matches.finances_index"))
+    finance = _finance_service()
+    board = finance.list_season_finances(season_id)
+    entries = finance.list_finance_entries(season_id)
+    match_seasons = _scorer_service().list_match_seasons()
+    return render_template("matches/finances.html", season_id=season_id,
+                           match_seasons=match_seasons, board=board, entries=entries)
+
+
 @matches_bp.get("/table")
 def league_table():
     svc = _scorer_service()

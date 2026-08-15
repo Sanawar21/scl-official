@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Finances{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Season Finances</h1>
+  {% if match_seasons %}
+    <div class="season-switch">
+      {% for s in match_seasons %}
+        <a class="tag {% if s.slug == season_id %}tag-active{% endif %}"
+           href="{{ url_for('matches.finances_season', season_id=s.slug) }}">{{ s.name }}</a>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="muted">No seasons yet.</p>
+  {% endif %}
+</div>
+
+<section class="card">
+  <h2>Budget Board{% if season_id %} — {{ season_id }}{% endif %}</h2>
+  <p class="muted small">Each team's manager account balance. This is the team's money:
+    match rewards, fines and transfers all move through it.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Team</th><th>Wallet</th><th>Credits</th><th>Roster</th></tr></thead>
+      <tbody>
+        {% for b in board %}
+          <tr>
+            <td>{{ b.team_name }}</td>
+            <td><b>{{ b.wallet }}</b></td>
+            <td>{{ b.credits_remaining }}</td>
+            <td class="muted">{{ b.players_count }} players + {{ b.bench_count }} bench</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="4" class="muted">No finance data for this season yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Transactions</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>When</th><th>Type</th><th>Details</th><th>Amount</th><th>Comment</th></tr></thead>
+      <tbody>
+        {% for row in entries %}
+          <tr {% if row.undone_at %}class="muted"{% endif %}>
+            <td>{{ row.created_at[:16] }}</td>
+            <td>{{ row.label }}</td>
+            <td>{{ row.summary }}</td>
+            <td>{{ row.amount }}</td>
+            <td>{{ row.comment or '-' }}</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="5" class="muted">No finance transactions recorded for this season yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

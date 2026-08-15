@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+{% block title %}Finances Admin{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="row">
+    <h1 style="margin:0">Finances &amp; Vault</h1>
+    <form method="get" action="{{ url_for('admin.finances') }}" class="row">
+      <select name="season" onchange="this.form.submit()">
+        {% for s in seasons %}
+          <option value="{{ s.id }}" {% if s.id == season_id %}selected{% endif %}>{{ s.name }}</option>
+        {% endfor %}
+      </select>
+    </form>
+  </div>
+  <p class="muted">Managers' wallets == team money. Match rewards auto-post when a match
+    result is finalized; yield compounds 7%/match up to Match 12.</p>
+</div>
+
+{% if not seasons %}
+  <div class="card"><p class="muted">Create a season first.</p></div>
+{% else %}
+
+<div class="grid">
+  <section class="card">
+    <h2>Budget Board</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Team</th><th>Wallet</th><th>Purse</th><th>Credits</th><th>Roster</th></tr></thead>
+        <tbody>
+          {% for b in board %}
+            <tr>
+              <td>{{ b.team_name }}</td>
+              <td><b>{{ b.wallet }}</b></td>
+              <td class="muted">{{ b.purse_remaining }}</td>
+              <td>{{ b.credits_remaining }}</td>
+              <td class="muted">{{ b.players_count }} + {{ b.bench_count }} bench</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="5" class="muted">No teams.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Match finance</h2>
+    <form method="post" action="{{ url_for('admin.finances_adjust') }}" class="stack">
+      <input type="hidden" name="season_id" value="{{ season_id }}">
+      <div class="row">
+        <select name="team_id" required>
+          {% for b in board %}<option value="{{ b.team_id }}">{{ b.team_name }}</option>{% endfor %}
+        </select>
+        <select name="operation">
+          <option value="add">Add</option>
+          <option value="remove">Remove</option>
+        </select>
+        <input type="number" name="amount" placeholder="amount" min="1" required style="width:110px">
+      </div>
+      <input type="text" name="comment" placeholder="comment (fines, umpire duty…)" required>
+      <button class="btn btn-small btn-primary" type="submit">Post adjustment</button>
+    </form>
+    <form method="post" action="{{ url_for('admin.finances_transfer') }}" class="stack">
+      <input type="hidden" name="season_id" value="{{ season_id }}">
+      <div class="row">
+        <select name="from_team_id" required>
+          <option value="">— from —</option>
+          {% for b in board %}<option value="{{ b.team_id }}">{{ b.team_name }}</option>{% endfor %}
+        </select>
+        <select name="to_team_id" required>
+          <option value="">— to —</option>
+          {% for b in board %}<option value="{{ b.team_id }}">{{ b.team_name }}</option>{% endfor %}
+        </select>
+        <input type="number" name="amount" placeholder="amount" min="1" required style="width:110px">
+      </div>
+      <input type="text" name="comment" placeholder="comment (sub cash…)" required>
+      <button class="btn btn-small" type="submit">Transfer between teams</button>
+    </form>
+    <p class="muted small">Match reward amount: <b>{{ match_reward_amount }}</b>
+      (per ruleset, paid to both playing teams on finalize).</p>
+  </section>
+</div>
+
+<div class="grid">
+  <section class="card">
+    <h2>Vault</h2>
+    <p class="muted small">{{ finalized_count }} finalized match(es); max match number {{ max_match }}.
+      Unlock is allowed once ≥ 12 matches are finalized.</p>
+    <form method="post" action="{{ url_for('admin.finances_yield') }}" class="row">
+      <input type="hidden" name="season_id" value="{{ season_id }}">
+      <label class="small">Apply yield through match
+        <input type="number" name="match_number" value="{{ max_match }}" min="1" max="12" required style="width:70px">
+      </label>
+      <button class="btn btn-small" type="submit">Apply yield</button>
+    </form>
+    <form method="post" action="{{ url_for('admin.finances_unlock') }}" class="row">
+      <input type="hidden" name="season_id" value="{{ season_id }}">
+      <label class="checkbox-label"><input type="checkbox" name="force" value="1"> force</label>
+      <button class="btn btn-small btn-primary" type="submit">Unlock vault (M12)</button>
+    </form>
+    {% if vault_positions %}
+      <h3>Positions</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Owner</th><th>Principal</th><th>Locked</th><th>Mode</th><th>Yield →</th><th>Status</th></tr></thead>
+          <tbody>
+            {% for p in vault_positions %}
+              <tr>
+                <td>{{ p.owner_id[:8] }}</td>
+                <td>{{ p.principal }}</td>
+                <td>{{ p.locked_capital }}</td>
+                <td>{% if p.reinvest %}compound{% else %}manual{% endif %}</td>
+                <td>match {{ p.last_yield_match }}</td>
+                <td>{% if p.unlocked %}<span class="tag tag-active">Unlocked</span>{% else %}<span class="tag">Locked</span>{% endif %}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="muted small">No vault positions this season.</p>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <h2>Process pending</h2>
+    <p class="muted small">Backfill match rewards + vault yield for any finalized match that
+      wasn't auto-processed (e.g. imported before the finance wiring).</p>
+    <form method="post" action="{{ url_for('admin.finances_process_pending') }}">
+      <input type="hidden" name="season_id" value="{{ season_id }}">
+      <button class="btn btn-small" type="submit">Process pending rewards</button>
+    </form>
+    <h2>Credit refund hint</h2>
+    <p class="muted small">Unspent credits are refunded via the existing
+      <a href="{{ url_for('admin.dashboard', season=season_id) }}#bank">bank adjust</a>
+      on the manager's account. Reference values below.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Team</th><th>Credits left</th><th>Refund at rate</th></tr></thead>
+        <tbody>
+          {% for h in hints %}
+            <tr><td>{{ h.team_name }}</td><td>{{ h.credits_remaining }}</td><td>{{ h.refund_amount }}</td></tr>
+          {% else %}
+            <tr><td colspan="3" class="muted">No teams.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<section class="card">
+  <div class="row">
+    <h2 style="margin:0">Ledger</h2>
+    <form method="post" action="{{ url_for('admin.finances_undo') }}">
+      <input type="hidden" name="season_id" value="{{ season_id }}">
+      <button class="btn btn-small btn-danger" type="submit">Undo last entry</button>
+    </form>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>When</th><th>Type</th><th>Team / parties</th><th>Amount</th><th>Comment</th><th>Status</th></tr></thead>
+      <tbody>
+        {% for e in entries %}
+          <tr {% if e.undone_at %}class="muted"{% endif %}>
+            <td>{{ e.created_at[:16] }}</td>
+            <td>{{ e.label }}</td>
+            <td>{{ e.summary }}</td>
+            <td>{{ e.amount }}</td>
+            <td>{{ e.comment }}</td>
+            <td>{% if e.undone_at %}<span class="tag tag-danger">undone</span>{% else %}—{% endif %}</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="6" class="muted">No finance entries yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+{% endblock %}
