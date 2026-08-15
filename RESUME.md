@@ -1,8 +1,8 @@
 # SCL Rebuild — Session Resume Handoff
 
 Read this first in a new session, then `MEMORY.md` (living context + gotchas) and `PLAN.md`
-(feature plan). Last updated 2026-08-15 at the end of the session that built the offline
-scorer + integrated scorecard PDF increment.
+(feature plan). Last updated 2026-08-15 at the end of the session that built the admin
+dashboard consolidation increment.
 
 ## Quickstart
 
@@ -99,6 +99,17 @@ ruleset drives everything. Docs (3 PDFs, NOT final) + extracted `.txt` in the pr
   `/leaderboards`, `/teams[/<slug>]`, `/players/<slug>`; admin `/admin/scorer` (config, registry
   CRUD, CSV import + undo). Nav links in `base.html`.
 
+### 7. Admin dashboard consolidation
+- **`/admin` is the Overview**: status cards (Auction / Matches / Finances / Wagers / Accounts)
+  + recent activity feed; the auction control room moved to **`/admin/auction`**.
+- **Shared tab shell** (`app/templates/admin/_tabs.html`): Overview · Auction · Scorer ·
+  Finances · Wagers · Link on all six admin pages; active tab highlighted. Tabs link to
+  existing URLs so all form POST→redirect flows keep working (auction actions →
+  `/admin/auction`). base.html admin nav shrunk to a single **Admin** link.
+- Overview context `_overview_context()` in admin.py (reuses services + a few direct
+  queries: finalized/pending-finance counts, wallet Σ, vault/yield progress, wager counts,
+  unlinked signups). Plan: `ADMIN_DASHBOARD_PLAN.md`.
+
 ### 6. Offline scorer + scorecard PDF
 - **Offline scorer page** (port of `../SCL/scorer.html`): `app/templates/scorer/scorer.html`,
   served at public `/scorer` (use in-browser at the ground) + `/scorer/download` (standalone
@@ -152,6 +163,8 @@ app/
     viewer.py               /, /live, /api/state, /season/<slug>
     banking.py              /account (balances, vault lock, reinvest, deposit)
     wagers.py               /wagers board|detail|admin
+    admin.py                /admin (Overview), /admin/auction (control room), /admin/finances,
+                            bank adjust, season/player/team/phase/transfer/takeover endpoints
     matches.py              /matches, /table, /leaderboards, /teams, /players, /admin/scorer,
                             /finances[/<season>], /scorer, /scorer/download,
                             /matches/<s>/<m>/scorecard
@@ -161,7 +174,7 @@ app/
   static/js/app.js          live board via 4s polling of /api/state
 tests/                      conftest.py (_setup helper) + test_auction (16), test_bank (4),
                             test_wager (15), test_matches (17), test_finance (21),
-                            test_scorer_offline (7) — 79 total
+                            test_scorer_offline (7), test_admin_dashboard (6) — 85 total
 ```
 
 ## Conventions & gotchas (also in MEMORY.md — do not rediscover)
@@ -188,30 +201,27 @@ tests/                      conftest.py (_setup helper) + test_auction (16), tes
 ## Remaining increments (in PLAN.md)
 
 1. ✅ **Finances + Vault wiring — built.**
-2. ✅ **Offline scorer — built.** `/scorer` + `/scorer/download`, call-up batting order fix,
-   DB-fed scorecard PDF. Plan: `OFFLINE_SCORER_PLAN.md`.
-3. **Admin dashboard consolidation** — admin pages split across auction / wagers / scorer /
-   finances / link; no single overview.
-4. **Wager polish** — socket live updates, auto-resolve markets from match results (registry exists now).
-5. **Fantasy entries (optional)** — S1 data for 17 fantasy teams exists but no schema; only
+2. ✅ **Offline scorer — built.**
+3. ✅ **Admin dashboard consolidation — built.** `/admin` = Overview + shared tab shell
+   (Auction `/admin/auction`, Scorer, Finances, Wagers, Link). Plan: `ADMIN_DASHBOARD_PLAN.md`.
+4. **Individual player/manager dashboard** (user's next increment) — wagers, funds control,
+   other player actions; `/manager` + `/account` today are minimal.
+5. **Wager polish** — socket live updates, auto-resolve markets from match results (registry exists now).
+6. **Fantasy entries (optional)** — S1 data for 17 fantasy teams exists but no schema; only
    per-player fantasy points feed leaderboards today.
-6. **Ball-by-ball match view** (nice-to-have, now possible: `delivery_log` is stored).
+7. **Ball-by-ball match view** (nice-to-have, now possible: `delivery_log` is stored).
 
 ## Handoff state at session end
 
-- **79/79 tests green** (72 + 7 new scorer tests). E2E verified: `/scorer` + `/scorer/download`
-  render with live rosters (season-1, managers included), a scorer-format CSV imports and
-  shows batsmen in call-up order (Alice 1 / Bob 2 / Eve 3 despite Eve scoring most), the
-  scorecard PDF route returns a valid PDF with the posted match rewards as revenue.
-- **reportlab==5.0.0** added to `requirements.txt` and installed in `.venv` (scorecard PDF).
-- The real `data/scl.db` (season-1) has the new `delivery_log`/`batter_order` columns via the
-  `_MIGRATIONS` bootstrap (existing rows are NULL — S1 scorecards keep old ordering; the fix
-  applies to newly imported matches, i.e. Season 2).
+- **85/85 tests green** (79 + 6 new admin-dashboard tests). E2E verified: all six admin pages
+  render with the tab shell and the correct active tab; `/admin` overview shows real S1
+  numbers (4 teams, 13 registry, 13 finalized, wallets 0 post-reset); auction POSTs redirect
+  to `/admin/auction`; public pages have no tab leakage.
+- ⚠ **Real `data/scl.db` admin password is NOT `admin123`** (set at last bootstrap's env) —
+  for admin-page browser checks use the real password; automated tests use temp DBs.
 - Balances remain reset to 0 (new economy), history intact.
-- ⚠ `match_stats.delivery_log` / `match_player_stats.batter_order` are **nullable** — any code
-  that reads `match_player_stats` must tolerate None batter_order (match_summary does).
 - ⚠ Restart the stale server on port 10001 (old code) before browser-verifying new routes.
 - Git: repo at `SCL-official`, one commit per milestone (user request).
 - `PLAN.md` + `MEMORY.md` + this file are the source of truth; per-increment plans in
   `PROD_IMPORT_PLAN.md`, `WAGER_PLAN.md`, `MATCHES_PLAN.md`, `FINANCES_PLAN.md`,
-  `OFFLINE_SCORER_PLAN.md`.
+  `OFFLINE_SCORER_PLAN.md`, `ADMIN_DASHBOARD_PLAN.md`.

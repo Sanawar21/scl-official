@@ -1,13 +1,15 @@
 {% extends "base.html" %}
 {% block title %}Scorer Admin{% endblock %}
 {% block content %}
+{% from "admin/_tabs.html" import tabs %}
 <div class="page-head">
   <div class="row">
-    <h1 style="margin:0">Scorer Admin</h1>
+    <h1 style="margin:0">Admin · Scorer</h1>
     <a class="btn btn-small" href="{{ url_for('matches.matches_index') }}">Public matches</a>
   </div>
   <p class="muted">Season binding: <b>{{ config.season_slug or '—' }}</b> · max overs {{ config.max_overs }}</p>
 </div>
+{{ tabs('scorer', season_id) }}
 
 <section class="card">
   <h2>Offline scorer</h2>

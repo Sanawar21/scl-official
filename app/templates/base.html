@@ -20,8 +20,6 @@
       <a href="{{ url_for('matches.scorer_page') }}">Scorer</a>
       {% if current_user and current_user.role == 'admin' %}
         <a href="{{ url_for('admin.dashboard') }}">Admin</a>
-        <a href="{{ url_for('admin.finances') }}">Finances&nbsp;Admin</a>
-        <a href="{{ url_for('matches.admin_scorer') }}">Scorer</a>
       {% endif %}
       {% if current_user and current_user.role == 'manager' %}
         <a href="{{ url_for('manager.dashboard') }}">My Team</a>

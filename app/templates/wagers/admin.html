@@ -1,15 +1,17 @@
 {% extends "base.html" %}
 {% block title %}Wagers Admin{% endblock %}
 {% block content %}
+{% from "admin/_tabs.html" import tabs %}
 <div class="page-head">
   <div class="row">
-    <h1 style="margin:0">Wagers Admin</h1>
+    <h1 style="margin:0">Admin · Wagers</h1>
     <a class="btn btn-small" href="{{ url_for('wagers.board') }}">Public board</a>
   </div>
   <p class="muted">House liquid cash: <b>{{ house.liquid_cash if house else 0 }}</b>
-    (top up via <a href="{{ url_for('admin.dashboard') }}">Admin → Bank adjust</a> using
+    (top up via <a href="{{ url_for('admin.auction') }}">Auction → Bank adjust</a> using
     <code>house:house</code>).</p>
 </div>
+{{ tabs('wagers') }}
 
 {% for w in wagers %}
   <section class="card">

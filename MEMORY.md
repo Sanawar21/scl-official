@@ -101,6 +101,7 @@ Update this file whenever you learn something durable. Keep it current as the bu
 - [x] **Matches/stats built and tested** — 17 new tests (51 total); plan in `MATCHES_PLAN.md`; S1 scorer data imported via `--phase stats`
 - [x] **Finances + Vault wiring built and tested** — 21 new tests (72 total); plan in `FINANCES_PLAN.md`; S1 finance ledger imported via `--phase finance`
 - [x] **Offline scorer + scorecard PDF built and tested** — 7 new tests (79 total); plan in `OFFLINE_SCORER_PLAN.md`; `/scorer`, call-up batting order, DB-fed PDF (reportlab)
+- [x] **Admin dashboard consolidation built and tested** — 6 new tests (85 total); plan in `ADMIN_DASHBOARD_PLAN.md`; `/admin` = overview + shared tab shell
 - [x] **Git repo initialized** (`git init` + regular commits), per user request (2026-08-15)
 
 ## Increment 1 — what was built (structure)
@@ -193,6 +194,21 @@ Update this file whenever you learn something durable. Keep it current as the bu
   `/matches/<season>/<match>/scorecard` (public, per user decision), linked from match summary
   + admin scorer. reportlab added to `requirements.txt` + installed.
 
+## Admin dashboard — what was built (Increment: admin consolidation)
+
+- **`/admin` is now the Overview** (status cards: Auction/Matches/Finances/Wagers/Accounts +
+  recent activity feed); the auction control room moved to **`/admin/auction`**.
+- **Shared tab shell** (`app/templates/admin/_tabs.html`, `{% from ... import tabs %}`):
+  Overview · Auction · Scorer · Finances · Wagers · Link, rendered on all six admin pages
+  with the active tab highlighted (`active` param passed literally per template — no route
+  context changes needed). Tabs link to the existing URLs, so every form POST → redirect
+  keeps working (auction actions redirect to `/admin/auction` now).
+- Overview context (`_overview_context()` in admin.py): reuses services (auction state,
+  scorer registry/imports, finance board/entries, wager list/house, auth unlinked) + a few
+  direct queries (`finalized_count`, `pending_finance` = finalized matches without a
+  `match_reward` entry, `vault_positions`, `yield_progress` capped at 12).
+- base.html admin nav shrunk to a single **Admin** link (→ overview); the tabs expose the rest.
+
 ## Wager platform — what was built (Increment 5)
 
 - `wagers` + `wager_bets` tables; `app/services/wager_service.py`; `app/routes/wagers.py`; templates
@@ -242,6 +258,18 @@ Update this file whenever you learn something durable. Keep it current as the bu
 - When resolving a team's "global" reference for the scorer prefill, map BOTH
   `global_team_id → local id` AND `local id → local id` — teams without a global id are
   referenced by their local id in the registry.
+- **The real `data/scl.db` admin password is NOT `admin123`** (set at the last bootstrap's
+  env, not the default) — admin-flow E2E against the real DB needs the real password; tests
+  use temp DBs where admin/admin123 is seeded fresh. Verify admin contexts against real data
+  via `_overview_context()` under `test_request_context()` instead of HTTP login.
+- `pending_finance` on the overview = finalized matches WITHOUT a `match_reward` entry. For
+  S1 that's all 13 (its 44 ledger rows were imported as history, not through
+  `on_match_finalized`) — clicking "Process pending" on season-1 WOULD post 200×2 rewards
+  per match (the admin's call).
+- `yield_progress` in the overview is capped at 12 to match `MAX_YIELD_MATCH`.
+- The tab shell links to `url_for('admin.auction', season=...)` etc. — passing an Undefined
+  season_id into url_for breaks, so templates without a season pass `tabs('wagers')` with no
+  season arg (the macro defaults to '').
 - `app.config.from_object(dict)` does NOT work — dicts must go through `app.config.update()`.
 - Flask-SocketIO 5.3.6 does NOT serve a client bundle at `/socket.io/socket.io.js` (400). Live
   updates therefore use **4s polling** (`app.js` `startLive`/`startManager`); server-side

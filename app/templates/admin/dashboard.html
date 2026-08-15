@@ -1,10 +1,11 @@
 {% extends "base.html" %}
-{% block title %}Admin{% endblock %}
+{% block title %}Admin · Auction{% endblock %}
 {% block content %}
+{% from "admin/_tabs.html" import tabs %}
 <div class="page-head">
-  <h1>Admin Control Room</h1>
-  <a class="btn" href="{{ url_for('auth.link_page') }}">Link Accounts</a>
+  <h1>Admin · Auction</h1>
 </div>
+{{ tabs('auction', season_id) }}
 
 {% if not seasons %}
   <section class="card">

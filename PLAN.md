@@ -1,10 +1,10 @@
 # SCL Rebuild — Implementation Plan
 
 Status: **auction + prod import + wager platform + matches/stats + finances/vault + offline
-scorer built** — 79 tests pass (19 auction + 4 bank + 15 wager + 17 matches/stats + 21 finance
-+ 7 scorer/PDF), E2E verified.
+scorer + admin dashboard built** — 85 tests pass (19 auction + 4 bank + 15 wager + 17
+matches/stats + 21 finance + 7 scorer/PDF + 6 admin dashboard), E2E verified.
 Plans: `PROD_IMPORT_PLAN.md`, `WAGER_PLAN.md`, `MATCHES_PLAN.md`, `FINANCES_PLAN.md`,
-`OFFLINE_SCORER_PLAN.md`.
+`OFFLINE_SCORER_PLAN.md`, `ADMIN_DASHBOARD_PLAN.md`.
 See MEMORY.md for build notes and gotchas. Docs not final; rules fluid per season.
 Stack (decided): Flask + SQLite + Flask-SocketIO, server-rendered Jinja, mobile-first
 Rebuild home: this repo (`SCL-official`). Reference implementation: `../SCL` (Flask + TinyDB).
@@ -150,7 +150,9 @@ setup → phase_a_<tier>… (configured order, optional break) → break → pha
 
 ## Later increments (after auction ships)
 
-2. Admin dashboard consolidation (all domains)
+2. ✅ Admin dashboard consolidation (all domains) — **built**; plan in
+   `ADMIN_DASHBOARD_PLAN.md` (`/admin` = Overview + shared tab shell; auction control moved
+   to `/admin/auction`; single Admin nav link)
 3. ✅ Matches/seasons/players/teams stats (league table, NRR/H2H/boundaries, leaderboards) — **built**;
    plan in `MATCHES_PLAN.md` (match registry + scorer CSV import + on-demand aggregates + S1
    scorer data imported as `--phase stats`; S2 tie-breakers: NRR → H2H → boundaries)

@@ -1,9 +1,10 @@
 {% extends "base.html" %}
 {% block title %}Finances Admin{% endblock %}
 {% block content %}
+{% from "admin/_tabs.html" import tabs %}
 <div class="page-head">
   <div class="row">
-    <h1 style="margin:0">Finances &amp; Vault</h1>
+    <h1 style="margin:0">Admin · Finances &amp; Vault</h1>
     <form method="get" action="{{ url_for('admin.finances') }}" class="row">
       <select name="season" onchange="this.form.submit()">
         {% for s in seasons %}
@@ -15,6 +16,7 @@
   <p class="muted">Managers' wallets == team money. Match rewards auto-post when a match
     result is finalized; yield compounds 7%/match up to Match 12.</p>
 </div>
+{{ tabs('finances', season_id) }}
 
 {% if not seasons %}
   <div class="card"><p class="muted">Create a season first.</p></div>
@@ -131,7 +133,7 @@
     </form>
     <h2>Credit refund hint</h2>
     <p class="muted small">Unspent credits are refunded via the existing
-      <a href="{{ url_for('admin.dashboard', season=season_id) }}#bank">bank adjust</a>
+      <a href="{{ url_for('admin.auction', season=season_id) }}#bank">bank adjust</a>
       on the manager's account. Reference values below.</p>
     <div class="table-wrap">
       <table>

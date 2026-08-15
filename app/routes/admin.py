@@ -87,7 +87,16 @@ def _assignable_users():
 @admin_bp.get("")
 @login_required(role=R.ROLE_ADMIN)
 def dashboard():
-    return render_template("admin/dashboard.html", **_build_context(_season_id()))
+    """Admin overview: one place to see the whole app + jump to each section."""
+    return render_template("admin/overview.html", **_overview_context(_season_id()))
+
+
+@admin_bp.get("/auction")
+@login_required(role=R.ROLE_ADMIN)
+def auction():
+    context = _build_context(_season_id())
+    context["active_admin_tab"] = "auction"
+    return render_template("admin/dashboard.html", **context)
 
 
 @admin_bp.post("/season/create")
@@ -100,7 +109,7 @@ def season_create():
             ruleset_overrides=_ruleset_form(),
         )
         flash(f"Season '{season['name']}' created.", "success")
-        return redirect(url_for("admin.dashboard", season=season["id"]))
+        return redirect(url_for("admin.auction", season=season["id"]))
     except ValueError as exc:
         flash(str(exc), "error")
         return redirect(url_for("admin.dashboard"))
@@ -115,7 +124,7 @@ def season_ruleset(season_id):
         flash("Ruleset updated.", "success")
     except ValueError as exc:
         flash(str(exc), "error")
-    return redirect(url_for("admin.dashboard", season=season_id))
+    return redirect(url_for("admin.auction", season=season_id))
 
 
 def _ruleset_form():
@@ -172,7 +181,7 @@ def player_add(season_id):
         flash("Player added.", "success")
     except ValueError as exc:
         flash(str(exc), "error")
-    return redirect(url_for("admin.dashboard", season=season_id))
+    return redirect(url_for("admin.auction", season=season_id))
 
 
 @admin_bp.post("/season/<season_id>/player/<player_id>/update")
@@ -189,7 +198,7 @@ def player_update(season_id, player_id):
         flash("Player updated.", "success")
     except ValueError as exc:
         flash(str(exc), "error")
-    return redirect(url_for("admin.dashboard", season=season_id))
+    return redirect(url_for("admin.auction", season=season_id))
 
 
 @admin_bp.post("/season/<season_id>/player/<player_id>/delete")
@@ -201,7 +210,7 @@ def player_delete(season_id, player_id):
         flash("Player removed.", "success")
     except ValueError as exc:
         flash(str(exc), "error")
-    return redirect(url_for("admin.dashboard", season=season_id))
+    return redirect(url_for("admin.auction", season=season_id))
 
 
 @admin_bp.post("/season/<season_id>/team/create")
@@ -217,7 +226,7 @@ def team_create(season_id):
         flash("Team created.", "success")
     except ValueError as exc:
         flash(str(exc), "error")
-    return redirect(url_for("admin.dashboard", season=season_id))
+    return redirect(url_for("admin.auction", season=season_id))
 
 
 @admin_bp.post("/season/<season_id>/team/<team_id>/delete")
@@ -229,7 +238,7 @@ def team_delete(season_id, team_id):
         flash("Team removed.", "success")
     except ValueError as exc:
         flash(str(exc), "error")
-    return redirect(url_for("admin.dashboard", season=season_id))
+    return redirect(url_for("admin.auction", season=season_id))
 
 
 @admin_bp.post("/season/<season_id>/team/<team_id>/gift")
@@ -247,7 +256,7 @@ def team_gift(season_id, team_id):
         flash("Gift applied.", "success")
     except ValueError as exc:
         flash(str(exc), "error")
-    return redirect(url_for("admin.dashboard", season=season_id))
+    return redirect(url_for("admin.auction", season=season_id))
 
 
 @admin_bp.post("/season/<season_id>/phase")
@@ -259,7 +268,7 @@ def phase_set(season_id):
         flash("Phase changed.", "success")
     except ValueError as exc:
         flash(str(exc), "error")
-    return redirect(url_for("admin.dashboard", season=season_id))
+    return redirect(url_for("admin.auction", season=season_id))
 
 
 @admin_bp.post("/season/<season_id>/nominate")
@@ -271,7 +280,7 @@ def nominate(season_id):
         flash("Next player nominated.", "success")
     except ValueError as exc:
         flash(str(exc), "error")
-    return redirect(url_for("admin.dashboard", season=season_id))
+    return redirect(url_for("admin.auction", season=season_id))
 
 
 @admin_bp.post("/season/<season_id>/previous")
@@ -283,7 +292,7 @@ def previous(season_id):
         flash("Stepped back to previous lot.", "success")
     except ValueError as exc:
         flash(str(exc), "error")
-    return redirect(url_for("admin.dashboard", season=season_id))
+    return redirect(url_for("admin.auction", season=season_id))
 
 
 @admin_bp.post("/season/<season_id>/close")
@@ -298,7 +307,7 @@ def close_lot(season_id):
             flash("Lot closed — no bid (player stays unsold).", "info")
     except ValueError as exc:
         flash(str(exc), "error")
-    return redirect(url_for("admin.dashboard", season=season_id))
+    return redirect(url_for("admin.auction", season=season_id))
 
 
 @admin_bp.post("/season/<season_id>/complete")
@@ -310,7 +319,7 @@ def complete(season_id):
         flash("Draft completed; incomplete teams filled with penalties.", "success")
     except ValueError as exc:
         flash(str(exc), "error")
-    return redirect(url_for("admin.dashboard", season=season_id))
+    return redirect(url_for("admin.auction", season=season_id))
 
 
 @admin_bp.post("/season/<season_id>/undo")
@@ -322,7 +331,7 @@ def undo(season_id):
         flash(f"Undid '{result['action_type']}'.", "success")
     except ValueError as exc:
         flash(str(exc), "error")
-    return redirect(url_for("admin.dashboard", season=season_id))
+    return redirect(url_for("admin.auction", season=season_id))
 
 
 @admin_bp.post("/season/<season_id>/transfer")
@@ -342,7 +351,7 @@ def transfer(season_id):
         flash("Transfer completed.", "success")
     except ValueError as exc:
         flash(str(exc), "error")
-    return redirect(url_for("admin.dashboard", season=season_id))
+    return redirect(url_for("admin.auction", season=season_id))
 
 
 @admin_bp.post("/season/<season_id>/team/<team_id>/takeover")
@@ -354,7 +363,7 @@ def takeover(season_id, team_id):
         flash("Team taken over by admin.", "success")
     except ValueError as exc:
         flash(str(exc), "error")
-    return redirect(url_for("admin.dashboard", season=season_id))
+    return redirect(url_for("admin.auction", season=season_id))
 
 
 @admin_bp.post("/season/<season_id>/team/<team_id>/restore")
@@ -366,7 +375,7 @@ def restore(season_id, team_id):
         flash("Control restored to manager.", "success")
     except ValueError as exc:
         flash(str(exc), "error")
-    return redirect(url_for("admin.dashboard", season=season_id))
+    return redirect(url_for("admin.auction", season=season_id))
 
 
 @admin_bp.post("/season/<season_id>/publish")
@@ -378,7 +387,7 @@ def publish(season_id):
         flash("Season published.", "success")
     except ValueError as exc:
         flash(str(exc), "error")
-    return redirect(url_for("admin.dashboard", season=season_id))
+    return redirect(url_for("admin.auction", season=season_id))
 
 
 @admin_bp.post("/bank/adjust")
@@ -399,13 +408,89 @@ def bank_adjust():
         flash(f"Account adjusted. Liquid cash: {account['liquid_cash']}.", "success")
     except ValueError as exc:
         flash(str(exc), "error")
-    return redirect(url_for("admin.dashboard", season=_season_id()))
+    return redirect(url_for("admin.auction", season=_season_id()))
 
 
 @admin_bp.get("/season/<season_id>/state")
 @login_required(role=R.ROLE_ADMIN)
 def state_json(season_id):
     return jsonify(current_app.extensions["auction_service"].get_state(season_id))
+
+
+# ---------------------------------------------------------------------------
+# Admin overview (status cards + recent activity)
+# ---------------------------------------------------------------------------
+def _overview_context(season_id=None):
+    auction = current_app.extensions["auction_service"]
+    scorer = current_app.extensions["scorer_service"]
+    finance = current_app.extensions["finance_service"]
+    wager = current_app.extensions["wager_service"]
+    auth_svc = current_app.extensions["auth_service"]
+    db = current_app.extensions["db"]
+    seasons = auction.list_seasons()
+    context = {
+        "seasons": seasons,
+        "season_id": season_id or "",
+        "state": None,
+        "active_admin_tab": "overview",
+        "registry_count": 0, "finalized_count": 0, "pending_finance": 0,
+        "wallet_total": 0, "vault_positions": 0, "yield_progress": 0,
+        "wagers": [], "house": None,
+        "unlinked_count": 0, "linked_count": 0,
+        "recent_imports": [], "recent_actions": [], "recent_finance": [],
+    }
+    if not seasons:
+        return context
+    if season_id not in {s["id"] for s in seasons}:
+        season_id = seasons[0]["id"]
+    context["season_id"] = season_id
+
+    state = auction.get_state(season_id)
+    context["state"] = state
+    context["phase"] = state["phase"]
+    context["teams_count"] = len(state["teams"])
+    context["players_total"] = len(state["players"])
+    context["players_sold"] = sum(1 for p in state["players"] if p["status"] == "sold")
+    context["current_lot"] = state.get("current_player")
+    context["snapshots"] = state.get("snapshots") or []
+    context["recent_actions"] = auction.action_log(season_id, limit=8)
+
+    registry = scorer.list_match_registry(season_id)
+    context["registry_count"] = len(registry)
+    context["recent_imports"] = scorer.list_recent_imports(limit=8)
+    with db.read() as conn:
+        context["finalized_count"] = conn.execute(
+            "SELECT COUNT(*) FROM match_stats WHERE season_id = ?", (season_id,)).fetchone()[0]
+        context["pending_finance"] = conn.execute(
+            "SELECT COUNT(*) FROM match_stats s WHERE s.season_id = ? AND NOT EXISTS ("
+            "SELECT 1 FROM season_finance_entries e WHERE e.season_id = s.season_id "
+            "AND e.match_id = s.match_id AND e.type = 'match_reward' AND e.undone_at IS NULL)",
+            (season_id,)).fetchone()[0]
+        context["vault_positions"] = conn.execute(
+            "SELECT COUNT(*) FROM vault_positions v JOIN bank_accounts a ON a.id = v.account_id "
+            "WHERE v.season_id = ?", (season_id,)).fetchone()[0]
+        max_match = 0
+        for r in conn.execute(
+                "SELECT r.match_number, r.match_id FROM match_stats s "
+                "JOIN match_registry r ON r.match_key = s.match_key WHERE s.season_id = ?",
+                (season_id,)).fetchall():
+            text = str(r["match_number"] or r["match_id"] or "")
+            m = re.search(r"\d+", text)
+            if m and int(m.group(0)) > max_match:
+                max_match = int(m.group(0))
+        context["yield_progress"] = min(max_match, 12)  # vault yield caps at Match 12
+
+    board = finance.list_season_finances(season_id)
+    context["wallet_total"] = sum(int(r["wallet"] or 0) for r in board)
+    context["recent_finance"] = finance.list_finance_entries(season_id, limit=8)
+
+    context["wagers"] = wager.list_wagers()
+    context["house"] = wager.house_account()
+    context["unlinked_count"] = len(auth_svc.list_unlinked_users())
+    with db.read() as conn:
+        context["linked_count"] = conn.execute(
+            "SELECT COUNT(*) FROM users WHERE global_player_id IS NOT NULL").fetchone()[0]
+    return context
 
 
 # ---------------------------------------------------------------------------
@@ -456,6 +541,7 @@ def _finance_context(season_id=None):
         "max_match": max_match,
         "match_reward_amount": ruleset.match_reward_amount,
         "registry": registry,
+        "active_admin_tab": "finances",
     }
 
 

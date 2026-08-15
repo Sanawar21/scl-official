@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Admin Overview{% endblock %}
+{% block content %}
+{% from "admin/_tabs.html" import tabs %}
+<div class="page-head">
+  <h1>Admin Overview</h1>
+  <a class="btn" href="{{ url_for('viewer.home') }}">View site</a>
+</div>
+{{ tabs('overview', season_id) }}
+
+{% if not seasons %}
+  <section class="card">
+    <h2>Create your first season</h2>
+    <form method="post" action="{{ url_for('admin.season_create') }}">
+      <label>Season name <input type="text" name="name" placeholder="e.g. Season 2" required></label>
+      <button class="btn btn-primary" type="submit">Create season</button>
+    </form>
+  </section>
+{% else %}
+
+<div class="season-switch">
+  {% for s in seasons %}
+    <a class="tag {% if s.id == season_id %}tag-active{% endif %}"
+       href="{{ url_for('admin.dashboard', season=s.id) }}">{{ s.name }}</a>
+  {% endfor %}
+  <details class="inline-details">
+    <summary class="tag">+ new</summary>
+    <form method="post" action="{{ url_for('admin.season_create') }}">
+      <input type="text" name="name" placeholder="Season name" required>
+      <button class="btn btn-small" type="submit">Create</button>
+    </form>
+  </details>
+</div>
+
+<div class="grid">
+  <section class="card">
+    <h2><a href="{{ url_for('admin.auction', season=season_id) }}">Auction</a></h2>
+    <div class="team-stats">
+      <span>Phase: <strong>{{ state.phase }}</strong></span>
+      <span>Teams: <strong>{{ teams_count }}</strong></span>
+      <span>Players: <strong>{{ players_sold }}/{{ players_total }}</strong> sold</span>
+    </div>
+    {% if current_lot %}
+      <p class="muted small">Current lot: {{ current_lot.name }} ({{ current_lot.tier }})
+        · bid {{ current_lot.current_bid }}</p>
+    {% endif %}
+    {% if snapshots %}
+      <p class="muted small">Published: {{ snapshots[0].name or snapshots[0].id }}</p>
+    {% endif %}
+    <p class="small"><a href="{{ url_for('admin.auction', season=season_id) }}">Open auction control →</a></p>
+  </section>
+
+  <section class="card">
+    <h2><a href="{{ url_for('matches.admin_scorer', season=season_id) }}">Matches</a></h2>
+    <div class="team-stats">
+      <span>Registry: <strong>{{ registry_count }}</strong></span>
+      <span>Finalized: <strong>{{ finalized_count }}</strong></span>
+      <span>Pending finance: <strong>{{ pending_finance }}</strong></span>
+    </div>
+    <p class="small"><a href="{{ url_for('matches.league_table', season=season_id) }}">League table →</a> ·
+      <a href="{{ url_for('matches.admin_scorer', season=season_id) }}">Scorer admin →</a></p>
+  </section>
+
+  <section class="card">
+    <h2><a href="{{ url_for('admin.finances', season=season_id) }}">Finances</a></h2>
+    <div class="team-stats">
+      <span>Team wallets: <strong>{{ wallet_total }}</strong></span>
+      <span>Vault positions: <strong>{{ vault_positions }}</strong></span>
+      <span>Yield: <strong>{{ yield_progress }}/12</strong> matches</span>
+    </div>
+    <p class="small"><a href="{{ url_for('admin.finances', season=season_id) }}">Finance admin →</a></p>
+  </section>
+
+  <section class="card">
+    <h2><a href="{{ url_for('wagers.admin') }}">Wagers</a></h2>
+    <div class="team-stats">
+      <span>Open: <strong>{{ wagers | selectattr('status', 'in', ['proposed', 'calibrating', 'active', 'frozen']) | list | length }}</strong></span>
+      <span>Resolved: <strong>{{ wagers | selectattr('status', 'equalto', 'resolved') | list | length }}</strong></span>
+      {% if house %}<span>House: <strong>{{ house.liquid_cash }}</strong></span>{% endif %}
+    </div>
+    <p class="small"><a href="{{ url_for('wagers.admin') }}">Wager admin →</a></p>
+  </section>
+
+  <section class="card">
+    <h2><a href="{{ url_for('auth.link_page') }}">Accounts</a></h2>
+    <div class="team-stats">
+      <span>Unlinked signups: <strong>{{ unlinked_count }}</strong></span>
+      <span>Linked players: <strong>{{ linked_count }}</strong></span>
+    </div>
+    <p class="small"><a href="{{ url_for('auth.link_page') }}">Link accounts →</a></p>
+  </section>
+</div>
+
+<section class="card">
+  <h2>Recent activity</h2>
+  <ul class="feed">
+    {% for item in recent_finance %}
+      <li><b>{{ item.label }}</b> {{ item.summary }} — {{ item.amount }}
+        <span class="muted">{{ item.created_at[:16] }}</span></li>
+    {% endfor %}
+    {% for imp in recent_imports %}
+      <li><b>Import {{ imp.match_id }}</b> {{ imp.team_rows }} teams / {{ imp.player_rows }} players
+        <span class="muted">{{ imp.uploaded_at[:16] }}</span></li>
+    {% endfor %}
+    {% for a in recent_actions %}
+      <li><b>{{ a.action_type }}</b> by {{ a.actor }}
+        <span class="muted">{{ a.created_at[:16] }}</span></li>
+    {% endfor %}
+    {% if not recent_finance and not recent_imports and not recent_actions %}
+      <li class="muted">No activity yet.</li>
+    {% endif %}
+  </ul>
+</section>
+
+{% endif %}
+{% endblock %}
