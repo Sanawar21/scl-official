@@ -405,6 +405,19 @@ Key mechanics:
 - Margin math uses **exact** run/ball totals (not the 2dp-rounded `nrr_display`); NRR for
   comparisons is computed from raw aggregates.
 
+## Reference docs + demo env — DONE (2026-08-15)
+
+- `docs/ADMIN_REFERENCE.md`, `docs/PLAYER_MANAGER_REFERENCE.md`, `docs/UI_TEST_COVERAGE.md` —
+  full role guides + what the 65-test e2e suite covers.
+- `scripts/seed_demo.py` — self-serve demo (fresh `data/demo.db`, real DB never touched):
+  season, 4 teams, 6 users, a partial auction with a live lot + real bids, wagers across
+  the lifecycle, vault positions, one finalized match, published snapshot. Logins all
+  `demo123`. Run then `SCL_DB_PATH=data/demo.db python run.py`.
+- Demo gotchas: manager players must be marked `sold` to their own team before the auction
+  (else `nominate_next` picks them); phases are `phase_a_<tier>`, not `platinum`; team
+  credits are per-tier (a platinum manager team starts with 5 credits — 3 spent on a
+  platinum buy leaves 2, so later platinum bids fail).
+
 ## Ball-by-ball match view — DONE (2026-08-15)
 
 `/matches/<season>/<match>/balls` — play-by-play from the stored `delivery_log`: innings tabs

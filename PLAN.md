@@ -194,6 +194,16 @@ verified before the next):
 ⚠ Data-parity rule (user requirement): every data point visible today stays visible in the
 redesign — audit table in FRONTEND_PLAN.md.
 
+## Reference docs + demo environment — DONE (2026-08-15)
+
+`docs/ADMIN_REFERENCE.md` (every admin surface + workflows), `docs/PLAYER_MANAGER_REFERENCE.md`
+(account/vault/wagers/manager hub + money model), `docs/UI_TEST_COVERAGE.md` (what the 65
+Playwright e2e tests cover). `scripts/seed_demo.py` builds a fresh `data/demo.db` (real DB
+never touched) with a season, 4 teams, 6 users, a partial auction with a live lot + real
+bids, wagers across the lifecycle, vault positions, one finalized match, and a published
+snapshot — so anyone can click through every surface. Verified: all 21 public/role pages
+render on the demo DB; full suite 164 green.
+
 ## Qualification scenarios + NRR predictor — DONE (2026-08-15)
 
 Ported the standalone `scl-nrr-calc` tool into `app/services/scenario_service.py` (plan:

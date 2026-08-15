@@ -2,7 +2,23 @@
 
 Read this first in a new session, then `MEMORY.md` (living context + gotchas) and `PLAN.md`
 (feature plan). Last updated 2026-08-15 at the end of the session that shipped the
-**qualification scenarios + NRR predictor** (164 tests).
+**reference docs + demo environment** (164 tests).
+
+## Reference docs + demo/test environment — DONE (2026-08-15)
+
+- `docs/ADMIN_REFERENCE.md` — every admin surface (overview, auction control + ruleset,
+  scorer admin + registry/import, finance admin + vault, wager admin lifecycle, account
+  linking, bank adjust) with exact routes + typical workflows.
+- `docs/PLAYER_MANAGER_REFERENCE.md` — account/wallet, vault, wagers (propose/stake/
+  lifecycle), manager dashboard (bidding, trades), money model.
+- `docs/UI_TEST_COVERAGE.md` — what the 65-test Playwright e2e suite covers per area and
+  how to run/extend it.
+- `scripts/seed_demo.py` — self-serve demo env: builds a FRESH `data/demo.db` (real DB never
+  touched) with a season, 4 teams, 6 users, a partial auction with real bids + one live lot,
+  wagers across the lifecycle, vault positions, one finalized match, and a published
+  snapshot. Logins: `admin`/`ayaan`/`bilal`/`cyrus`/`dania`/`farah`/`gul`, password `demo123`.
+  Run: `./.venv/Scripts/python.exe scripts/seed_demo.py` then
+  `SCL_DB_PATH=data/demo.db ./.venv/Scripts/python.exe run.py`.
 
 ## Quickstart
 
