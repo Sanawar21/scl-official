@@ -99,6 +99,8 @@ Update this file whenever you learn something durable. Keep it current as the bu
 - [x] **Prod import (Phase 1)** — `scripts/import_prod.py` imports Season 1 (players/teams/managers/bids/snapshot) from `prod-data/` into `data/scl.db`; plan in `PROD_IMPORT_PLAN.md`
 - [x] **Increment 5 (wager platform) built and tested** — 15 new tests (34 total); plan in `WAGER_PLAN.md`
 - [x] **Matches/stats built and tested** — 17 new tests (51 total); plan in `MATCHES_PLAN.md`; S1 scorer data imported via `--phase stats`
+- [x] **Finances + Vault wiring built and tested** — 21 new tests (72 total); plan in `FINANCES_PLAN.md`; S1 finance ledger imported via `--phase finance`
+- [x] **Git repo initialized** (`git init` + regular commits), per user request (2026-08-15)
 
 ## Increment 1 — what was built (structure)
 
@@ -137,6 +139,36 @@ Update this file whenever you learn something durable. Keep it current as the bu
 - Fantasy: per-player fantasy points from the ported formula feed the leaderboards; fantasy
   *entries* (the S1 fantasy-game teams) remain out of scope (no schema).
 
+## Finances + Vault — what was built (Increment: finances)
+
+- **Wallet == purse from day one** (user decision): `create_team` opens the manager's player
+  account and credits it with the tier purse; every auction money move (gift, close, transfer,
+  trade cash, complete-draft penalty, step-back refund, delete-team zero) also adjusts the wallet
+  in the same write transaction via `bank.adjust(..., conn=conn)` — the two can never drift.
+  Undo handlers reverse the bank side too. Consequence (accepted): the wallet is spendable any
+  time, so wagers/vault-locks mid-auction shrink the bidding budget; bids/close fail on
+  `Insufficient liquid cash`.
+- **Auto-finance on match finalization** (`app/services/finance_service.py`): `on_match_finalized`
+  pays both playing teams the ruleset `match_reward_amount` (S2 default 200) + catches up vault
+  yield through the current finalized-match count (cap 12). Hooked into the admin scorer import +
+  walkover routes (not the scorer service). `process_pending` is the backfill button.
+- **Yield loop fix (correctness)**: `apply_match_yield` now uses running totals per step so
+  compounding builds 2000→2140→2290→2450→2622 (previously it re-read the stale row and applied
+  7% of the original principal each step → 2560). The docs' table proved the fix.
+- **M12 unlock**: `bank.unlock_vault(season_id, force=False)` moves locked→liquid, flags the
+  position, logs `vault_unlock`; guarded by ≥12 finalized matches (force checkbox bypasses).
+- **Finance ledger** `season_finance_entries`: match rewards, adjusts (fines/umpire duty),
+  transfers (from/to + both wallets), one-step undo (reverses delta, marks `undone_at`,
+  no cascade). Written atomically with `bank_transactions`.
+- **No credit-refund feature** (user decision): admin uses the existing bank adjust + comment;
+  `/admin/finances` shows a per-team `credits_remaining × rate` **hint table**.
+- **Routes**: `/admin/finances` (adjust/transfer forms, process-pending, yield, unlock, ledger +
+  undo, credit hint); public `/finances[/<season>]` (Budget Board + ledger, nav link); `/account`
+  shows per-season match progress + unlocked badge + "your team == wallet" note.
+- **Import Phase 3** (`--phase finance`): 44 ledger rows verbatim + purse-chain cross-check
+  (exit 2 on drift; final purses 2285/1145/2885/1365) + wallet seed (`purse` tx "Season 1 final
+  purse"). `--phase all` = core + stats + finance.
+
 ## Wager platform — what was built (Increment 5)
 
 - `wagers` + `wager_bets` tables; `app/services/wager_service.py`; `app/routes/wagers.py`; templates
@@ -158,6 +190,21 @@ Update this file whenever you learn something durable. Keep it current as the bu
   money atomically with another table's write, pass the caller's `conn` into
   `bank_service.adjust(..., conn=conn)` / `get_or_create_account(..., conn=conn)` (added for the
   wager service; `conn=None` keeps old behavior).
+- **S1 finance purses are history, not a replay target** — the 44 transactions end at
+  purse_remaining per team, but mid-season purses go negative; wallets are **seeded** with the
+  final purse, never replayed through `bank.adjust` (that would overdraft-raise).
+- **Transfer rows carry the purse on both sides** (`from_after_purse`/`to_after_purse`); a
+  team's *last* ledger row may be a transfer, so the terminal-value cross-check must track all
+  three fields (the original check only looked at `after_purse` on `team_id` rows and wrongly
+  flagged Naan CC 2795 vs 1145).
+- **Import cross-checks exit 2, not 1** — `main()` returns 2 for data drift (SystemExit from a
+  string is 1, which is a script error). When re-verifying, rebuild fresh: `rm data/scl.db &&
+  --phase all` (a failed run still commits its writes, so `--force` re-runs duplicate rows).
+- **`apply_match_yield` must compound within one call** — running totals per step; re-reading the
+  position row between steps (or reading `position["locked_capital"]` from the fetched row)
+  silently breaks compounding.
+- **`process_pending` returns only matches where something happened** (reward or yield applied) so
+  the backfill button shows meaningful counts and re-runs report nothing.
 - `app.config.from_object(dict)` does NOT work — dicts must go through `app.config.update()`.
 - Flask-SocketIO 5.3.6 does NOT serve a client bundle at `/socket.io/socket.io.js` (400). Live
   updates therefore use **4s polling** (`app.js` `startLive`/`startManager`); server-side
@@ -175,7 +222,6 @@ Update this file whenever you learn something durable. Keep it current as the bu
 
 ## Still to build (later increments)
 
-- Finances + Vault full UI wiring (apply-match-yield endpoint, M12 unlock) + S1 finance_transactions import
 - Offline scorer (downloadable HTML → CSV → admin import; port `scorer.html`/`scoreCard.py`)
 - Wager polish: socket updates, auto-resolve from match results; fantasy entries (S1 data exists, no schema)
 - Matches polish: `between` is a SQL keyword — quoted in schema/service/import; keep that in mind if adding columns

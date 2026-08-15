@@ -1,8 +1,8 @@
 # SCL Rebuild — Implementation Plan
 
-Status: **auction + prod import + wager platform + matches/stats built** —
-51 tests pass (19 auction + 4 bank + 15 wager + 17 matches/stats), E2E verified.
-Plans: `PROD_IMPORT_PLAN.md`, `WAGER_PLAN.md`, `MATCHES_PLAN.md`.
+Status: **auction + prod import + wager platform + matches/stats + finances/vault built** —
+72 tests pass (19 auction + 4 bank + 15 wager + 17 matches/stats + 21 finance), E2E verified.
+Plans: `PROD_IMPORT_PLAN.md`, `WAGER_PLAN.md`, `MATCHES_PLAN.md`, `FINANCES_PLAN.md`.
 See MEMORY.md for build notes and gotchas. Docs not final; rules fluid per season.
 Stack (decided): Flask + SQLite + Flask-SocketIO, server-rendered Jinja, mobile-first
 Rebuild home: this repo (`SCL-official`). Reference implementation: `../SCL` (Flask + TinyDB).
@@ -150,7 +150,9 @@ setup → phase_a_<tier>… (configured order, optional break) → break → pha
 3. ✅ Matches/seasons/players/teams stats (league table, NRR/H2H/boundaries, leaderboards) — **built**;
    plan in `MATCHES_PLAN.md` (match registry + scorer CSV import + on-demand aggregates + S1
    scorer data imported as `--phase stats`; S2 tie-breakers: NRR → H2H → boundaries)
-4. Finances + Vault full UI (7%/match, harvest, M12 unlock)
+4. ✅ Finances + Vault full UI (7%/match, harvest, M12 unlock, auto rewards on match
+   finalization, ledger + undo) — **built**; plan in `FINANCES_PLAN.md` (wallet == team purse
+   from creation; `/admin/finances` + public `/finances[/<season>]`; S1 `--phase finance` import)
 5. ✅ Wager app (yes/no pools, calibration, house injection, veto, voided refunds) — **built**;
    plan + payout model in `WAGER_PLAN.md` (pooled Yes/No AMM on the central bank: propose →
    blind-estimate calibration → solvency veto → peer phase → house injection/guarantee →

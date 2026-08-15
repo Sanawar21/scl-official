@@ -1,8 +1,8 @@
 # SCL Rebuild — Session Resume Handoff
 
 Read this first in a new session, then `MEMORY.md` (living context + gotchas) and `PLAN.md`
-(feature plan). Last updated 2026-08-14 at the end of the session that built the matches/stats
-increment.
+(feature plan). Last updated 2026-08-15 at the end of the session that built the finances/vault
+increment (and initialized the git repo).
 
 ## Quickstart
 
@@ -10,7 +10,7 @@ increment.
 ./.venv/Scripts/python.exe run.py          # start server (debug, port 10001)
 # or without reloader:
 ./.venv/Scripts/python.exe -c "from app import create_app, socketio; app = create_app(); socketio.run(app, host='0.0.0.0', port=10001, debug=False, use_reloader=False)"
-./.venv/Scripts/python.exe -m pytest tests/ -q   # 51 tests
+./.venv/Scripts/python.exe -m pytest tests/ -q   # 72 tests
 ```
 
 - App: http://127.0.0.1:10001 — admin login `admin` / `admin123` (env-overridable:
@@ -49,8 +49,17 @@ ruleset drives everything. Docs (3 PDFs, NOT final) + extracted `.txt` in the pr
 
 ### 2. Central bank + Vault
 - Per-player accounts (liquid + locked), ledger, **Vault** (7%/match, compounding default,
-  manual-harvest toggle). UI on `/account`; `apply_match_yield` exists in `bank_service` but is
-  **not yet wired to any route** (next increment).
+  manual-harvest toggle). UI on `/account` (vault positions show match progress + unlocked badge).
+- **Wallet == purse from day one**: the manager's player account IS the team's account, funded at
+  team creation; every auction money move (gift/close/transfer/trade/penalty) adjusts the wallet
+  in the same transaction. No settlement step.
+- **Finances + Vault wiring**: `apply_match_yield` now compounds per-match (2000→2140→2290→2450→2622),
+  `unlock_vault` (M12, force-able), `FinanceService` auto-pays both playing teams the ruleset
+  `match_reward_amount` on match finalization + catches up yield, `process_pending` backfill,
+  manual adjust/transfer with a ledger, one-step undo. Plan: `FINANCES_PLAN.md`.
+- **Admin**: `/admin/finances` (adjust/transfer, process-pending, yield, unlock, ledger + undo,
+  credit-refund hint table). **Public**: `/finances[/<season>]` Budget Board + ledger (nav link).
+- **No credit-refund feature**: admin bank adjust + comment is the mechanism (per user decision).
 
 ### 3. Prod import (`scripts/import_prod.py`)
 - `--phase core` (default): global players, Season 1 + S1 ruleset, players, teams, manager users
@@ -59,7 +68,10 @@ ruleset drives everything. Docs (3 PDFs, NOT final) + extracted `.txt` in the pr
 - `--phase stats`: match registry (13), match stats (13, incl. M6 walkover), team rows (26),
   player rows (93), `teams.global_team_id` backfill (4), and a **league-table cross-check against
   the old deployed aggregates** (exits 2 on mismatch; currently clean).
-- Phases 3–4 (finance transactions, fantasy) not yet implemented — see `PROD_IMPORT_PLAN.md`.
+- `--phase finance`: the 44 S1 finance_transactions as ledger rows + purse-chain cross-check
+  (final purses 2285/1145/2885/1365; exit 2 on drift) + **manager wallet seed** with the final
+  purse. `--phase all` = core + stats + finance. Rebuild fresh (`rm data/scl.db && --phase all`)
+  when re-verifying — a failed run still commits, and `--force` re-runs duplicate rows.
 
 ### 4. Wager platform
 - Full protocol: propose + first stake → blind-estimate **calibration** (consensus = average) →
@@ -103,20 +115,23 @@ app/
     wager_service.py        wager lifecycle + proportional/house-guarantee payout
     scorer_service.py       registry, CSV import, walkover, league table, leaderboards,
                             summaries, profiles
+    finance_service.py      season finance: match rewards, adjust/transfer, ledger, undo,
+                            process_pending, credit hint (wallet == team purse)
   routes/
     auth.py                 /auth/login|logout|signup, /auth/admin/link...
-    admin.py                /admin control room + bank adjust
+    admin.py                /admin control room + bank adjust + /admin/finances
     manager.py              /manager dashboard + bid|pass|trade JSON
     viewer.py               /, /live, /api/state, /season/<slug>
     banking.py              /account (balances, vault lock, reinvest, deposit)
     wagers.py               /wagers board|detail|admin
-    matches.py              /matches, /table, /leaderboards, /teams, /players, /admin/scorer
+    matches.py              /matches, /table, /leaderboards, /teams, /players, /admin/scorer,
+                            /finances[/<season>]
   templates/                base.html + viewer/, admin/, manager/, auth/, banking/, wagers/, matches/,
                             teams/, players/
   static/css/app.css        dark mobile-first theme (.card/.table-wrap/.tag/.chip/.feed/.grid…)
   static/js/app.js          live board via 4s polling of /api/state
 tests/                      conftest.py (_setup helper) + test_auction (16), test_bank (4),
-                            test_wager (15), test_matches (17) — 51 total
+                            test_wager (15), test_matches (17), test_finance (21) — 72 total
 ```
 
 ## Conventions & gotchas (also in MEMORY.md — do not rediscover)
@@ -142,10 +157,9 @@ tests/                      conftest.py (_setup helper) + test_auction (16), tes
 
 ## Remaining increments (in PLAN.md)
 
-1. **Finances + Vault wiring** — the natural next step. `apply_match_yield` exists but has no
-   route; need Match-12 unlock (locked → liquid), unspent-credit refund (ruleset rate → player
-   accounts), ticket/fine/boost ledger entries, and the S1 44 finance-transactions import
-   (import Phase 3). Match registry (just built) is what per-match revenue hangs on.
+1. ✅ **Finances + Vault wiring — built.** Auto match rewards + yield on finalization,
+   M12 unlock, ledger + undo, S1 `--phase finance` import, `/admin/finances` + public
+   `/finances[/<season>]`. Plan: `FINANCES_PLAN.md`.
 2. **Offline scorer** — port `../SCL/scorer.html` (standalone mobile HTML → ball-by-ball CSV →
    admin import) and `scoreCard.py` (CSV → PDF scorecard).
 3. **Admin dashboard consolidation** — admin pages split across auction / wagers / scorer / link;
@@ -156,9 +170,12 @@ tests/                      conftest.py (_setup helper) + test_auction (16), tes
 
 ## Handoff state at session end
 
-- 51/51 tests green; E2E verified: S1 league table matches old deployed numbers exactly (MHK 1st,
-  Quadra 2nd, Naan CC 3rd, Pandiya 4th), leaderboards show real S1 leaders, all pages render,
-  admin import/overwrite/undo flow works against the real DB.
+- 72/72 tests green; E2E verified: full `--phase all` import clean (league table matches old
+  aggregates; finance cross-check clean), manager wallets == final purses
+  (2285/1145/2885/1365), `/finances`, `/finances/season-1`, `/admin/finances` all render with
+  the 44-row S1 ledger, adjust/transfer/undo flows work against a DB copy.
+- Git: repo initialized at `SCL-official`, commits made per increment — commit after each
+  milestone from now on (user request).
 - ⚠ Restart the stale server on port 10001 (old code) before browser-verifying new routes.
 - `PLAN.md` + `MEMORY.md` + this file are the source of truth; per-increment plans in
-  `PROD_IMPORT_PLAN.md`, `WAGER_PLAN.md`, `MATCHES_PLAN.md`.
+  `PROD_IMPORT_PLAN.md`, `WAGER_PLAN.md`, `MATCHES_PLAN.md`, `FINANCES_PLAN.md`.

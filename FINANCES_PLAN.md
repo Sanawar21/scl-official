@@ -13,9 +13,11 @@ exist but nothing triggers match finance or season settlement. User decisions (2
 - **No separate credit-refund feature.** Admin adds balance to the manager's account from the
   existing dashboard bank-adjust and comments "this is for the credit saved".
 
-Status: **planned**. Docs: `MEMORY.md`, `RESUME.md`, `PLAN.md`, `PROD_IMPORT_PLAN.md` (Phase 3
-deferred here). Old-app finance code: `../SCL/app/routes/admin.py` (`finances_adjust` /
-`finances_transfer`, ~735–860), `../SCL/app/routes/landing.py` (`/finances` read-only board).
+Status: **built & shipped (2026-08-15)** — 21 new tests (72 total), full suite green,
+`--phase all` import clean, E2E verified against `data/scl.db`. Docs: `MEMORY.md`, `RESUME.md`,
+`PLAN.md`. Old-app finance code (for reference): `../SCL/app/routes/admin.py`
+(`finances_adjust`/`finances_transfer`, ~735–860), `../SCL/app/routes/landing.py`
+(`/finances` read-only board).
 
 ---
 
