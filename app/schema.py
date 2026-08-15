@@ -70,7 +70,6 @@ CREATE TABLE IF NOT EXISTS teams (
   name TEXT NOT NULL,
   manager_player_id TEXT,
   manager_tier TEXT NOT NULL DEFAULT 'silver',
-  purse_remaining INTEGER NOT NULL DEFAULT 0,
   spent INTEGER NOT NULL DEFAULT 0,
   credits_remaining INTEGER NOT NULL DEFAULT 0,
   players TEXT NOT NULL DEFAULT '[]',

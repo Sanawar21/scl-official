@@ -80,6 +80,10 @@ class Database:
         ("vault_positions", "unlocked_at", "ALTER TABLE vault_positions ADD COLUMN unlocked_at TEXT"),
         ("rulesets", "match_reward_amount", "ALTER TABLE rulesets ADD COLUMN match_reward_amount INTEGER NOT NULL DEFAULT 200"),
     )
+    # Column drops for existing DBs (schema.py already omits them).
+    _DROP_MIGRATIONS = (
+        ("teams", "purse_remaining"),
+    )
 
     def bootstrap(self):
         with self._lock:
@@ -91,6 +95,10 @@ class Database:
                     cols = {row[1] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
                     if column not in cols:
                         conn.execute(ddl)
+                for table, column in self._DROP_MIGRATIONS:
+                    cols = {row[1] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+                    if column in cols:
+                        conn.execute(f"ALTER TABLE {table} DROP COLUMN {column}")
                 conn.commit()
             finally:
                 conn.close()

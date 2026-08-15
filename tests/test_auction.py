@@ -19,11 +19,11 @@ def test_season_defaults_are_s2(app, svc):
 def test_create_team_purse_credits_from_manager_profile(app, svc):
     season, players, teams = _setup(app)
     by_name = {t["name"]: t for t in teams}
-    # Platinum manager (Alice) -> 9000 purse, 8-3=5 credits
-    assert by_name["Thunder"]["purse_remaining"] == 9000
+    # Platinum manager (Alice) -> 9000 purse (wallet), 8-3=5 credits
+    assert by_name["Thunder"]["wallet"] == 9000
     assert by_name["Thunder"]["credits_remaining"] == 5
-    # Gold manager (Bob) -> 10000 purse, 8-2=6 credits
-    assert by_name["Blaze"]["purse_remaining"] == 10000
+    # Gold manager (Bob) -> 10000 purse (wallet), 8-2=6 credits
+    assert by_name["Blaze"]["wallet"] == 10000
     assert by_name["Blaze"]["credits_remaining"] == 6
 
 
@@ -41,11 +41,11 @@ def test_add_update_player_before_auction(app, svc):
 def test_gift_team_and_undo(app, svc):
     season, _, teams = _setup(app)
     team = teams[0]
-    before = svc._get_team(season["id"], team["id"])["purse_remaining"]
+    before = svc._get_team(season["id"], team["id"])["wallet"]
     svc.gift_team(season["id"], team["id"], 500, "add", comment="balance skill gap")
-    assert svc._get_team(season["id"], team["id"])["purse_remaining"] == before + 500
+    assert svc._get_team(season["id"], team["id"])["wallet"] == before + 500
     svc.undo_last_action(season["id"])
-    assert svc._get_team(season["id"], team["id"])["purse_remaining"] == before
+    assert svc._get_team(season["id"], team["id"])["wallet"] == before
 
 
 # ---------------------------------------------------------------------------
@@ -91,7 +91,7 @@ def test_close_lot_and_undo_sale(app, svc):
     player = svc._get_player(sid, players[0]["id"])
     assert player["status"] == "sold" and player["sold_price"] == 3000
     team = svc._get_team(sid, thunder["id"])
-    assert team["purse_remaining"] == 9000 - 3000
+    assert team["wallet"] == 9000 - 3000
     assert players[0]["id"] in team["players"]
 
     # Undo the sale: refund, reopen lot.
@@ -99,7 +99,7 @@ def test_close_lot_and_undo_sale(app, svc):
     player = svc._get_player(sid, players[0]["id"])
     assert player["status"] == "unsold" and player["sold_price"] == 0
     team = svc._get_team(sid, thunder["id"])
-    assert team["purse_remaining"] == 9000
+    assert team["wallet"] == 9000
     state = svc.get_state(sid)
     assert state["current_player"]["id"] == players[0]["id"]
 
@@ -181,11 +181,11 @@ def test_trade_during_break_with_cash(app, svc):
     req = svc.request_trade(sid, teams[0]["id"], teams[1]["id"], offered, cash_from_target=500)
     svc.respond_trade(sid, req["id"], teams[1]["id"], "accept")
     assert svc._get_player(sid, offered)["sold_to_team_id"] == teams[1]["id"]
-    assert svc._get_team(sid, teams[1]["id"])["purse_remaining"] == 10000 - 500
+    assert svc._get_team(sid, teams[1]["id"])["wallet"] == 10000 - 500
     # Undo the accepted trade.
     svc.undo_last_action(sid)
     assert svc._get_player(sid, offered)["sold_to_team_id"] == teams[0]["id"]
-    assert svc._get_team(sid, teams[1]["id"])["purse_remaining"] == 10000
+    assert svc._get_team(sid, teams[1]["id"])["wallet"] == 10000
 
 
 # ---------------------------------------------------------------------------
@@ -242,13 +242,13 @@ def test_admin_transfer_after_completion(app, svc):
     svc.admin_transfer(sid, team_to=teams[1]["id"], player_id=alice_id,
                        team_from=teams[0]["id"], price=1000, credits=1, note="balance")
     assert svc._get_player(sid, alice_id)["sold_to_team_id"] == teams[1]["id"]
-    assert svc._get_team(sid, teams[1]["id"])["purse_remaining"] == t1_before["purse_remaining"] - 1000
-    assert svc._get_team(sid, teams[0]["id"])["purse_remaining"] == t0_before["purse_remaining"] + 1000
+    assert svc._get_team(sid, teams[1]["id"])["wallet"] == t1_before["wallet"] - 1000
+    assert svc._get_team(sid, teams[0]["id"])["wallet"] == t0_before["wallet"] + 1000
     assert svc._get_team(sid, teams[1]["id"])["credits_remaining"] == t1_before["credits_remaining"] - 1
     # Undo the transfer.
     svc.undo_last_action(sid)
     assert svc._get_player(sid, alice_id)["sold_to_team_id"] == teams[0]["id"]
-    assert svc._get_team(sid, teams[0]["id"])["purse_remaining"] == t0_before["purse_remaining"]
+    assert svc._get_team(sid, teams[0]["id"])["wallet"] == t0_before["wallet"]
     assert svc._get_team(sid, teams[1]["id"])["credits_remaining"] == t1_before["credits_remaining"]
 
 

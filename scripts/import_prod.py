@@ -184,16 +184,18 @@ def import_core(db: Database, data_dir: Path) -> dict:
                 ),
             )
 
-        # 4. teams (final purses already include all season finance transactions)
+        # 4. teams (final purses already include all season finance transactions;
+        #    the purse lives in the manager's bank account now, seeded by the
+        #    finance phase from the source JSON)
         for t in teams:
             conn.execute(
                 "INSERT INTO teams (id, season_id, name, manager_player_id, manager_tier, "
-                "purse_remaining, spent, credits_remaining, players, bench, is_active, "
-                "control_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'manager_controlled')",
+                "spent, credits_remaining, players, bench, is_active, "
+                "control_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'manager_controlled')",
                 (
                     t["id"], SEASON_ID, t["name"], t.get("manager_global_player_id"),
                     t.get("manager_tier") or "silver",
-                    int(t.get("purse_remaining") or 0), int(t.get("spent") or 0),
+                    int(t.get("spent") or 0),
                     int(t.get("credits_remaining") or 0),
                     json_dumps(t.get("players") or []), json_dumps(t.get("bench") or []),
                 ),
@@ -506,12 +508,13 @@ def import_finance(db: Database, data_dir: Path) -> dict:
                         mismatches.append(
                             f"{r.get('comment','?')}: to expected {expected} got {actual}")
 
-        # 3. Terminal-value check: last after_wallet per team == teams.purse_remaining.
-        #    Transfers move money between two teams, so both sides carry a purse
-        #    (from_after_purse / to_after_purse) — the last row touching a team,
-        #    whatever its side, determines its final purse.
-        teams_by_id = {t["id"]: dict(t) for t in conn.execute(
-            "SELECT * FROM teams WHERE season_id = ?", (SEASON_ID,)).fetchall()}
+        # 3. Terminal-value check: last after_wallet per team == final purse from
+        #    the source JSON (the teams table no longer stores a purse — the
+        #    manager's wallet is the purse). Transfers move money between two
+        #    teams, so both sides carry a purse (from_after_purse /
+        #    to_after_purse) — the last row touching a team, whatever its side,
+        #    determines its final purse.
+        source_teams = {t["id"]: t for t in _tiny_rows(season_file, "teams")}
         last_after = {}
         for r in finance_rows:
             typ = (r.get("type") or "").strip().lower()
@@ -524,19 +527,18 @@ def import_finance(db: Database, data_dir: Path) -> dict:
                 if r.get("to_team_id"):
                     last_after[r["to_team_id"]] = r.get("to_after_purse")
         for tid, last in last_after.items():
-            team = teams_by_id.get(tid)
-            if team and int(last) != int(team["purse_remaining"]):
+            team = source_teams.get(tid)
+            if team and int(last) != int(team.get("purse_remaining") or 0):
                 mismatches.append(
-                    f"{team['name']}: final ledger {last} != purse_remaining {team['purse_remaining']}")
+                    f"{team.get('name','?')}: final ledger {last} != "
+                    f"source purse {team.get('purse_remaining')}")
 
-        # 4. Seed manager wallets with the final purse.
-        for t_row in conn.execute(
-                "SELECT * FROM teams WHERE season_id = ?", (SEASON_ID,)).fetchall():
-            t = dict(t_row)
-            manager = (t.get("manager_player_id") or "").strip()
+        # 4. Seed manager wallets with the final purse (from the source JSON).
+        for tid, t in source_teams.items():
+            manager = (t.get("manager_global_player_id") or "").strip()
             if not manager:
                 continue
-            purse = int(t.get("purse_remaining", 0) or 0)
+            purse = int(t.get("purse_remaining") or 0)
             account = bank.get_or_create_account("player", manager, conn=conn)
             bank.adjust(account["id"], purse, "Season 1 final purse",
                         tx_type="purse", conn=conn)

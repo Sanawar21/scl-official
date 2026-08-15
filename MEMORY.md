@@ -220,14 +220,19 @@ Update this file whenever you learn something durable. Keep it current as the bu
 - Note: `python run.py` runs with debug/reloader (reference-app style); `emit_state` needs the
   app context of the running socketio server to broadcast (routes call it after mutations).
 
-## Balance reset (2026-08-15)
+## Balance reset + purse removal (2026-08-15)
 
-- User reset team account balances to 0 to bring in the new economic system ("every player gets
-  an amount later; managers may get more for the auction"). Applied to `data/scl.db`.
-- Tool: `scripts/reset_balances.py` (dry-run by default, `--yes` writes). Zeroes wallet + purse in
-  lockstep per team, keeps all history, appends a `balance_reset` bank_transaction per account.
-- ⚠ When granting auction money later, the **purse must move in lockstep with the wallet**
-  (wallet-only bank adjust leaves `purse_remaining` at 0 → bids fail on "Not enough purse").
+- User reset team account balances to 0 for the new economic system ("every player gets an
+  amount later; managers may get more for the auction"). Applied to `data/scl.db`.
+- Tool: `scripts/reset_balances.py` (dry-run by default, `--yes` writes). Zeroes each team's
+  wallet, keeps all history, appends a `balance_reset` bank_transaction per account.
+- **`teams.purse_remaining` dropped** (user: "no need for a purse field; the team purse is what
+  the manager has in his wallet"). The **wallet is now the single source of truth** for all team
+  money — auctions, transfers, finance board, dashboard all read/write `bank_accounts` directly.
+  Granting money = one `bank.adjust`; nothing to keep in lockstep anymore.
+- Drop migration lives in `db.bootstrap()` (`_MIGRATIONS`); the import script reads expected
+  purses from the **source JSON** (no purse column left in the teams table); `public_budget_board`
+  keeps the `purse_remaining` *key* in its payload for snapshot compat, value = wallet balance.
 
 ## Still to build (later increments)
 

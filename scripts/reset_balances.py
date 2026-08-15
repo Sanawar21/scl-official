@@ -1,11 +1,12 @@
 """Reset team account balances to zero (new economic system).
 
-The manager's player account IS the team's money (wallet == purse_remaining by
-design), so the reset zeroes both in lockstep, per team. History is preserved:
-existing `bank_transactions` and `season_finance_entries` rows stay; each reset
-appends one `balance_reset` transaction per account documenting old -> new.
+The manager's player account IS the team's money (the team purse IS the wallet,
+no separate teams.purse_remaining column), so the reset zeroes each manager's
+wallet. History is preserved: existing `bank_transactions` and
+`season_finance_entries` rows stay; each reset appends one `balance_reset`
+transaction per account documenting old -> new.
 
-Nothing is zeroed if the wallet and purse are already both 0 (idempotent).
+Nothing is zeroed if the wallet is already 0 (idempotent).
 
 Usage:
     ./.venv/Scripts/python.exe scripts/reset_balances.py --db data/scl.db --yes
@@ -31,12 +32,12 @@ def _now() -> str:
 
 
 def collect(db: Database) -> list:
-    """Return team rows needing a reset: manager, purse, wallet, locked."""
+    """Return team rows needing a reset: manager, wallet, locked."""
     bank = BankService(db)
     rows = []
     with db.read() as conn:
         teams = conn.execute(
-            "SELECT id, name, manager_player_id, purse_remaining FROM teams "
+            "SELECT id, name, manager_player_id FROM teams "
             "ORDER BY name").fetchall()
         for t in teams:
             manager = (t["manager_player_id"] or "").strip()
@@ -46,7 +47,6 @@ def collect(db: Database) -> list:
             rows.append({
                 "team_id": t["id"],
                 "team_name": t["name"],
-                "purse": int(t["purse_remaining"] or 0),
                 "wallet": int(account["liquid_cash"]) if account else 0,
                 "locked": int(account["locked_capital"]) if account else 0,
                 "account_id": account["id"] if account else None,
@@ -59,7 +59,7 @@ def apply_reset(db: Database, rows: list) -> dict:
     reset = []
     with db.write() as conn:
         for r in rows:
-            if r["wallet"] == 0 and r["purse"] == 0:
+            if r["wallet"] == 0 and r["locked"] == 0:
                 continue
             # Wallet -> 0 (liquid + locked; no vault positions exist in S1,
             # but keep the account clean regardless).
@@ -73,10 +73,6 @@ def apply_reset(db: Database, rows: list) -> dict:
                 if r["locked"] != 0:
                     bank._log(conn, r["account_id"], "balance_reset", -r["locked"], 0,
                               f"Vault reset (new economy); old locked {r['locked']}")
-            # Purse in lockstep.
-            if r["purse"] != 0:
-                conn.execute(
-                    "UPDATE teams SET purse_remaining = 0 WHERE id = ?", (r["team_id"],))
             reset.append({**r, "reset": True})
     return {"reset": reset, "count": len(reset)}
 
@@ -95,14 +91,13 @@ def main() -> int:
         print("No teams with managers found.")
         return 0
 
-    print("Teams that would be reset (wallet + purse -> 0):")
+    print("Teams that would be reset (wallet -> 0):")
     for r in rows:
-        if r["wallet"] == 0 and r["purse"] == 0:
+        if r["wallet"] == 0 and r["locked"] == 0:
             print(f"  {r['team_name']:<22} already 0 (skipped)")
         else:
-            print(f"  {r['team_name']:<22} purse {r['purse']:<6} wallet {r['wallet']:<6}"
-                  f" locked {r['locked']}")
-    print(f"  -> {sum(1 for r in rows if r['wallet'] or r['purse'])} account(s) to reset")
+            print(f"  {r['team_name']:<22} wallet {r['wallet']:<6} locked {r['locked']}")
+    print(f"  -> {sum(1 for r in rows if r['wallet'] or r['locked'])} account(s) to reset")
 
     if not args.yes:
         print("\nDry run — no changes written. Re-run with --yes to apply.")

@@ -30,7 +30,7 @@ def account():
     if user.get("global_player_id"):
         with db.read() as conn:
             my_team = conn.execute(
-                "SELECT id, name, season_id, purse_remaining FROM teams "
+                "SELECT id, name, season_id FROM teams "
                 "WHERE manager_player_id = ? LIMIT 1", (user["global_player_id"],)).fetchone()
     return render_template("banking/account.html", account=account,
                            vault_positions=vault_positions, seasons=seasons, txns=txns,

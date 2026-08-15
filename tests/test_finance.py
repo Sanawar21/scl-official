@@ -32,14 +32,9 @@ def scorer(app):
 
 
 def _wallet(bank, team):
-    """Manager liquid cash for a team (the team's wallet)."""
+    """Manager liquid cash for a team (the team's wallet; the purse)."""
     account = bank.account_for_owner("player", team["manager_player_id"])
     return int(account["liquid_cash"]) if account else None
-
-
-def _wallet_matches_purse(app, team):
-    bank = app.extensions["bank_service"]
-    return _wallet(bank, team) == int(team["purse_remaining"])
 
 
 # ---------------------------------------------------------------------------
@@ -129,8 +124,10 @@ def test_unlock_allowed_after_12_finalized(app, bank):
 # ---------------------------------------------------------------------------
 def test_create_team_funds_manager_wallet(app, svc):
     season, players, teams = _setup(app)
+    bank = app.extensions["bank_service"]
     for team in teams:
-        assert _wallet(app.extensions["bank_service"], team) == team["purse_remaining"]
+        # The wallet IS the purse (no separate purse_remaining field).
+        assert _wallet(bank, team) == team["wallet"]
 
 
 def test_gift_moves_wallet_and_undo_reverses(app, svc):
@@ -141,11 +138,11 @@ def test_gift_moves_wallet_and_undo_reverses(app, svc):
     svc.gift_team(season["id"], team["id"], 500, "add", comment="top up")
     team = svc._get_team(season["id"], team["id"])
     assert _wallet(bank, team) == before + 500
-    assert _wallet_matches_purse(app, team)
+    assert team["wallet"] == before + 500
     svc.undo_last_action(season["id"])
     team = svc._get_team(season["id"], team["id"])
     assert _wallet(bank, team) == before
-    assert _wallet_matches_purse(app, team)
+    assert team["wallet"] == before
 
 
 def test_close_sold_moves_wallet_and_undo_reverses(app, svc):
@@ -160,7 +157,7 @@ def test_close_sold_moves_wallet_and_undo_reverses(app, svc):
     svc.close_current(sid)
     thunder = svc._get_team(sid, thunder["id"])
     assert _wallet(bank, thunder) == before - 3000
-    assert _wallet_matches_purse(app, thunder)
+    assert thunder["wallet"] == before - 3000
     svc.undo_last_action(sid)  # undo the close
     thunder = svc._get_team(sid, thunder["id"])
     assert _wallet(bank, thunder) == before
@@ -184,7 +181,7 @@ def test_admin_transfer_moves_wallets(app, svc):
     t1 = svc._get_team(sid, teams[1]["id"])
     assert _wallet(bank, t0) == t0_wallet + 1000
     assert _wallet(bank, t1) == t1_wallet - 1000
-    assert _wallet_matches_purse(app, t0) and _wallet_matches_purse(app, t1)
+    assert t0["wallet"] == _wallet(bank, t0) and t1["wallet"] == _wallet(bank, t1)
     # Undo reverses both wallets.
     svc.undo_last_action(sid)
     t0 = svc._get_team(sid, teams[0]["id"])
@@ -402,7 +399,7 @@ def test_s1_finance_import_cross_check_and_wallet_seed(app, tmp_path):
         n = conn.execute("SELECT COUNT(*) FROM season_finance_entries").fetchone()[0]
         assert n == 44
         teams = conn.execute(
-            "SELECT t.name, t.purse_remaining, t.manager_player_id FROM teams t "
+            "SELECT t.name, t.manager_player_id FROM teams t "
             "WHERE t.season_id = 'season-1'").fetchall()
         wallets = {}
         for t in teams:
@@ -410,10 +407,11 @@ def test_s1_finance_import_cross_check_and_wallet_seed(app, tmp_path):
                 "SELECT liquid_cash FROM bank_accounts WHERE owner_type='player' "
                 "AND owner_id = ?", (t["manager_player_id"],)).fetchone()
             wallets[t["name"]] = int(row["liquid_cash"]) if row else None
+    # Wallets are seeded with the S1 final purses (the purse IS the wallet now).
     expected = {"MHK Royales": 2285, "Naan CC": 1145,
                 "Pandiya Associates": 1365, "Quadra Nemesis": 2885}
     for name, purse in expected.items():
-        assert wallets[name] == purse, f"{name}: wallet {wallets[name]} != purse {purse}"
+        assert wallets[name] == purse, f"{name}: wallet {wallets[name]} != expected {purse}"
 
 
 # ---------------------------------------------------------------------------

@@ -75,9 +75,11 @@ See `MEMORY.md` for the living context/decisions log.
 - `players` — id, season_id, global_player_id, tier, speciality, base_price, credits,
   status (unsold/sold), sold_to_team_id, sold_price, phase_sold, current_bid, current_bidder_team_id,
   nominated flags, nomination order
-- `teams` — id, season_id, name, manager_player_id, manager_tier (from profile), purse_remaining,
-  spent, credits_remaining, players (JSON ids), bench (JSON ids), is_active,
+- `teams` — id, season_id, name, manager_player_id, manager_tier (from profile), spent,
+  credits_remaining, players (JSON ids), bench (JSON ids), is_active,
   control_status (manager_controlled / admin_takeover), takeover_reason, takeover_by, takeover_at
+  (⚠ `purse_remaining` was **dropped 2026-08-15** — the manager's wallet is the team purse, the
+  single source of truth; every money move goes through `bank_accounts`)
 - `bids` — id, ts, team_id, player_id, amount, phase, kind (bid/pass)
 - `trade_requests` — id, status, created_at, from/to team, offered/requested player, cash amounts
 - `transfers` — post-auction admin transfers: id, season_id, team_from, team_to, player_id, price,
@@ -152,7 +154,8 @@ setup → phase_a_<tier>… (configured order, optional break) → break → pha
    scorer data imported as `--phase stats`; S2 tie-breakers: NRR → H2H → boundaries)
 4. ✅ Finances + Vault full UI (7%/match, harvest, M12 unlock, auto rewards on match
    finalization, ledger + undo) — **built**; plan in `FINANCES_PLAN.md` (wallet == team purse
-   from creation; `/admin/finances` + public `/finances[/<season>]`; S1 `--phase finance` import)
+   from creation, purse column dropped; `/admin/finances` + public `/finances[/<season>]`;
+   S1 `--phase finance` import; balances reset to 0 for the new economy)
 5. ✅ Wager app (yes/no pools, calibration, house injection, veto, voided refunds) — **built**;
    plan + payout model in `WAGER_PLAN.md` (pooled Yes/No AMM on the central bank: propose →
    blind-estimate calibration → solvency veto → peer phase → house injection/guarantee →

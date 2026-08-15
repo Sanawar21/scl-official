@@ -62,7 +62,6 @@ class FinanceService:
                     "credits_remaining": int(t["credits_remaining"] or 0),
                     "players_count": len(json_loads(t["players"], [])),
                     "bench_count": len(json_loads(t["bench"], [])),
-                    "purse_remaining": int(t["purse_remaining"] or 0),
                 })
         rows.sort(key=lambda r: r["team_name"].lower())
         return rows

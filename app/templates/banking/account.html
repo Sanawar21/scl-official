@@ -16,7 +16,7 @@
     <h2>Balances</h2>
     {% if my_team %}
       <p class="muted small">You manage <b>{{ my_team.name }}</b> — your wallet is the team's
-        money (purse {{ my_team.purse_remaining }}).</p>
+        money (purse {{ account.liquid_cash }}).</p>
     {% endif %}
     <div class="balance-row">
       <div class="balance-box">

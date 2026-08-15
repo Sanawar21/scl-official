@@ -53,6 +53,10 @@ ruleset drives everything. Docs (3 PDFs, NOT final) + extracted `.txt` in the pr
 - **Wallet == purse from day one**: the manager's player account IS the team's account, funded at
   team creation; every auction money move (gift/close/transfer/trade/penalty) adjusts the wallet
   in the same transaction. No settlement step.
+- **`teams.purse_remaining` dropped (2026-08-15)**: the wallet is the single source of truth for
+  all team money — no lockstep, no dual bookkeeping. Granting money is one `bank.adjust`. The
+  drop migration is in `db.bootstrap()`; the import reads expected purses from the source JSON;
+  `public_budget_board` keeps the `purse_remaining` key (value = wallet) for snapshot compat.
 - **Finances + Vault wiring**: `apply_match_yield` now compounds per-match (2000→2140→2290→2450→2622),
   `unlock_vault` (M12, force-able), `FinanceService` auto-pays both playing teams the ruleset
   `match_reward_amount` on match finalization + catches up yield, `process_pending` backfill,
@@ -69,9 +73,10 @@ ruleset drives everything. Docs (3 PDFs, NOT final) + extracted `.txt` in the pr
   player rows (93), `teams.global_team_id` backfill (4), and a **league-table cross-check against
   the old deployed aggregates** (exits 2 on mismatch; currently clean).
 - `--phase finance`: the 44 S1 finance_transactions as ledger rows + purse-chain cross-check
-  (final purses 2285/1145/2885/1365; exit 2 on drift) + **manager wallet seed** with the final
-  purse. `--phase all` = core + stats + finance. Rebuild fresh (`rm data/scl.db && --phase all`)
-  when re-verifying — a failed run still commits, and `--force` re-runs duplicate rows.
+  (expected purses read from the **source JSON** — no purse column in the teams table anymore;
+  exit 2 on drift) + **manager wallet seed** with the final purse. `--phase all` = core + stats +
+  finance. Rebuild fresh (`rm data/scl.db && --phase all`) when re-verifying — a failed run still
+  commits, and `--force` re-runs duplicate rows.
 
 ### 4. Wager platform
 - Full protocol: propose + first stake → blind-estimate **calibration** (consensus = average) →
@@ -174,6 +179,9 @@ tests/                      conftest.py (_setup helper) + test_auction (16), tes
   aggregates; finance cross-check clean), manager wallets == final purses
   (2285/1145/2885/1365), `/finances`, `/finances/season-1`, `/admin/finances` all render with
   the 44-row S1 ledger, adjust/transfer/undo flows work against a DB copy.
+- **Balances reset to 0** on the real `data/scl.db` (user: new economic system; everyone starts
+  at 0, grants come later). History kept (44 ledger rows + `balance_reset` transactions).
+  Tool: `scripts/reset_balances.py` (dry-run default, `--yes` writes).
 - Git: repo initialized at `SCL-official`, commits made per increment — commit after each
   milestone from now on (user request).
 - ⚠ Restart the stale server on port 10001 (old code) before browser-verifying new routes.

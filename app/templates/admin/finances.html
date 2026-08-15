@@ -25,18 +25,17 @@
     <h2>Budget Board</h2>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Team</th><th>Wallet</th><th>Purse</th><th>Credits</th><th>Roster</th></tr></thead>
+        <thead><tr><th>Team</th><th>Wallet</th><th>Credits</th><th>Roster</th></tr></thead>
         <tbody>
           {% for b in board %}
             <tr>
               <td>{{ b.team_name }}</td>
               <td><b>{{ b.wallet }}</b></td>
-              <td class="muted">{{ b.purse_remaining }}</td>
               <td>{{ b.credits_remaining }}</td>
               <td class="muted">{{ b.players_count }} + {{ b.bench_count }} bench</td>
             </tr>
           {% else %}
-            <tr><td colspan="5" class="muted">No teams.</td></tr>
+            <tr><td colspan="4" class="muted">No teams.</td></tr>
           {% endfor %}
         </tbody>
       </table>

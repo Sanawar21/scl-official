@@ -20,7 +20,7 @@
               {% for label in team.player_labels %}<span class="chip">{{ label }}</span>{% endfor %}
               {% for label in team.bench_labels %}<span class="chip chip-bench">{{ label }}</span>{% endfor %}
             </td>
-            <td>{{ team.purse_remaining }}</td>
+            <td>{{ team.purse_remaining }}</td>  <!-- wallet == purse -->
             <td>{{ team.credits_remaining }}</td>
           </tr>
         {% endfor %}

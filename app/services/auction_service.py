@@ -305,10 +305,9 @@ class AuctionService:
             team_id = secrets.token_hex(8)
             conn.execute(
                 "INSERT INTO teams (id, season_id, name, manager_player_id, manager_tier, "
-                "purse_remaining, spent, credits_remaining) "
-                "VALUES (?, ?, ?, ?, ?, ?, 0, ?)",
+                "spent, credits_remaining) "
+                "VALUES (?, ?, ?, ?, ?, 0, ?)",
                 (team_id, season_id, name, manager_player_id, manager_tier,
-                 ruleset.purse_for(manager_tier),
                  ruleset.total_credits - ruleset.credits_for(manager_tier)),
             )
             # Fund the manager's wallet with the tier purse (team money == manager money).
@@ -333,12 +332,13 @@ class AuctionService:
             # Remove the funded purse from the manager's wallet (team deleted in setup).
             account = self._team_wallet(conn, team)
             liquid = int(account["liquid_cash"])
+            before_row = row_to_dict(team)
             if liquid > 0:
                 self.bank.adjust(account["id"], -liquid, "Team deleted (setup)",
                                  tx_type="purse", conn=conn)
             conn.execute("DELETE FROM teams WHERE id = ?", (team_id,))
             self._log(conn, season_id, "delete_team", "admin",
-                      before={"team_id": team_id, "row": row_to_dict(team)},
+                      before={"team_id": team_id, "row": before_row, "wallet": liquid},
                       after={"team_id": team_id},
                       ref_team_id=team_id)
         return {"ok": True}
@@ -361,16 +361,15 @@ class AuctionService:
             if not team:
                 raise ValueError("Team not found")
             delta = amount if operation == "add" else -amount
-            new_purse = int(team["purse_remaining"]) + delta
-            if new_purse < 0:
+            # The purse IS the manager's wallet: validate against liquid cash.
+            account = self._team_wallet(conn, team)
+            if int(account["liquid_cash"]) + delta < 0:
                 raise ValueError("Gift would take the purse below zero")
-            before = row_to_dict(team)
-            conn.execute("UPDATE teams SET purse_remaining = ? WHERE id = ?", (new_purse, team_id))
             self._wallet_adjust(conn, team, delta, comment or f"Gift ({operation})",
                                 tx_type="gift")
             self._log(conn, season_id, "gift", actor,
-                      before={"team_id": team_id, "purse_remaining": before["purse_remaining"]},
-                      after={"team_id": team_id, "purse_remaining": new_purse,
+                      before={"team_id": team_id, "wallet": int(account["liquid_cash"])},
+                      after={"team_id": team_id, "wallet": int(account["liquid_cash"]) + delta,
                              "operation": operation, "amount": amount, "comment": comment},
                       ref_team_id=team_id)
         return self._get_team(season_id, team_id)
@@ -476,10 +475,9 @@ class AuctionService:
                     refund_price = int(previous["sold_price"] or 0)
                     refund_credits = int(previous["credits"] or 0)
                     conn.execute(
-                        "UPDATE teams SET players = ?, bench = ?, purse_remaining = ?, "
+                        "UPDATE teams SET players = ?, bench = ?, "
                         "spent = ?, credits_remaining = ? WHERE id = ?",
                         (json_dumps(players_list), json_dumps(bench_list),
-                         int(team["purse_remaining"]) + refund_price,
                          max(0, int(team["spent"]) - refund_price),
                          int(team["credits_remaining"]) + refund_credits,
                          team["id"]),
@@ -561,10 +559,8 @@ class AuctionService:
                 if (amount - base) % ruleset.bid_increment != 0:
                     raise ValueError(f"Bids must rise in {ruleset.bid_increment} increments")
 
-            if int(team["purse_remaining"]) < amount:
-                raise ValueError("Not enough purse")
-            # The purse is the manager's wallet; guard against money spent out of
-            # the wallet (wagers/vault) between the bid and the close.
+            # The purse IS the manager's wallet; guard against money spent out
+            # of it (wagers/vault) between the bid and the close.
             wallet = self._team_wallet(conn, team)
             if int(wallet["liquid_cash"]) < amount:
                 raise ValueError("Not enough funds in the team account")
@@ -650,10 +646,9 @@ class AuctionService:
             price = int(player["current_bid"] or 0)
             credits = int(player["credits"] or 0)
             conn.execute(
-                "UPDATE teams SET players = ?, bench = ?, purse_remaining = ?, spent = ?, "
+                "UPDATE teams SET players = ?, bench = ?, spent = ?, "
                 "credits_remaining = ? WHERE id = ?",
                 (json_dumps(players_list), json_dumps(bench_list),
-                 int(team["purse_remaining"]) - price,
                  int(team["spent"]) + price,
                  int(team["credits_remaining"]) - credits,
                  team["id"]),
@@ -772,23 +767,25 @@ class AuctionService:
         if from_credits < 0 or to_credits < 0:
             raise ValueError("Trade violates the team credit limit")
 
-        from_purse_after = int(from_team["purse_remaining"]) - cash_from_initiator + cash_from_target
-        to_purse_after = int(to_team["purse_remaining"]) - cash_from_target + cash_from_initiator
-        if from_purse_after < 0 or to_purse_after < 0:
+        from_delta = cash_from_target - cash_from_initiator
+        to_delta = cash_from_initiator - cash_from_target
+        from_account = self._team_wallet(conn, from_team)
+        to_account = self._team_wallet(conn, to_team)
+        if int(from_account["liquid_cash"]) + from_delta < 0:
+            raise ValueError("Trade cash transfer exceeds available purse")
+        if int(to_account["liquid_cash"]) + to_delta < 0:
             raise ValueError("Trade cash transfer exceeds available purse")
 
         conn.execute(
-            "UPDATE teams SET players = ?, credits_remaining = ?, purse_remaining = ? WHERE id = ?",
-            (json_dumps(from_players), from_credits, from_purse_after, from_team["id"]),
+            "UPDATE teams SET players = ?, credits_remaining = ? WHERE id = ?",
+            (json_dumps(from_players), from_credits, from_team["id"]),
         )
         conn.execute(
-            "UPDATE teams SET players = ?, credits_remaining = ?, purse_remaining = ? WHERE id = ?",
-            (json_dumps(to_players), to_credits, to_purse_after, to_team["id"]),
+            "UPDATE teams SET players = ?, credits_remaining = ? WHERE id = ?",
+            (json_dumps(to_players), to_credits, to_team["id"]),
         )
-        from_delta = cash_from_target - cash_from_initiator
         if from_delta:
             self._wallet_adjust(conn, from_team, from_delta, "Trade cash (break)", tx_type="trade")
-        to_delta = cash_from_initiator - cash_from_target
         if to_delta:
             self._wallet_adjust(conn, to_team, to_delta, "Trade cash (break)", tx_type="trade")
         conn.execute("UPDATE players SET sold_to_team_id = ? WHERE id = ?",
@@ -857,10 +854,17 @@ class AuctionService:
     def complete_draft(self, season_id: str, actor: str = "admin") -> dict:
         with self.db.write() as conn:
             ruleset = self._get_ruleset(conn, season_id)
+            before_teams = rows_to_dicts(conn.execute(
+                "SELECT * FROM teams WHERE season_id = ?", (season_id,)).fetchall())
             before = {
                 "phase": self._get_meta(conn, season_id)["phase"],
-                "teams": rows_to_dicts(conn.execute(
-                    "SELECT * FROM teams WHERE season_id = ?", (season_id,)).fetchall()),
+                "teams": before_teams,
+                # Wallet snapshot per team so undo can restore the forfeited
+                # wallets of incomplete teams (teams.purse_remaining is gone;
+                # the wallet is the purse now).
+                "team_wallets": {
+                    t["id"]: int(self._team_wallet(conn, t)["liquid_cash"]) for t in before_teams
+                },
                 "players": rows_to_dicts(conn.execute(
                     "SELECT * FROM players WHERE season_id = ?", (season_id,)).fetchall()),
             }
@@ -880,7 +884,7 @@ class AuctionService:
                 unsold = unsold[needed:]
                 players_list = players_list + [p["id"] for p in assign]
                 conn.execute(
-                    "UPDATE teams SET players = ?, purse_remaining = 0, credits_remaining = ? "
+                    "UPDATE teams SET players = ?, credits_remaining = ? "
                     "WHERE id = ?",
                     (json_dumps(players_list),
                      self._recalculate_team_credits(conn, season_id, team["id"], players_list),
@@ -950,9 +954,8 @@ class AuctionService:
                 to_players.append(player_id)
 
             # Money: target pays price to source (or to treasury if free agent).
-            new_to_purse = int(to_team["purse_remaining"]) - price
-            new_from_purse = int(from_team["purse_remaining"]) + price if from_team else None
-            if new_to_purse < 0:
+            to_account = self._team_wallet(conn, to_team)
+            if int(to_account["liquid_cash"]) < price:
                 raise ValueError("Target team cannot afford this transfer price")
             new_to_credits = int(to_team["credits_remaining"]) - credits
             new_from_credits = int(from_team["credits_remaining"]) + credits if from_team else None
@@ -960,15 +963,15 @@ class AuctionService:
                 raise ValueError("Target team does not have enough credits for this player")
 
             conn.execute(
-                "UPDATE teams SET players = ?, bench = ?, purse_remaining = ?, credits_remaining = ? "
+                "UPDATE teams SET players = ?, bench = ?, credits_remaining = ? "
                 "WHERE id = ?",
-                (json_dumps(to_players), json_dumps(to_bench), new_to_purse, new_to_credits, to_team["id"]),
+                (json_dumps(to_players), json_dumps(to_bench), new_to_credits, to_team["id"]),
             )
             if from_team:
                 conn.execute(
-                    "UPDATE teams SET players = ?, bench = ?, purse_remaining = ?, credits_remaining = ? "
+                    "UPDATE teams SET players = ?, bench = ?, credits_remaining = ? "
                     "WHERE id = ?",
-                    (json_dumps(from_players), json_dumps(from_bench), new_from_purse,
+                    (json_dumps(from_players), json_dumps(from_bench),
                      new_from_credits, from_team["id"]),
                 )
             if price:
@@ -1146,11 +1149,15 @@ class AuctionService:
                     f"{prefix_map.get(players_by_id[pid]['tier'], '')} {players_by_id[pid]['name']}".strip()
                     for pid in json_loads(team["bench"], []) if pid in players_by_id
                 ]
+                acct_row = conn.execute(
+                    "SELECT liquid_cash FROM bank_accounts WHERE owner_type = 'player' "
+                    "AND owner_id = ?", (team["manager_player_id"],)).fetchone()
                 enriched_teams.append({
                     **team,
                     "players": json_loads(team["players"], []),
                     "bench": json_loads(team["bench"], []),
                     "manager_name": manager_gp["name"] if manager_gp else "-",
+                    "wallet": int(acct_row["liquid_cash"]) if acct_row else 0,
                     "player_labels": player_labels,
                     "bench_labels": bench_labels,
                 })
@@ -1190,7 +1197,7 @@ class AuctionService:
                         "team_name": t["name"],
                         "is_active": bool(t["is_active"]),
                         "control_status": t["control_status"],
-                        "purse_remaining": t["purse_remaining"],
+                        "purse_remaining": t["wallet"],
                         "credits_remaining": t["credits_remaining"],
                         "active_count": len(t["players"]),
                         "bench_count": len(t["bench"]),
@@ -1215,6 +1222,11 @@ class AuctionService:
             team = row_to_dict(row)
             team["players"] = json_loads(team["players"], [])
             team["bench"] = json_loads(team["bench"], [])
+            # The team's purse IS the manager's wallet.
+            acct = conn.execute(
+                "SELECT liquid_cash FROM bank_accounts WHERE owner_type = 'player' "
+                "AND owner_id = ?", (team["manager_player_id"],)).fetchone()
+            team["wallet"] = int(acct["liquid_cash"]) if acct else 0
             return team
 
 # ----------------------------------------------------------------------
@@ -1269,10 +1281,9 @@ def _undo_close_sold(svc, conn, season_id, row):
         if player_id in bench_list:
             bench_list.remove(player_id)
         conn.execute(
-            "UPDATE teams SET players = ?, bench = ?, purse_remaining = ?, spent = ?, "
+            "UPDATE teams SET players = ?, bench = ?, spent = ?, "
             "credits_remaining = ? WHERE id = ?",
             (json_dumps(players_list), json_dumps(bench_list),
-             int(team["purse_remaining"]) + price,
              max(0, int(team["spent"]) - price),
              int(team["credits_remaining"]) + credits,
              team_id),
@@ -1319,8 +1330,6 @@ def _undo_gift(svc, conn, season_id, row):
     operation = after.get("operation", "add")
     amount = int(after.get("amount") or 0)
     delta = -amount if operation == "add" else amount
-    conn.execute("UPDATE teams SET purse_remaining = purse_remaining + ? WHERE id = ?",
-                 (delta, team_id))
     team = conn.execute("SELECT * FROM teams WHERE id = ?", (team_id,)).fetchone()
     if team:
         svc._wallet_adjust(conn, team, delta, "Undo gift", tx_type="gift")
@@ -1355,16 +1364,14 @@ def _undo_trade_accept(svc, conn, season_id, row):
         from_players.remove(requested)
         to_players.append(requested)
     conn.execute(
-        "UPDATE teams SET players = ?, purse_remaining = ?, credits_remaining = ? WHERE id = ?",
+        "UPDATE teams SET players = ?, credits_remaining = ? WHERE id = ?",
         (json_dumps(from_players),
-         int(from_team["purse_remaining"]) + cash_from_initiator - cash_from_target,
          svc._recalculate_team_credits(conn, season_id, from_team_id, from_players),
          from_team_id),
     )
     conn.execute(
-        "UPDATE teams SET players = ?, purse_remaining = ?, credits_remaining = ? WHERE id = ?",
+        "UPDATE teams SET players = ?, credits_remaining = ? WHERE id = ?",
         (json_dumps(to_players),
-         int(to_team["purse_remaining"]) + cash_from_target - cash_from_initiator,
          svc._recalculate_team_credits(conn, season_id, to_team_id, to_players),
          to_team_id),
     )
@@ -1400,9 +1407,8 @@ def _undo_transfer(svc, conn, season_id, row):
     if player_id in to_bench:
         to_bench.remove(player_id)
     conn.execute(
-        "UPDATE teams SET players = ?, bench = ?, purse_remaining = ?, credits_remaining = ? WHERE id = ?",
+        "UPDATE teams SET players = ?, bench = ?, credits_remaining = ? WHERE id = ?",
         (json_dumps(to_players), json_dumps(to_bench),
-         int(to_team["purse_remaining"]) + price,
          int(to_team["credits_remaining"]) + credits,
          team_to),
     )
@@ -1418,10 +1424,9 @@ def _undo_transfer(svc, conn, season_id, row):
             else:
                 from_bench.append(player_id)
             conn.execute(
-                "UPDATE teams SET players = ?, bench = ?, purse_remaining = ?, credits_remaining = ? "
+                "UPDATE teams SET players = ?, bench = ?, credits_remaining = ? "
                 "WHERE id = ?",
                 (json_dumps(from_players), json_dumps(from_bench),
-                 int(from_team["purse_remaining"]) - price,
                  int(from_team["credits_remaining"]) - credits,
                  team_from),
             )
@@ -1465,12 +1470,16 @@ def _undo_complete_draft(svc, conn, season_id, row):
     snapshot = before.get("snapshot") or {}
     teams = snapshot.get("teams") or []
     players = snapshot.get("players") or []
+    team_wallets = before.get("team_wallets") or {}
     conn.execute("DELETE FROM teams WHERE season_id = ?", (season_id,))
     conn.execute("DELETE FROM players WHERE season_id = ?", (season_id,))
     for team in teams:
-        cols = ", ".join(team.keys())
-        marks = ", ".join("?" for _ in team)
-        conn.execute(f"INSERT INTO teams ({cols}) VALUES ({marks})", list(team.values()))
+        # purse_remaining was dropped from the schema — strip it from any
+        # snapshot taken before the migration.
+        row_dict = {k: v for k, v in team.items() if k != "purse_remaining"}
+        cols = ", ".join(row_dict.keys())
+        marks = ", ".join("?" for _ in row_dict)
+        conn.execute(f"INSERT INTO teams ({cols}) VALUES ({marks})", list(row_dict.values()))
     for player in players:
         cols = ", ".join(player.keys())
         marks = ", ".join("?" for _ in player)
@@ -1482,9 +1491,9 @@ def _undo_complete_draft(svc, conn, season_id, row):
     ruleset = svc._get_ruleset(conn, season_id)
     for team in teams:
         if len(json_loads(team.get("players"), [])) < ruleset.required_players:
-            purse = int(team.get("purse_remaining") or 0)
-            if purse > 0:
-                svc._wallet_adjust(conn, team, purse, "Undo draft completion penalty",
+            wallet = int(team_wallets.get(team["id"]) or 0)
+            if wallet > 0:
+                svc._wallet_adjust(conn, team, wallet, "Undo draft completion penalty",
                                    tx_type="penalty")
 
 
@@ -1535,12 +1544,13 @@ def _undo_delete_team(svc, conn, season_id, row):
     before = json_loads(row["before_state"], {})
     team = before.get("row")
     if team:
-        cols = ", ".join(team.keys())
-        marks = ", ".join("?" for _ in team)
-        conn.execute(f"INSERT INTO teams ({cols}) VALUES ({marks})", list(team.values()))
-        purse = int(team.get("purse_remaining") or 0)
-        if purse > 0:
-            svc._wallet_adjust(conn, team, purse, "Undo team deletion", tx_type="purse")
+        row_dict = {k: v for k, v in team.items() if k != "purse_remaining"}
+        cols = ", ".join(row_dict.keys())
+        marks = ", ".join("?" for _ in row_dict)
+        conn.execute(f"INSERT INTO teams ({cols}) VALUES ({marks})", list(row_dict.values()))
+        wallet = int(before.get("wallet") or 0)
+        if wallet > 0:
+            svc._wallet_adjust(conn, row_dict, wallet, "Undo team deletion", tx_type="purse")
 
 
 _UNDO_HANDLERS = {
