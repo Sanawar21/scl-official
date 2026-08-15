@@ -231,10 +231,12 @@ class FinanceService:
         for r in registry:
             key = self._match_key(season_id, r["match_id"])
             if key in finalized:
-                results.append({
-                    "match_id": r["match_id"],
-                    **self.on_match_finalized(season_id, r["match_id"], actor=actor),
-                })
+                outcome = self.on_match_finalized(season_id, r["match_id"], actor=actor)
+                # Report only matches where something was actually done (reward
+                # newly posted, or yield newly applied), so the backfill button
+                # shows meaningful counts and re-runs report nothing.
+                if outcome.get("rewarded") or outcome.get("yield_applied"):
+                    results.append({"match_id": r["match_id"], **outcome})
         return results
 
     # ------------------------------------------------------------------

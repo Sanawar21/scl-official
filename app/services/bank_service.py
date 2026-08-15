@@ -161,41 +161,44 @@ class BankService:
                 (season_id, target),
             ).fetchall()
             for position in positions:
+                # Running totals: compounding steps must build on each other, so
+                # the loop cannot re-read the stale row between steps.
+                locked = int(position["locked_capital"])
+                principal = int(position["principal"])
+                account = conn.execute(
+                    "SELECT * FROM bank_accounts WHERE id = ?", (position["account_id"],)
+                ).fetchone()
+                account_locked = int(account["locked_capital"])
+                account_liquid = int(account["liquid_cash"])
                 for step in range(int(position["last_yield_match"]) + 1, target + 1):
-                    locked = int(position["locked_capital"])
-                    principal = int(position["principal"])
                     base = principal if not position["reinvest"] else locked
                     yield_amount = int(round(base * VAULT_YIELD_RATE))
-                    account = conn.execute(
-                        "SELECT * FROM bank_accounts WHERE id = ?", (position["account_id"],)
-                    ).fetchone()
                     if position["reinvest"]:
-                        new_locked = locked + yield_amount
+                        locked += yield_amount
+                        account_locked += yield_amount
                         conn.execute(
                             "UPDATE vault_positions SET locked_capital = ?, last_yield_match = ? "
                             "WHERE id = ?",
-                            (new_locked, step, position["id"]),
+                            (locked, step, position["id"]),
                         )
-                        new_total = int(account["locked_capital"]) + yield_amount
                         conn.execute(
                             "UPDATE bank_accounts SET locked_capital = ? WHERE id = ?",
-                            (new_total, position["account_id"]),
+                            (account_locked, position["account_id"]),
                         )
                         self._log(conn, position["account_id"], "vault_yield", yield_amount,
-                                  int(account["liquid_cash"]),
-                                  f"Match {step} compounded yield")
+                                  account_liquid, f"Match {step} compounded yield")
                     else:
-                        new_liquid = int(account["liquid_cash"]) + yield_amount
+                        account_liquid += yield_amount
                         conn.execute(
                             "UPDATE bank_accounts SET liquid_cash = ? WHERE id = ?",
-                            (new_liquid, position["account_id"]),
+                            (account_liquid, position["account_id"]),
                         )
                         conn.execute(
                             "UPDATE vault_positions SET last_yield_match = ? WHERE id = ?",
                             (step, position["id"]),
                         )
                         self._log(conn, position["account_id"], "vault_harvest", yield_amount,
-                                  new_liquid, f"Match {step} harvested yield")
+                                  account_liquid, f"Match {step} harvested yield")
                     results.append({"position_id": position["id"], "match": step,
                                     "yield": yield_amount,
                                     "reinvest": bool(position["reinvest"])})
