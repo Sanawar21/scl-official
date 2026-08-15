@@ -2,14 +2,25 @@
 {% block title %}Login{% endblock %}
 {% block content %}
 <div class="auth-card card">
+  <div class="auth-brand">SCL</div>
+  <p class="auth-sub">Section-C Cricket League</p>
   <h1>Login</h1>
+  <p class="muted small">Players and managers log in to wager, run their vault, and manage their
+    team. Admins get the control room.</p>
   <form method="post" action="{{ url_for('auth.login') }}">
     <input type="hidden" name="next" value="{{ request.args.get('next', '') }}">
-    <label>Username <input type="text" name="username" required autofocus></label>
-    <label>Password <input type="password" name="password" required></label>
-    <button class="btn btn-primary" type="submit">Login</button>
+    <label for="login-username">Username</label>
+    <input id="login-username" type="text" name="username" required autofocus>
+    <label for="login-password">Password</label>
+    <input id="login-password" type="password" name="password" required>
+    <div style="margin-top:14px">
+      <button class="btn btn-primary btn-block" type="submit">Login</button>
+    </div>
   </form>
-  <p class="muted small">New here? <a href="{{ url_for('auth.signup_page') }}">Sign up</a> —
-    an admin will link your account to your player profile.</p>
+  <div class="empty" style="margin-top:14px">
+    <p class="small" style="margin:0">New here?
+      <a href="{{ url_for('auth.signup_page') }}">Sign up</a> — an admin will link your account to
+      your player profile before you can wager.</p>
+  </div>
 </div>
 {% endblock %}

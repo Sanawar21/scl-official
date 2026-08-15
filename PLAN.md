@@ -175,7 +175,9 @@ verified before the next):
 
 - [x] **Phase 0 — Playwright infra + baseline smoke** (13 e2e tests locking current flows;
   server booted per session on a temp DB)
-- [ ] Phase 1 — Shell + design system (base.html, CSS tokens, toast JS, mobile nav) + Home + Auth
+- [x] **Phase 1 — Shell + design system + Home + Auth** (light theme tokens + components in
+  `app.css`, role-aware nav with mobile drawer + bottom bar, flash→toast, Home landing with
+  latest results, auth card flows) — 13 new e2e tests (111 total)
 - [ ] Phase 2 — Public surfaces (live board, published, matches, table, leaderboards, profiles, finances)
 - [ ] Phase 3 — Player/manager surfaces (banking/vault, wagers, manager dashboard)
 - [ ] Phase 4 — Admin polish + final pass

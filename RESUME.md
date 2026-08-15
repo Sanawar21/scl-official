@@ -1,8 +1,8 @@
 # SCL Rebuild — Session Resume Handoff
 
 Read this first in a new session, then `MEMORY.md` (living context + gotchas) and `PLAN.md`
-(feature plan). Last updated 2026-08-15 at the end of the session that started the frontend
-transformation (Phase 0: Playwright infra + baseline smoke over the current UI).
+(feature plan). Last updated 2026-08-15 at the end of the session that shipped the frontend
+transformation Phase 1 (shell + design system + Home + Auth; light theme, mobile-first).
 
 ## Quickstart
 
@@ -10,7 +10,7 @@ transformation (Phase 0: Playwright infra + baseline smoke over the current UI).
 ./.venv/Scripts/python.exe run.py          # start server (debug, port 10001)
 # or without reloader:
 ./.venv/Scripts/python.exe -c "from app import create_app, socketio; app = create_app(); socketio.run(app, host='0.0.0.0', port=10001, debug=False, use_reloader=False)"
-./.venv/Scripts/python.exe -m pytest tests/ -q   # 98 tests (85 unit + 13 e2e)
+./.venv/Scripts/python.exe -m pytest tests/ -q   # 111 tests (85 unit + 26 e2e)
 ```
 
 E2E tests (Playwright, Chromium installed via `python -m playwright install chromium`):

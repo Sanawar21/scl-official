@@ -1,4 +1,4 @@
-from flask import Blueprint, abort, current_app, jsonify, render_template, request
+from flask import Blueprint, abort, current_app, jsonify, render_template, request, url_for
 
 from ..db import json_loads
 
@@ -8,6 +8,7 @@ viewer_bp = Blueprint("viewer", __name__)
 @viewer_bp.get("/")
 def home():
     auction_service = current_app.extensions["auction_service"]
+    scorer = current_app.extensions["scorer_service"]
     seasons = auction_service.list_seasons()
     published = []
     with current_app.extensions["db"].read() as conn:
@@ -16,7 +17,41 @@ def home():
             "JOIN seasons se ON se.id = s.season_id ORDER BY s.published_at DESC"
         ).fetchall()
         published = [dict(r) for r in rows]
-    return render_template("viewer/home.html", seasons=seasons, published=published)
+
+    # Latest results: finalized matches (have a match_stats row) from the most
+    # recent season, newest first, capped at 4.
+    latest_results = []
+    current_season = seasons[0] if seasons else None
+    if current_season:
+        finalized_keys = []
+        with current_app.extensions["db"].read() as conn:
+            for row in conn.execute(
+                "SELECT match_key FROM match_stats WHERE season_id = ?",
+                (current_season["id"],)).fetchall():
+                finalized_keys.append(row["match_key"])
+        registry_by_key = {r["match_key"]: r for r in scorer.list_match_registry(current_season["id"])}
+        for key in finalized_keys:
+            summary = scorer.match_summary(current_season["id"],
+                                           (registry_by_key.get(key) or {}).get("match_id") or key.split(":")[-1])
+            if not summary:
+                continue
+            latest_results.append({
+                "match_number": summary.get("match_number") or "",
+                "match_title": summary.get("match_title") or "",
+                "between": summary.get("between") or "",
+                "venue": summary.get("venue") or "",
+                "match_date": summary.get("match_date") or "",
+                "result": summary.get("result") or "",
+                "winner_name": summary.get("winner_name") or "",
+                "scores": [(s["team_name"], s["total"]) for s in summary.get("team_sections", [])],
+                "url": url_for("matches.match_summary", season_id=current_season["id"],
+                               match_id=(registry_by_key.get(key) or {}).get("match_id") or key.split(":")[-1]),
+            })
+        latest_results.sort(key=lambda r: r["match_number"] or r["match_title"] or "")
+        latest_results = latest_results[-4:][::-1]
+
+    return render_template("viewer/home.html", seasons=seasons, published=published,
+                           current_season=current_season, latest_results=latest_results)
 
 
 @viewer_bp.get("/live")

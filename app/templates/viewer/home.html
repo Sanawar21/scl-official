@@ -1,43 +1,126 @@
 {% extends "base.html" %}
 {% block title %}SCL — Home{% endblock %}
 {% block content %}
+{% set role = current_user.role if current_user else 'anon' %}
+
 <div class="hero">
   <h1>Section-C Cricket League</h1>
-  <p>Auction, matches, banking and more — all in one place.</p>
+  <p class="hero-sub">Auction, matches, banking and wagers — all in one place.</p>
+  {% if current_season %}
+    <p class="muted small">Current season:
+      <span class="tag {% if current_season.status == 'active' %}tag-success{% else %}tag-info{% endif %}">
+        {{ current_season.name }} · {{ current_season.status }}</span>
+    </p>
+  {% endif %}
   <div class="hero-actions">
     <a class="btn btn-primary" href="{{ url_for('viewer.live') }}">Live Auction Board</a>
-    <a class="btn" href="{{ url_for('auth.signup_page') }}">Create Account</a>
+    {% if role == 'admin' %}
+      <a class="btn btn-secondary" href="{{ url_for('admin.dashboard') }}">Admin Overview</a>
+    {% elif role == 'manager' %}
+      <a class="btn btn-secondary" href="{{ url_for('manager.dashboard') }}">My Team</a>
+      <a class="btn" href="{{ url_for('banking.account') }}">Account</a>
+    {% elif role == 'player' %}
+      <a class="btn btn-secondary" href="{{ url_for('banking.account') }}">My Account</a>
+      <a class="btn" href="{{ url_for('wagers.board') }}">Wagers</a>
+    {% else %}
+      <a class="btn btn-secondary" href="{{ url_for('auth.signup_page') }}">Create Account</a>
+      <a class="btn" href="{{ url_for('auth.login_page') }}">Login</a>
+    {% endif %}
   </div>
 </div>
 
+{% if role != 'anon' %}
 <section class="card">
-  <h2>Published Seasons</h2>
-  {% if published %}
-    <ul class="season-list">
-      {% for snap in published %}
-        <li>
-          <a href="{{ url_for('viewer.published', slug=snap.season_id) }}">
-            {{ snap.name }} <span class="muted">— {{ snap.season_name }} · {{ snap.published_at[:10] }}</span>
-          </a>
-        </li>
-      {% endfor %}
-    </ul>
-  {% else %}
-    <p class="muted">No published seasons yet.</p>
-  {% endif %}
+  <div class="card-head">
+    <h2>Quick actions</h2>
+  </div>
+  <div class="quick-actions">
+    {% if role == 'admin' %}
+      <a href="{{ url_for('admin.dashboard') }}">Admin Overview<span class="qa-sub">Everything in one place</span></a>
+      <a href="{{ url_for('admin.auction') }}">Auction Room<span class="qa-sub">Control the draft</span></a>
+      <a href="{{ url_for('matches.admin_scorer') }}">Scorer<span class="qa-sub">Import match CSV</span></a>
+      <a href="{{ url_for('admin.finances') }}">Finances<span class="qa-sub">Ledger, yield, vault</span></a>
+      <a href="{{ url_for('wagers.admin') }}">Wagers<span class="qa-sub">Calibrate &amp; resolve</span></a>
+      <a href="{{ url_for('auth.link_page') }}">Link Accounts<span class="qa-sub">Connect users to players</span></a>
+    {% elif role == 'manager' %}
+      <a href="{{ url_for('manager.dashboard') }}">My Team<span class="qa-sub">Squad, purse, bidding</span></a>
+      <a href="{{ url_for('banking.account') }}">Account<span class="qa-sub">Liquid cash &amp; vault</span></a>
+      <a href="{{ url_for('wagers.board') }}">Wagers<span class="qa-sub">Bet on the markets</span></a>
+      <a href="{{ url_for('viewer.live') }}">Live Auction<span class="qa-sub">Follow the draft</span></a>
+    {% else %}
+      <a href="{{ url_for('banking.account') }}">Account<span class="qa-sub">Liquid cash &amp; vault</span></a>
+      <a href="{{ url_for('wagers.board') }}">Wagers<span class="qa-sub">Bet on the markets</span></a>
+      <a href="{{ url_for('viewer.live') }}">Live Auction<span class="qa-sub">Follow the draft</span></a>
+      <a href="{{ url_for('matches.matches_index') }}">Matches<span class="qa-sub">Results &amp; scorecards</span></a>
+    {% endif %}
+  </div>
 </section>
+{% endif %}
 
+{% if latest_results %}
 <section class="card">
-  <h2>Seasons</h2>
-  {% if seasons %}
-    <ul class="season-list">
-      {% for s in seasons %}
-        <li><a href="{{ url_for('viewer.live', season=s.id) }}">{{ s.name }}</a>
-          <span class="tag">{{ s.status }}</span></li>
+  <div class="card-head">
+    <h2>Latest results</h2>
+    {% if current_season %}
+      <a class="small" href="{{ url_for('matches.matches_index', season=current_season.id) }}">All matches →</a>
+    {% endif %}
+  </div>
+  {% for r in latest_results %}
+    <a class="result-card" href="{{ r.url }}" style="text-decoration:none">
+      <div class="rc-head">
+        <span class="rc-title">{{ r.match_number or r.match_title }}</span>
+        <span class="rc-meta">{{ r.match_date or '' }}{% if r.venue %} · {{ r.venue }}{% endif %}</span>
+      </div>
+      {% for team_name, total in r.scores %}
+        <div class="rc-line">{{ team_name }} — <b>{{ total }}</b></div>
       {% endfor %}
-    </ul>
-  {% else %}
-    <p class="muted">No seasons yet. The admin needs to create one.</p>
-  {% endif %}
+      {% if r.result %}
+        <div class="rc-result chip chip-success">{{ r.result }}</div>
+      {% endif %}
+    </a>
+  {% endfor %}
 </section>
+{% endif %}
+
+<div class="grid">
+  <section class="card">
+    <h2>Published Seasons</h2>
+    {% if published %}
+      <ul class="season-list">
+        {% for snap in published %}
+          <li>
+            <a href="{{ url_for('viewer.published', slug=snap.season_id) }}">
+              {{ snap.name }}
+            </a>
+            <span class="muted small">— {{ snap.season_name }} · {{ snap.published_at[:10] }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div class="empty">
+        <div class="empty-title">No published seasons yet</div>
+        <p class="small">Once an auction finishes, the admin can publish the season for everyone.</p>
+      </div>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <h2>Seasons</h2>
+    {% if seasons %}
+      <ul class="season-list">
+        {% for s in seasons %}
+          <li>
+            <a href="{{ url_for('viewer.live', season=s.id) }}">{{ s.name }}</a>
+            <span class="tag {% if s.status == 'active' %}tag-success{% endif %}">{{ s.status }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div class="empty">
+        <div class="empty-title">No seasons yet</div>
+        <p class="small">The admin needs to create one to get started.</p>
+      </div>
+    {% endif %}
+  </section>
+</div>
 {% endblock %}

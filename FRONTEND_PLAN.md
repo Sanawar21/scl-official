@@ -225,8 +225,12 @@ the site point to it.
    a temp DB + `login`/`base_url`/`seed` helpers), `tests/e2e/test_baseline.py` — 13 smoke tests
    over the current UI (auth per role, deposit/vault, admin adjust, wagers, public pages,
    scorer download). **98 tests total green.**
-2. **Phase 1 — Shell + design system**: base.html, app.css tokens/components, toast JS,
-   mobile nav; Home + Auth pages.
+2. ✅ **Phase 1 — Shell + design system** (DONE 2026-08-15): `app.css` light-theme tokens +
+   components (buttons, semantic chips/tags, cards, stat tiles, quick actions, empty states,
+   toasts); `base.html` role-aware nav (desktop row + mobile drawer + bottom action bar);
+   flash→toast JS in `app.js`; Home → role-aware landing (hero + season status chip, quick
+   actions grid per role, latest results from the match registry, published + seasons cards);
+   Auth → card flows with role explainers + linking steps. 13 new e2e tests (111 total).
 3. **Phase 2 — Public surfaces**: live board, published, matches, table, leaderboards,
    team/player profiles, public finances.
 4. **Phase 3 — Player/manager surfaces**: banking/vault, wagers board/detail, manager

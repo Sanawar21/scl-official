@@ -2,6 +2,43 @@
 (function () {
   "use strict";
 
+  /* ---------- toasts (flash -> toast) ---------- */
+  function initToasts() {
+    const wrap = document.getElementById("toast-wrap");
+    if (!wrap) return;
+    wrap.querySelectorAll(".toast").forEach(function (t) {
+      setTimeout(function () { t.classList.add("show"); }, 30);
+      const dismiss = function () {
+        t.classList.remove("show");
+        setTimeout(function () { t.remove(); }, 250);
+      };
+      t.addEventListener("click", dismiss);
+      setTimeout(dismiss, 5000);
+    });
+  }
+
+  /* ---------- mobile drawer ---------- */
+  function initDrawer() {
+    const toggle = document.getElementById("nav-toggle");
+    const drawer = document.getElementById("drawer");
+    const backdrop = document.getElementById("drawer-backdrop");
+    const closeBtn = document.getElementById("drawer-close");
+    if (!toggle || !drawer) return;
+    function open() {
+      drawer.classList.add("open");
+      if (backdrop) backdrop.hidden = false;
+      toggle.setAttribute("aria-expanded", "true");
+    }
+    function close() {
+      drawer.classList.remove("open");
+      if (backdrop) backdrop.hidden = true;
+      toggle.setAttribute("aria-expanded", "false");
+    }
+    toggle.addEventListener("click", open);
+    if (closeBtn) closeBtn.addEventListener("click", close);
+    if (backdrop) backdrop.addEventListener("click", close);
+  }
+
   function esc(value) {
     return String(value == null ? "" : value)
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
@@ -274,4 +311,9 @@
 
   window.startLive = startLive;
   window.startManager = startManager;
+
+  document.addEventListener("DOMContentLoaded", function () {
+    initToasts();
+    initDrawer();
+  });
 })();

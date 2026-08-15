@@ -106,6 +106,9 @@ Update this file whenever you learn something durable. Keep it current as the bu
 - [x] **Frontend transformation Phase 0 built** — Playwright e2e infra + 13 baseline smoke tests
   (98 total) locking the CURRENT flows before the redesign; plan in `FRONTEND_PLAN.md`
   (decisions: pytest-playwright, light theme, mobile-first, data-parity guaranteed)
+- [x] **Frontend transformation Phase 1 built** — shell + design system (light theme), role-aware
+  nav + mobile drawer + bottom bar, flash→toast, Home landing dashboard (latest results from the
+  match registry), auth card flows — 13 new e2e tests (111 total)
 
 ## Increment 1 — what was built (structure)
 
@@ -287,6 +290,15 @@ Update this file whenever you learn something durable. Keep it current as the bu
     5.3.6 raises without it); boot in a daemon thread on a free port, poll `/` for readiness.
   - The e2e seed reuses service calls, not HTTP: `auction.create_team` → `auth.assign_manager`
     requires the user's player to BE the team's manager — pick manager users accordingly.
+  - The open mobile drawer **covers the right side of the viewport** — clicking the backdrop's
+    center hits the drawer (pointer-events). Click at the visible left edge:
+    `page.locator('#drawer-backdrop').click(position={'x': 10, 'y': 400})`.
+- **Phase 1 design system**: light theme tokens live in `app.css` `:root`; every legacy class
+  still works (cards/tags/chips/feeds/team-box etc. were restyled, not removed). Flash messages
+  now render as auto-dismissing `.toast` elements (`app.js` `initToasts`, 5s); legacy `.flash`
+  styles kept for safety. Home route (`viewer.home`) now builds `latest_results` by calling
+  `scorer.match_summary` per finalized match (capped at 4, newest first) — cheap at S1 scale.
+- `url_for` must be imported in `viewer.py` (added when Home gained result links).
 - `app.config.from_object(dict)` does NOT work — dicts must go through `app.config.update()`.
 - Flask-SocketIO 5.3.6 does NOT serve a client bundle at `/socket.io/socket.io.js` (400). Live
   updates therefore use **4s polling** (`app.js` `startLive`/`startManager`); server-side

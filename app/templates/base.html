@@ -7,54 +7,99 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
 </head>
 <body>
+{% set role = current_user.role if current_user else 'anon' %}
+
+{% macro nav_links() %}
+  <a href="{{ url_for('viewer.home') }}">Home</a>
+  <a href="{{ url_for('viewer.live') }}">Live</a>
+  <a href="{{ url_for('matches.matches_index') }}">Matches</a>
+  <a href="{{ url_for('matches.league_table') }}">Table</a>
+  <a href="{{ url_for('matches.leaderboards') }}">Top</a>
+  <a href="{{ url_for('matches.finances_index') }}">Finances</a>
+  <a href="{{ url_for('matches.scorer_page') }}">Scorer</a>
+  {% if role == 'manager' %}
+    <a href="{{ url_for('manager.dashboard') }}">My Team</a>
+  {% endif %}
+  {% if role == 'admin' %}
+    <a href="{{ url_for('admin.dashboard') }}">Admin</a>
+  {% endif %}
+  {% if role != 'admin' and role != 'anon' %}
+    <a href="{{ url_for('banking.account') }}">Account</a>
+  {% endif %}
+  {% if role == 'admin' %}
+    <a href="{{ url_for('wagers.admin') }}">Wagers</a>
+  {% elif role != 'anon' %}
+    <a href="{{ url_for('wagers.board') }}">Wagers</a>
+  {% endif %}
+{% endmacro %}
+
+{% macro bottom_items() %}
+  <a href="{{ url_for('viewer.home') }}"><span class="bb-icon">🏠</span>Home</a>
+  <a href="{{ url_for('viewer.live') }}"><span class="bb-icon">🔴</span>Live</a>
+  {% if role == 'admin' %}
+    <a href="{{ url_for('admin.dashboard') }}"><span class="bb-icon">⚙️</span>Admin</a>
+  {% elif role == 'manager' %}
+    <a href="{{ url_for('manager.dashboard') }}"><span class="bb-icon">🛡️</span>My Team</a>
+    <a href="{{ url_for('banking.account') }}"><span class="bb-icon">💰</span>Account</a>
+  {% elif role == 'anon' %}
+    <a href="{{ url_for('wagers.board') }}"><span class="bb-icon">🎯</span>Wagers</a>
+    <a href="{{ url_for('auth.signup_page') }}"><span class="bb-icon">✍️</span>Sign up</a>
+  {% else %}
+    <a href="{{ url_for('wagers.board') }}"><span class="bb-icon">🎯</span>Wagers</a>
+    <a href="{{ url_for('banking.account') }}"><span class="bb-icon">💰</span>Account</a>
+  {% endif %}
+{% endmacro %}
+
 <nav class="navbar">
   <div class="nav-inner">
     <a class="brand" href="{{ url_for('viewer.home') }}">SCL</a>
     <div class="nav-links">
-      <a href="{{ url_for('viewer.home') }}">Home</a>
-      <a href="{{ url_for('viewer.live') }}">Live</a>
-      <a href="{{ url_for('matches.matches_index') }}">Matches</a>
-      <a href="{{ url_for('matches.league_table') }}">Table</a>
-      <a href="{{ url_for('matches.leaderboards') }}">Top</a>
-      <a href="{{ url_for('matches.finances_index') }}">Finances</a>
-      <a href="{{ url_for('matches.scorer_page') }}">Scorer</a>
-      {% if current_user and current_user.role == 'admin' %}
-        <a href="{{ url_for('admin.dashboard') }}">Admin</a>
-      {% endif %}
-      {% if current_user and current_user.role == 'manager' %}
-        <a href="{{ url_for('manager.dashboard') }}">My Team</a>
-      {% endif %}
-      {% if current_user and current_user.role != 'admin' %}
-        <a href="{{ url_for('banking.account') }}">Account</a>
-      {% endif %}
+      {{ nav_links() }}
       {% if current_user %}
-        {% if current_user.role == 'admin' %}
-          <a href="{{ url_for('wagers.admin') }}">Wagers</a>
-        {% else %}
-          <a href="{{ url_for('wagers.board') }}">Wagers</a>
-        {% endif %}
         <a class="muted" href="{{ url_for('auth.logout') }}">Logout</a>
       {% else %}
-        <a class="muted" href="{{ url_for('auth.login_page') }}">Login</a>
-        <a class="muted" href="{{ url_for('auth.signup_page') }}">Sign up</a>
+        <a href="{{ url_for('auth.login_page') }}">Login</a>
+        <a class="btn btn-primary btn-small" href="{{ url_for('auth.signup_page') }}">Sign up</a>
       {% endif %}
     </div>
+    <button class="nav-toggle" id="nav-toggle" aria-label="Open menu" aria-expanded="false">☰</button>
   </div>
 </nav>
 
-{% with messages = get_flashed_messages(with_categories=true) %}
-  {% if messages %}
-    <div class="flash-wrap">
-      {% for category, message in messages %}
-        <div class="flash flash-{{ category }}">{{ message }}</div>
-      {% endfor %}
+<div class="drawer-backdrop" id="drawer-backdrop" hidden></div>
+<aside class="drawer" id="drawer" aria-label="Navigation menu">
+  <div class="drawer-inner">
+    <div class="drawer-head">
+      <span class="brand">SCL</span>
+      <button class="drawer-close" id="drawer-close" aria-label="Close menu">✕</button>
     </div>
-  {% endif %}
-{% endwith %}
+    {{ nav_links() }}
+    {% if current_user %}
+      <a class="muted" href="{{ url_for('auth.logout') }}">Logout</a>
+    {% else %}
+      <a href="{{ url_for('auth.login_page') }}">Login</a>
+      <a class="btn btn-primary btn-block" href="{{ url_for('auth.signup_page') }}">Sign up</a>
+    {% endif %}
+  </div>
+</aside>
+
+<div class="toast-wrap" id="toast-wrap">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+      <div class="toast toast-{{ category }}" role="status">{{ message }}</div>
+    {% endfor %}
+  {% endwith %}
+</div>
 
 <main class="container">
 {% block content %}{% endblock %}
 </main>
+
+<nav class="bottom-bar" aria-label="Quick actions">
+  <div class="bottom-bar-inner">
+    {{ bottom_items() }}
+  </div>
+</nav>
 
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 {% block scripts %}{% endblock %}
