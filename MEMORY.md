@@ -220,6 +220,15 @@ Update this file whenever you learn something durable. Keep it current as the bu
 - Note: `python run.py` runs with debug/reloader (reference-app style); `emit_state` needs the
   app context of the running socketio server to broadcast (routes call it after mutations).
 
+## Balance reset (2026-08-15)
+
+- User reset team account balances to 0 to bring in the new economic system ("every player gets
+  an amount later; managers may get more for the auction"). Applied to `data/scl.db`.
+- Tool: `scripts/reset_balances.py` (dry-run by default, `--yes` writes). Zeroes wallet + purse in
+  lockstep per team, keeps all history, appends a `balance_reset` bank_transaction per account.
+- ⚠ When granting auction money later, the **purse must move in lockstep with the wallet**
+  (wallet-only bank adjust leaves `purse_remaining` at 0 → bids fail on "Not enough purse").
+
 ## Still to build (later increments)
 
 - Offline scorer (downloadable HTML → CSV → admin import; port `scorer.html`/`scoreCard.py`)
