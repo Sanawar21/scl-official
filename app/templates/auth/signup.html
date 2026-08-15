@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Sign up{% endblock %}
+{% block content %}
+<div class="auth-card card">
+  <h1>Create Account</h1>
+  <p class="muted small">Sign up with a personal username. An admin will link your account
+    to your SCL player profile before you can use wagers or the vault.</p>
+  <form method="post" action="{{ url_for('auth.signup') }}">
+    <label>Username <input type="text" name="username" required minlength="3"></label>
+    <label>Display name (optional) <input type="text" name="display_name"></label>
+    <label>Password <input type="password" name="password" required minlength="4"></label>
+    <button class="btn btn-primary" type="submit">Create account</button>
+  </form>
+</div>
+{% endblock %}

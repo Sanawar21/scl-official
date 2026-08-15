@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Login{% endblock %}
+{% block content %}
+<div class="auth-card card">
+  <h1>Login</h1>
+  <form method="post" action="{{ url_for('auth.login') }}">
+    <input type="hidden" name="next" value="{{ request.args.get('next', '') }}">
+    <label>Username <input type="text" name="username" required autofocus></label>
+    <label>Password <input type="password" name="password" required></label>
+    <button class="btn btn-primary" type="submit">Login</button>
+  </form>
+  <p class="muted small">New here? <a href="{{ url_for('auth.signup_page') }}">Sign up</a> —
+    an admin will link your account to your player profile.</p>
+</div>
+{% endblock %}

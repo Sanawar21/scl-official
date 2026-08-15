@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Live Auction{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Live Auction Board</h1>
+  {% if seasons %}
+    <div class="season-switch">
+      {% for s in seasons %}
+        <a class="tag {% if s.id == season_id %}tag-active{% endif %}"
+           href="{{ url_for('viewer.live', season=s.id) }}">{{ s.name }}</a>
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>
+
+{% if not state %}
+  <div class="card"><p class="muted">No season available yet.</p></div>
+{% else %}
+<div id="live-root" data-season="{{ season_id }}">
+  <div class="grid">
+    <section class="card" id="lot-card">
+      <h2>Current Lot</h2>
+      <div id="current-lot"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section class="card">
+      <h2>Phase</h2>
+      <div id="phase-box">
+        <span class="tag tag-active">{{ state.phase }}</span>
+      </div>
+      <div id="phase-readiness" class="muted small"></div>
+    </section>
+  </div>
+
+  <section class="card">
+    <h2>Budget Board</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Team</th><th>Purse</th><th>Credits</th><th>XI</th><th>Bench</th></tr></thead>
+        <tbody id="budget-board"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="grid">
+    <section class="card">
+      <h2>Bid Feed</h2>
+      <ul class="feed" id="bid-feed"></ul>
+    </section>
+    <section class="card">
+      <h2>Current Lot Bids</h2>
+      <ul class="feed" id="lot-bids"></ul>
+    </section>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const stateUrl = "{{ url_for('viewer.api_state', season=season_id) if season_id else '' }}";
+  window.addEventListener('load', () => {
+    if (stateUrl) window.startLive(stateUrl, "{{ season_id }}");
+  });
+</script>
+{% endblock %}

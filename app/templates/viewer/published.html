@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}{{ state.published_name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ state.published_name }}</h1>
+  <p class="muted">Published {{ state.published_at }} · Final phase: {{ state.phase }}</p>
+</div>
+
+<section class="card">
+  <h2>Final Squads</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Team</th><th>Manager</th><th>Squad</th><th>Purse Left</th><th>Credits Left</th></tr></thead>
+      <tbody>
+        {% for team in state.teams %}
+          <tr>
+            <td>{{ team.name }}{% if not team.is_active %} <span class="tag">inactive</span>{% endif %}</td>
+            <td>{{ team.manager_name }}</td>
+            <td>
+              {% for label in team.player_labels %}<span class="chip">{{ label }}</span>{% endfor %}
+              {% for label in team.bench_labels %}<span class="chip chip-bench">{{ label }}</span>{% endfor %}
+            </td>
+            <td>{{ team.purse_remaining }}</td>
+            <td>{{ team.credits_remaining }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="card">
+  <h2>All Players</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Player</th><th>Tier</th><th>Status</th><th>Team</th><th>Price</th></tr></thead>
+      <tbody>
+        {% for p in state.players %}
+          <tr>
+            <td>{{ p.name }}</td>
+            <td>{{ p.tier }}</td>
+            <td>{{ p.status }}</td>
+            <td>{{ p.sold_to_team_name }}</td>
+            <td>{{ p.sold_price }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

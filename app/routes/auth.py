@@ -1,0 +1,113 @@
+from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, session, url_for
+
+from .. import rules as R
+from ..authz import login_required
+
+auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
+
+
+@auth_bp.get("/login")
+def login_page():
+    return render_template("auth/login.html")
+
+
+@auth_bp.post("/login")
+def login():
+    auth_service = current_app.extensions["auth_service"]
+    user = auth_service.login(request.form.get("username", ""), request.form.get("password", ""))
+    if not user:
+        flash("Invalid username or password", "error")
+        return redirect(url_for("auth.login_page"))
+    session["user"] = user
+    nxt = request.form.get("next") or ""
+    if nxt.startswith("/") and not nxt.startswith("//"):
+        return redirect(nxt)
+    if user["role"] == R.ROLE_ADMIN:
+        return redirect(url_for("admin.dashboard"))
+    return redirect(url_for("manager.dashboard") if user["role"] == R.ROLE_MANAGER
+                    else url_for("banking.account"))
+
+
+@auth_bp.get("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("viewer.home"))
+
+
+@auth_bp.get("/signup")
+def signup_page():
+    return render_template("auth/signup.html")
+
+
+@auth_bp.post("/signup")
+def signup():
+    auth_service = current_app.extensions["auth_service"]
+    try:
+        user = auth_service.signup(
+            request.form.get("username", ""),
+            request.form.get("password", ""),
+            request.form.get("display_name", ""),
+        )
+        flash("Account created. Ask an admin to link it to your player profile.", "success")
+        session["user"] = user
+        return redirect(url_for("banking.account"))
+    except ValueError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("auth.signup_page"))
+
+
+# --- admin linking -------------------------------------------------------
+@auth_bp.get("/admin/link")
+@login_required(role=R.ROLE_ADMIN)
+def link_page():
+    auth_service = current_app.extensions["auth_service"]
+    auction_service = current_app.extensions["auction_service"]
+    unlinked = auth_service.list_unlinked_users()
+    global_players = auction_service.list_global_players()
+    linked = []
+    with current_app.extensions["db"].read() as conn:
+        rows = conn.execute(
+            "SELECT u.username, u.display_name, u.role, u.id AS user_id, "
+            "g.name AS player_name, g.tier, g.id AS global_player_id "
+            "FROM users u LEFT JOIN global_players g ON g.id = u.global_player_id "
+            "WHERE u.role != 'admin' ORDER BY u.username"
+        ).fetchall()
+        linked = [dict(r) for r in rows]
+    return render_template("admin/link.html", unlinked=unlinked,
+                           global_players=global_players, linked=linked)
+
+
+@auth_bp.post("/admin/link/<user_id>")
+@login_required(role=R.ROLE_ADMIN)
+def link_user(user_id):
+    auth_service = current_app.extensions["auth_service"]
+    global_player_id = request.form.get("global_player_id", "")
+    try:
+        user = auth_service.link_user_to_player(user_id, global_player_id)
+        flash(f"Linked {user['username']} to a player profile.", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("auth.link_page"))
+
+
+@auth_bp.post("/admin/unlink/<user_id>")
+@login_required(role=R.ROLE_ADMIN)
+def unlink_user(user_id):
+    current_app.extensions["auth_service"].unlink_user(user_id)
+    flash("Account unlinked.", "success")
+    return redirect(url_for("auth.link_page"))
+
+
+@auth_bp.post("/admin/assign-manager")
+@login_required(role=R.ROLE_ADMIN)
+def assign_manager():
+    auth_service = current_app.extensions["auth_service"]
+    try:
+        user = auth_service.assign_manager(
+            request.form.get("user_id", ""),
+            request.form.get("team_id", ""),
+        )
+        flash(f"{user['username']} is now the manager of their team.", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("admin.dashboard"))

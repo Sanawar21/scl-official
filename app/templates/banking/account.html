@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}My Account{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Central Bank</h1>
+  <p class="muted">{{ current_user.username }}{% if current_user.global_player_id %} · linked{% else %} · <b>not linked to a player yet</b>{% endif %}</p>
+</div>
+
+{% if not account %}
+  <div class="card">
+    <p class="muted">Your account will appear once an admin links you to your player profile.</p>
+  </div>
+{% else %}
+<div class="grid">
+  <section class="card">
+    <h2>Balances</h2>
+    <div class="balance-row">
+      <div class="balance-box">
+        <div class="muted small">Liquid Cash</div>
+        <div class="balance big">{{ account.liquid_cash }}</div>
+      </div>
+      <div class="balance-box">
+        <div class="muted small">Locked (Vault)</div>
+        <div class="balance big">{{ account.locked_capital }}</div>
+      </div>
+    </div>
+    <form method="post" action="{{ url_for('banking.deposit') }}">
+      <div class="row">
+        <input type="number" name="amount" placeholder="amount" min="1" required style="width:120px">
+        <button class="btn btn-small" type="submit">Deposit</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>Vault — lock funds</h2>
+    <p class="muted small">7% yield per match. Default = compounding (auto-reinvest).
+      Manual harvest pays 7% of the original principal to liquid cash each match.
+      Locked capital is untouchable until the season ends.</p>
+    <form id="vault-lock-form">
+      <select name="season_id" required>
+        <option value="">— season —</option>
+        {% for s in seasons %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+      </select>
+      <input type="number" name="amount" placeholder="amount to lock" min="1" required style="width:120px">
+      <label class="checkbox-label"><input type="checkbox" name="reinvest" value="1" checked>
+        Compounding (reinvest)</label>
+      <button class="btn btn-small btn-primary" type="submit">Lock in vault</button>
+      <span id="vault-msg" class="error-text"></span>
+    </form>
+    {% if vault_positions %}
+      <h3>Vault positions</h3>
+      {% for pos in vault_positions %}
+        <div class="team-box">
+          <div class="team-stats">
+            <span>Season: {{ pos.season_id }}</span>
+            <span>Principal: {{ pos.principal }}</span>
+            <span>Locked: {{ pos.locked_capital }}</span>
+            <span>Mode: {% if pos.reinvest %}compound{% else %}manual{% endif %}</span>
+            <span>Last yield: match {{ pos.last_yield_match }}</span>
+          </div>
+          <button class="btn btn-small js-reinvest" data-id="{{ pos.id }}"
+                  data-reinvest="{{ 0 if pos.reinvest else 1 }}">
+            {% if pos.reinvest %}Switch to manual harvest{% else %}Switch to compounding{% endif %}
+          </button>
+        </div>
+      {% endfor %}
+    {% endif %}
+  </section>
+</div>
+
+<section class="card">
+  <h2>Transactions</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>When</th><th>Type</th><th>Amount</th><th>Balance</th><th>Comment</th></tr></thead>
+      <tbody>
+        {% for t in txns %}
+          <tr>
+            <td>{{ t.created_at[:16] }}</td>
+            <td>{{ t.type }}</td>
+            <td>{{ t.amount }}</td>
+            <td>{{ t.balance_after }}</td>
+            <td>{{ t.comment }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window.addEventListener('load', () => {
+    const lockForm = document.getElementById('vault-lock-form');
+    if (lockForm) lockForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const res = await fetch("{{ url_for('banking.vault_lock') }}", {
+        method: 'POST',
+        body: new FormData(lockForm),
+      });
+      const data = await res.json();
+      if (data.ok) { location.reload(); }
+      else { document.getElementById('vault-msg').textContent = data.error || 'Error'; }
+    });
+    document.querySelectorAll('.js-reinvest').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const res = await fetch("{{ url_for('banking.vault_reinvest', position_id='__ID__') }}".replace('__ID__', btn.dataset.id), {
+          method: 'POST',
+          body: new URLSearchParams({ reinvest: btn.dataset.reinvest }),
+        });
+        const data = await res.json();
+        if (data.ok) { location.reload(); }
+      });
+    });
+  });
+</script>
+{% endblock %}

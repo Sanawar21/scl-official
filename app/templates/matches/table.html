@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}League Table{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>League Table</h1>
+  {% if match_seasons %}
+    <div class="season-switch">
+      {% for s in match_seasons %}
+        <a class="tag {% if s.slug == season_id %}tag-active{% endif %}"
+           href="{{ url_for('matches.league_table', season=s.slug) }}">{{ s.name }}</a>
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>
+
+{% if not standings %}
+  <div class="card"><p class="muted">No match data yet for this season.</p></div>
+{% else %}
+  <section class="card">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th><th>Team</th><th>P</th><th>W</th><th>L</th><th>T</th>
+            <th>Pts</th><th>NRR</th><th>For</th><th>Against</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in standings %}
+            <tr>
+              <td>{{ s.rank }}</td>
+              <td><a href="{{ url_for('matches.team_detail', slug=s.slug) }}">{{ s.team_name }}</a></td>
+              <td>{{ s.played }}</td>
+              <td>{{ s.wins }}</td>
+              <td>{{ s.losses }}</td>
+              <td>{{ s.draws }}</td>
+              <td><b>{{ s.points }}</b></td>
+              <td>{{ s.nrr_display }}</td>
+              <td class="muted">{{ s.runs_for }}/{{ s.balls_for }}b</td>
+              <td class="muted">{{ s.runs_against }}/{{ s.balls_against }}b</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="muted small">Points: win 2, tie 1. Tie-breakers: NRR → head-to-head → boundaries.</p>
+  </section>
+{% endif %}
+{% endblock %}

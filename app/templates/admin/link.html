@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Link Accounts{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Link Accounts</h1>
+  <a class="btn" href="{{ url_for('admin.dashboard') }}">← Admin</a>
+</div>
+
+<section class="card">
+  <h2>Unlinked signups</h2>
+  {% if unlinked %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Username</th><th>Display</th><th>Link to player</th><th></th></tr></thead>
+        <tbody>
+          {% for u in unlinked %}
+            <tr>
+              <td>{{ u.username }}</td>
+              <td>{{ u.display_name }}</td>
+              <td>
+                <form method="post" action="{{ url_for('auth.link_user', user_id=u.id) }}">
+                  <select name="global_player_id" required>
+                    <option value="">— choose player —</option>
+                    {% for gp in global_players %}
+                      <option value="{{ gp.id }}">{{ gp.name }} ({{ gp.tier }})</option>
+                    {% endfor %}
+                  </select>
+                  <button class="btn btn-small" type="submit">Link</button>
+                </form>
+              </td>
+              <td></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="muted">No unlinked signups.</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>All accounts</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Username</th><th>Role</th><th>Player</th><th>Tier</th><th></th></tr></thead>
+      <tbody>
+        {% for u in linked %}
+          <tr>
+            <td>{{ u.username }}</td>
+            <td>{{ u.role }}</td>
+            <td>{{ u.player_name or '—' }}</td>
+            <td>{{ u.tier or '—' }}</td>
+            <td>
+              {% if u.global_player_id %}
+                <form method="post" action="{{ url_for('auth.unlink_user', user_id=u.user_id) }}">
+                  <button class="btn btn-small btn-danger" type="submit">Unlink</button>
+                </form>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

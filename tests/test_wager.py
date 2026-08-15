@@ -1,0 +1,254 @@
+import pytest
+
+from tests.conftest import _setup
+
+
+@pytest.fixture()
+def wager(app):
+    return app.extensions["wager_service"]
+
+
+@pytest.fixture()
+def bank(app):
+    return app.extensions["bank_service"]
+
+
+def _linked_user(app, username, gp_id, funds=10000):
+    """Create + link a user, fund their liquid cash, return the session-shaped user dict."""
+    auth = app.extensions["auth_service"]
+    user = auth.signup(username, "pass1234", username)
+    auth.link_user_to_player(user["id"], gp_id)
+    account = app.extensions["bank_service"].get_or_create_account("player", gp_id)
+    app.extensions["bank_service"].adjust(account["id"], funds, "test funds")
+    return auth.get_by_username(username)
+
+
+def _liquid(app, gp_id):
+    account = app.extensions["bank_service"].account_for_owner("player", gp_id)
+    return account["liquid_cash"] if account else 0
+
+
+def _open_market(app, wager, creator, side="Yes", amount=200, estimate=50):
+    """Create a market and run it to 'vetted' (calibrated + finalized)."""
+    w = wager.create_wager(creator, "Royales win Match 1", "", "Yes", "No", side, amount)
+    wager.calibrate(w["id"], "admin", estimate)
+    return wager.finalize_calibration(w["id"], "admin")
+
+
+def test_create_wager_with_first_stake(app, wager, bank):
+    season, players, _ = _setup(app, n_teams=2)
+    gp = players[0]["global_player_id"]
+    user = _linked_user(app, "alice", gp)
+    before = _liquid(app, gp)
+
+    w = wager.create_wager(user, "Royales win Match 1", "desc", "Yes", "No", "Yes", 500)
+
+    assert w["status"] == "proposed"
+    assert not w["accepting_bets"]
+    assert w["initiator_name"] == "alice"
+    assert len(w["bets"]) == 1 and w["bets"][0]["amount"] == 500
+    assert _liquid(app, gp) == before - 500
+    txns = bank.transactions(bank.account_for_owner("player", gp)["id"])
+    assert txns[0]["type"] == "wager_stake"
+
+
+def test_betting_blocked_before_finalize(app, wager):
+    season, players, _ = _setup(app, n_teams=2)
+    gp = players[1]["global_player_id"]
+    user = _linked_user(app, "bob", gp)
+    w = wager.create_wager(user, "Toss market", "", "Heads", "Tails", "Heads", 100)
+    wager.calibrate(w["id"], "admin", 50)
+    other = _linked_user(app, "carol", players[2]["global_player_id"])
+    with pytest.raises(ValueError):
+        wager.place_bet(other, w["id"], "Tails", 100)
+
+
+def test_calibration_consensus_is_average(app, wager):
+    season, players, _ = _setup(app, n_teams=2)
+    user = _linked_user(app, "alice", players[0]["global_player_id"])
+    w = wager.create_wager(user, "Underdog market", "", "Yes", "No", "No", 100)
+    wager.calibrate(w["id"], "admin1", 20)
+    w = wager.calibrate(w["id"], "admin2", 30)
+    assert w["status"] == "calibrating"
+    assert w["house_probability"] == 25.0
+    assert len(w["calibration_estimates"]) == 2
+
+
+def test_finalize_opens_betting_and_pools_update(app, wager):
+    season, players, _ = _setup(app, n_teams=2)
+    gp = players[0]["global_player_id"]
+    user = _linked_user(app, "alice", gp)
+    w = _open_market(app, wager, user)
+    assert w["status"] == "vetted" and w["accepting_bets"]
+
+    other = _linked_user(app, "bob", players[1]["global_player_id"])
+    w = wager.place_bet(other, w["id"], "No", 300)
+    assert w["yes_total"] == 200 and w["no_total"] == 300
+    assert w["pot"] == 500
+
+
+def test_insufficient_balance_rejected(app, wager):
+    season, players, _ = _setup(app, n_teams=2)
+    # players[2] is not a manager, so no purse tops up their account.
+    gp = players[2]["global_player_id"]
+    user = _linked_user(app, "bob", gp, funds=50)
+    with pytest.raises(ValueError):
+        wager.create_wager(user, "Too rich", "", "Yes", "No", "Yes", 100)
+
+
+def test_requires_linked_account(app, wager):
+    season, players, _ = _setup(app, n_teams=2)
+    auth = app.extensions["auth_service"]
+    unlinked = auth.signup("ghost", "pass1234", "Ghost")
+    with pytest.raises(ValueError):
+        wager.create_wager(unlinked, "No link", "", "Yes", "No", "Yes", 100)
+
+
+def test_veto_refunds_all_stakes(app, wager):
+    season, players, _ = _setup(app, n_teams=2)
+    gp = players[0]["global_player_id"]
+    user = _linked_user(app, "alice", gp)
+    before = _liquid(app, gp)
+    w = wager.create_wager(user, "Risky market", "", "Yes", "No", "Yes", 300)
+    assert _liquid(app, gp) == before - 300         # stake deducted
+    w = wager.veto(w["id"], "admin", "threatens solvency")
+    assert w["status"] == "voided" and w["veto_reason"] == "threatens solvency"
+    assert _liquid(app, gp) == before               # stake refunded in full
+    assert w["bets"][0]["status"] == "refunded"
+
+
+def test_freeze_blocks_and_unfreeze_reopens(app, wager):
+    season, players, _ = _setup(app, n_teams=2)
+    user = _linked_user(app, "alice", players[0]["global_player_id"])
+    w = _open_market(app, wager, user)
+    other = _linked_user(app, "bob", players[1]["global_player_id"])
+    w = wager.freeze(w["id"], "admin")
+    assert w["status"] == "frozen" and not w["accepting_bets"]
+    with pytest.raises(ValueError):
+        wager.place_bet(other, w["id"], "No", 100)
+    w = wager.unfreeze(w["id"], "admin")
+    assert w["status"] == "vetted" and w["accepting_bets"]
+    wager.place_bet(other, w["id"], "No", 100)
+
+
+def test_house_injection_uses_house_funds(app, wager, bank):
+    season, players, _ = _setup(app, n_teams=2)
+    house = bank.get_or_create_account("house", "house")
+    bank.adjust(house["id"], 5000, "house top-up")
+    user = _linked_user(app, "alice", players[0]["global_player_id"])
+    w = _open_market(app, wager, user)
+    w = wager.inject_house(w["id"], "admin", 1000)
+    assert w["house_injected"] == 1000
+    assert bank.get_account(house["id"])["liquid_cash"] == 4000
+    with pytest.raises(ValueError):
+        wager.inject_house(w["id"], "admin", 99999)
+
+
+def test_resolve_proportional_split(app, wager):
+    """Fat pot: winners split the whole pot pro-rata, exceeding fair odds."""
+    season, players, _ = _setup(app, n_teams=2)
+    alice = _linked_user(app, "alice", players[0]["global_player_id"])
+    bob = _linked_user(app, "bob", players[1]["global_player_id"])
+    carol = _linked_user(app, "carol", players[2]["global_player_id"])
+    alice_before = _liquid(app, players[0]["global_player_id"])
+    w = _open_market(app, wager, alice, side="Yes", amount=120, estimate=50)
+
+    wager.place_bet(bob, w["id"], "Yes", 80)
+    wager.place_bet(carol, w["id"], "No", 300)
+    # pot = 500; fair(Yes) = 2x -> guaranteed 400 <= 500 -> proportional.
+    w = wager.resolve(w["id"], "admin", "Yes")
+
+    assert w["status"] == "resolved" and w["winning_side"] == "Yes"
+    by_user = {b["username"]: b for b in w["bets"]}
+    # Yes winners split the full pot pro-rata: 120/200 and 80/200 of 500.
+    assert by_user["alice"]["payout"] == 300
+    assert by_user["bob"]["payout"] == 200
+    assert by_user["carol"]["payout"] == 0
+    assert _liquid(app, players[0]["global_player_id"]) == alice_before - 120 + 300
+
+
+def test_resolve_house_guarantee_topup(app, wager, bank):
+    """Thin pool: the House tops up so the underdog gets fair odds (4x at 25%)."""
+    season, players, _ = _setup(app, n_teams=2)
+    house = bank.get_or_create_account("house", "house")
+    bank.adjust(house["id"], 5000, "house top-up")
+
+    alice = _linked_user(app, "alice", players[0]["global_player_id"])
+    bob = _linked_user(app, "bob", players[1]["global_player_id"])
+    # p(No) = 25 -> fair(No) = 4x. Thin No pool.
+    w = _open_market(app, wager, alice, side="Yes", amount=200, estimate=25)
+    wager.place_bet(bob, w["id"], "No", 100)
+    # pot = 300; guaranteed(No) = 100 * 4 = 400 > 300 -> top-up 100.
+    w = wager.resolve(w["id"], "admin", "No")
+
+    by_user = {b["username"]: b for b in w["bets"]}
+    assert by_user["bob"]["payout"] == 400
+    assert by_user["alice"]["payout"] == 0
+    assert bank.get_account(house["id"])["liquid_cash"] == 5000 - 100
+    assert w["history"][-1]["note"].startswith("No won")
+
+
+def test_resolve_blocks_when_house_cannot_guarantee(app, wager, bank):
+    season, players, _ = _setup(app, n_teams=2)
+    house = bank.get_or_create_account("house", "house")
+    bank.adjust(house["id"], 50, "small house balance")
+
+    alice = _linked_user(app, "alice", players[0]["global_player_id"])
+    bob = _linked_user(app, "bob", players[1]["global_player_id"])
+    w = _open_market(app, wager, alice, side="Yes", amount=200, estimate=25)
+    wager.place_bet(bob, w["id"], "No", 100)
+    with pytest.raises(ValueError):
+        wager.resolve(w["id"], "admin", "No")
+
+
+def test_void_refunds_100_percent(app, wager):
+    season, players, _ = _setup(app, n_teams=2)
+    alice = _linked_user(app, "alice", players[0]["global_player_id"])
+    bob = _linked_user(app, "bob", players[1]["global_player_id"])
+    w = _open_market(app, wager, alice, side="Yes", amount=200, estimate=50)
+    wager.place_bet(bob, w["id"], "No", 150)
+    # Capture balances after stakes are placed (managers start with purse + test funds).
+    alice_before = _liquid(app, players[0]["global_player_id"])
+    bob_before  = _liquid(app, players[1]["global_player_id"])
+    w = wager.void(w["id"], "admin", "ambiguous condition")
+    assert w["status"] == "voided" and w["void_reason"] == "ambiguous condition"
+    # Both stakes refunded 100% (back to the level before the stakes).
+    assert _liquid(app, players[0]["global_player_id"]) == alice_before + 200
+    assert _liquid(app, players[1]["global_player_id"]) == bob_before + 150
+    assert all(b["status"] == "refunded" and b["payout"] == b["amount"] for b in w["bets"])
+
+
+def test_lifecycle_guards(app, wager, bank):
+    season, players, _ = _setup(app, n_teams=2)
+    house = bank.get_or_create_account("house", "house")
+    bank.adjust(house["id"], 5000, "house top-up")
+    alice = _linked_user(app, "alice", players[0]["global_player_id"])
+    bob = _linked_user(app, "bob", players[1]["global_player_id"])
+    w = _open_market(app, wager, alice, side="Yes", amount=200, estimate=50)
+
+    wager.resolve(w["id"], "admin", "Yes")
+    with pytest.raises(ValueError):
+        wager.resolve(w["id"], "admin", "Yes")          # resolve twice
+    with pytest.raises(ValueError):
+        wager.place_bet(bob, w["id"], "No", 100)        # bet after resolve
+    with pytest.raises(ValueError):
+        wager.void(w["id"], "admin", "late")            # void after resolve
+
+    w2 = wager.create_wager(bob, "Uncalibrated", "", "Yes", "No", "Yes", 100)
+    with pytest.raises(ValueError):
+        wager.resolve(w2["id"], "admin", "Yes")         # resolve before calibration
+
+    # Veto is the pre-open financial gate; an OPEN market is cancelled via void.
+    w3 = wager.create_wager(bob, "Open market", "", "Yes", "No", "Yes", 100)
+    w3 = wager.calibrate(w3["id"], "admin", 40)
+    w3 = wager.finalize_calibration(w3["id"], "admin")
+    with pytest.raises(ValueError):
+        wager.veto(w3["id"], "admin", "late veto")
+
+
+def test_route_board_and_admin_pages(app):
+    c = app.test_client()
+    assert c.get("/wagers").status_code == 200
+    assert c.get("/wagers/admin").status_code == 302  # admin required
+    c.post("/auth/login", data={"username": "admin", "password": "admin123"})
+    assert c.get("/wagers/admin").status_code == 200

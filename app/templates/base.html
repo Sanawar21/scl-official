@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}SCL{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+</head>
+<body>
+<nav class="navbar">
+  <div class="nav-inner">
+    <a class="brand" href="{{ url_for('viewer.home') }}">SCL</a>
+    <div class="nav-links">
+      <a href="{{ url_for('viewer.home') }}">Home</a>
+      <a href="{{ url_for('viewer.live') }}">Live</a>
+      <a href="{{ url_for('matches.matches_index') }}">Matches</a>
+      <a href="{{ url_for('matches.league_table') }}">Table</a>
+      <a href="{{ url_for('matches.leaderboards') }}">Top</a>
+      {% if current_user and current_user.role == 'admin' %}
+        <a href="{{ url_for('admin.dashboard') }}">Admin</a>
+        <a href="{{ url_for('matches.admin_scorer') }}">Scorer</a>
+      {% endif %}
+      {% if current_user and current_user.role == 'manager' %}
+        <a href="{{ url_for('manager.dashboard') }}">My Team</a>
+      {% endif %}
+      {% if current_user and current_user.role != 'admin' %}
+        <a href="{{ url_for('banking.account') }}">Account</a>
+      {% endif %}
+      {% if current_user %}
+        {% if current_user.role == 'admin' %}
+          <a href="{{ url_for('wagers.admin') }}">Wagers</a>
+        {% else %}
+          <a href="{{ url_for('wagers.board') }}">Wagers</a>
+        {% endif %}
+        <a class="muted" href="{{ url_for('auth.logout') }}">Logout</a>
+      {% else %}
+        <a class="muted" href="{{ url_for('auth.login_page') }}">Login</a>
+        <a class="muted" href="{{ url_for('auth.signup_page') }}">Sign up</a>
+      {% endif %}
+    </div>
+  </div>
+</nav>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    <div class="flash-wrap">
+      {% for category, message in messages %}
+        <div class="flash flash-{{ category }}">{{ message }}</div>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endwith %}
+
+<main class="container">
+{% block content %}{% endblock %}
+</main>
+
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

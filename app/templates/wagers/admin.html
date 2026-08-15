@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Wagers Admin{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="row">
+    <h1 style="margin:0">Wagers Admin</h1>
+    <a class="btn btn-small" href="{{ url_for('wagers.board') }}">Public board</a>
+  </div>
+  <p class="muted">House liquid cash: <b>{{ house.liquid_cash if house else 0 }}</b>
+    (top up via <a href="{{ url_for('admin.dashboard') }}">Admin → Bank adjust</a> using
+    <code>house:house</code>).</p>
+</div>
+
+{% for w in wagers %}
+  <section class="card">
+    <div class="row">
+      <h2 style="margin:0"><a href="{{ url_for('wagers.detail', wager_id=w.id) }}">{{ w.title }}</a></h2>
+      <span class="tag {% if w.status == 'resolved' %}tag-active{% elif w.status == 'voided' %}tag-danger{% endif %}">{{ w.status }}</span>
+    </div>
+    <div class="row muted small">
+      <span>by {{ w.initiator_name }}</span>
+      <span>pot {{ w.pot }} ({{ w.yes_total }} / {{ w.no_total }})</span>
+      <span>house injected {{ w.house_injected }}</span>
+      {% if w.house_probability %}<span>consensus {{ '%.2f'|format(w.house_probability) }}% for {{ w.side_b }}</span>{% endif %}
+    </div>
+
+    {% if w.status in ('proposed', 'calibrating') %}
+      <h3>Calibration</h3>
+      <form method="post" action="{{ url_for('wagers.admin_calibrate', wager_id=w.id) }}" class="row">
+        <input type="number" name="estimate" placeholder="blind estimate %" min="1" max="99" step="0.01" required style="width:110px">
+        <button class="btn btn-small" type="submit">Record estimate</button>
+      </form>
+      {% if w.calibration_estimates %}
+        <p class="muted small">Estimates: {% for e in w.calibration_estimates %}{{ e.admin }}={{ e.estimate }}% {% endfor %}
+          (average {{ '%.2f'|format(w.house_probability) }}%)</p>
+      {% endif %}
+      <div class="row">
+        <form method="post" action="{{ url_for('wagers.admin_finalize', wager_id=w.id) }}">
+          <button class="btn btn-small btn-primary" type="submit">Finalize (open betting)</button>
+        </form>
+        <form method="post" action="{{ url_for('wagers.admin_veto', wager_id=w.id) }}">
+          <input type="text" name="reason" placeholder="veto reason" style="width:140px">
+          <button class="btn btn-small btn-danger" type="submit">Veto (refund all)</button>
+        </form>
+      </div>
+    {% endif %}
+
+    {% if w.status in ('vetted', 'frozen') %}
+      <div class="row">
+        <form method="post" action="{{ url_for('wagers.admin_inject', wager_id=w.id) }}">
+          <input type="number" name="amount" placeholder="house injection" min="1" required style="width:110px">
+          <button class="btn btn-small" type="submit">Inject house funds</button>
+        </form>
+        {% if w.status == 'vetted' %}
+          <form method="post" action="{{ url_for('wagers.admin_freeze', wager_id=w.id) }}">
+            <button class="btn btn-small" type="submit">Freeze</button>
+          </form>
+        {% else %}
+          <form method="post" action="{{ url_for('wagers.admin_unfreeze', wager_id=w.id) }}">
+            <button class="btn btn-small" type="submit">Unfreeze</button>
+          </form>
+        {% endif %}
+      </div>
+      <div class="row">
+        <form method="post" action="{{ url_for('wagers.admin_resolve', wager_id=w.id) }}">
+          <label class="small">Winning side
+            <select name="winning_side">
+              <option value="{{ w.side_a }}">{{ w.side_a }}</option>
+              <option value="{{ w.side_b }}">{{ w.side_b }}</option>
+            </select>
+          </label>
+          <button class="btn btn-small btn-primary" type="submit">Resolve &amp; pay</button>
+        </form>
+        <form method="post" action="{{ url_for('wagers.admin_void', wager_id=w.id) }}">
+          <input type="text" name="reason" placeholder="void reason" style="width:140px">
+          <button class="btn btn-small btn-danger" type="submit">Void (refund 100%)</button>
+        </form>
+      </div>
+    {% endif %}
+
+    {% if w.status == 'resolved' %}
+      <p class="muted small">Resolved {{ w.resolved_at[:16] }} — <b>{{ w.winning_side }}</b> won.</p>
+    {% endif %}
+    {% if w.status == 'voided' %}
+      <p class="muted small">Voided{% if w.void_reason %} — {{ w.void_reason }}{% endif %}
+        {% if w.veto_reason %} (veto: {{ w.veto_reason }}){% endif %}. All stakes refunded.</p>
+    {% endif %}
+  </section>
+{% else %}
+  <div class="card"><p class="muted">No markets yet.</p></div>
+{% endfor %}
+{% endblock %}

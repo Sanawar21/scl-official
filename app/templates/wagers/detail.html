@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}{{ wager.title }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="row">
+    <h1 style="margin:0">{{ wager.title }}</h1>
+    <span class="tag {% if wager.status == 'resolved' %}tag-active{% elif wager.status == 'voided' %}tag-danger{% endif %}">{{ wager.status }}</span>
+  </div>
+  <p class="muted">by {{ wager.initiator_name }} · proposed {{ wager.created_at[:16] }}
+    {% if wager.season_id %} · {{ wager.season_id }}{% endif %}</p>
+</div>
+
+{% if wager.description %}<p>{{ wager.description }}</p>{% endif %}
+
+{% set total = wager.yes_total + wager.no_total %}
+{% if total > 0 %}
+  <section class="card">
+    <h2>Pools</h2>
+    <div class="team-box">
+      <div class="team-stats">
+        <span>{{ wager.side_a }} (Yes): {{ wager.yes_total }}</span>
+        <span>{{ wager.side_b }} (No): {{ wager.no_total }}</span>
+        <span>Pot: {{ wager.pot }} {% if wager.house_injected %}(incl. {{ wager.house_injected }} house){% endif %}</span>
+      </div>
+      <div style="display:flex; height:14px; border-radius:7px; overflow:hidden; margin-top:8px; background:var(--surface-2);">
+        <div style="width: {{ (100 * wager.yes_total / total) if total else 0 }}%; background: var(--primary);"></div>
+        <div style="width: {{ (100 * wager.no_total / total) if total else 0 }}%; background: var(--danger);"></div>
+      </div>
+    </div>
+    {% if wager.house_probability %}
+      <p class="muted small">
+        Fair odds: {{ wager.side_a }} {{ '%.2f'|format(100 / (100 - wager.house_probability)) }}x ·
+        {{ wager.side_b }} {{ '%.2f'|format(100 / wager.house_probability) }}x
+      </p>
+    {% endif %}
+  </section>
+{% endif %}
+
+{% if wager.status == 'vetted' %}
+  <section class="card">
+    <h2>Place a stake</h2>
+    {% if not user %}
+      <p class="muted"><a href="{{ url_for('auth.login_page', next=request.path) }}">Log in</a> to stake.</p>
+    {% elif not user.global_player_id %}
+      <p class="muted">Your account must be linked to your player profile to stake.</p>
+    {% else %}
+      <p class="muted">Your liquid cash: <b>{{ account.liquid_cash if account else 0 }}</b></p>
+      <form method="post" action="{{ url_for('wagers.bet', wager_id=wager.id) }}">
+        <div class="row">
+          <label>Side
+            <select name="side">
+              <option value="{{ wager.side_a }}">{{ wager.side_a }}</option>
+              <option value="{{ wager.side_b }}">{{ wager.side_b }}</option>
+            </select>
+          </label>
+          <input type="number" name="amount" placeholder="amount" min="1" required style="width:110px">
+          <button class="btn btn-small btn-primary" type="submit">Stake</button>
+        </div>
+      </form>
+    {% endif %}
+  </section>
+{% elif wager.status == 'frozen' %}
+  <p class="muted">Pools frozen pending news. A Phase 2 market may open with updated odds.</p>
+{% elif wager.status in ('resolved', 'voided') %}
+  {% if wager.status == 'resolved' %}
+    <p class="muted">Resolved: <b>{{ wager.winning_side }}</b> won. Winners have been paid.</p>
+  {% else %}
+    <p class="muted">Voided{% if wager.void_reason %} — {{ wager.void_reason }}{% elif wager.veto_reason %} — {{ wager.veto_reason }}{% endif %}.
+      All stakes refunded 100%.</p>
+  {% endif %}
+{% else %}
+  <p class="muted">Awaiting admin calibration{% if wager.house_probability %}
+    (consensus {{ '%.2f'|format(wager.house_probability) }}% for {{ wager.side_b }}){% endif %}.</p>
+{% endif %}
+
+{% if wager.bets %}
+  <section class="card">
+    <h2>Bets</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>User</th><th>Side</th><th>Amount</th><th>Status</th><th>Payout</th><th>When</th></tr></thead>
+        <tbody>
+          {% for b in wager.bets %}
+            <tr>
+              <td>{{ b.username }}</td>
+              <td>{{ b.side }}</td>
+              <td>{{ b.amount }}</td>
+              <td>{{ b.status }}</td>
+              <td>{{ b.payout if b.payout is not none else '—' }}</td>
+              <td>{{ b.created_at[:16] }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endif %}
+
+{% if wager.history %}
+  <section class="card">
+    <h3>History</h3>
+    <ul class="muted small">
+      {% for h in wager.history %}
+        <li>{{ h.at[:16] }} — {{ h.action }} by {{ h.actor }}{% if h.note %}: {{ h.note }}{% endif %}</li>
+      {% endfor %}
+    </ul>
+  </section>
+{% endif %}
+{% endblock %}

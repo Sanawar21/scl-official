@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Matches{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Matches</h1>
+  {% if match_seasons %}
+    <div class="season-switch">
+      {% for s in match_seasons %}
+        <a class="tag {% if s.slug == season_id %}tag-active{% endif %}"
+           href="{{ url_for('matches.matches_index', season=s.slug) }}">{{ s.name }}</a>
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>
+
+{% if not registry %}
+  <div class="card"><p class="muted">No matches registered yet.</p></div>
+{% else %}
+  <section class="card">
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>#</th><th>Match</th><th>Between</th><th>Venue</th><th>Result</th></tr></thead>
+        <tbody>
+          {% for m in registry %}
+            <tr>
+              <td>{{ m.match_number or m.match_id }}</td>
+              <td>
+                <a href="{{ url_for('matches.match_summary', season_id=m.season_id, match_id=m.match_id) }}">
+                  {{ m.match_title or m.match_id }}
+                </a>
+              </td>
+              <td>{{ m.between }}</td>
+              <td class="muted">{{ m.venue }}</td>
+              <td>
+                {% if m.walkover %}
+                  <span class="tag tag-danger">walkover</span>
+                {% else %}
+                  <span class="tag">{% if m.match_date %}{{ m.match_date }}{% else %}—{% endif %}</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endif %}
+{% endblock %}

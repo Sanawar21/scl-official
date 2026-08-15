@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% block title %}Scorer Admin{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="row">
+    <h1 style="margin:0">Scorer Admin</h1>
+    <a class="btn btn-small" href="{{ url_for('matches.matches_index') }}">Public matches</a>
+  </div>
+  <p class="muted">Season binding: <b>{{ config.season_slug or '—' }}</b> · max overs {{ config.max_overs }}</p>
+</div>
+
+<section class="card">
+  <h2>Config</h2>
+  <form method="post" action="{{ url_for('matches.admin_scorer_config') }}" class="row">
+    <label class="small">Season
+      <select name="season_slug">
+        <option value="">— none —</option>
+        {% for s in season_options %}
+          <option value="{{ s.id }}" {% if s.id == config.season_slug %}selected{% endif %}>{{ s.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="small">Max overs
+      <input type="number" name="max_overs" value="{{ config.max_overs }}" min="1" style="width:80px">
+    </label>
+    <button class="btn btn-small btn-primary" type="submit">Save</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Add / update match</h2>
+  <form method="post" action="{{ url_for('matches.admin_scorer_registry') }}">
+    <div class="row">
+      <label class="small">Season
+        <select name="season_id" required>
+          <option value="">— season —</option>
+          {% for s in season_options %}
+            <option value="{{ s.id }}" {% if s.id == config.season_slug %}selected{% endif %}>{{ s.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="small">Match ID
+        <input type="text" name="match_id" placeholder="M1" required style="width:90px">
+      </label>
+      <label class="small">Number
+        <input type="text" name="match_number" placeholder="Match 1" style="width:100px">
+      </label>
+      <label class="small">Title
+        <input type="text" name="match_title" placeholder="Optional" style="width:140px">
+      </label>
+    </div>
+    <div class="row">
+      <label class="small">Between
+        <input type="text" name="between" placeholder="Team A vs Team B" style="width:220px">
+      </label>
+      <label class="small">Venue
+        <input type="text" name="venue" placeholder="Optional" style="width:140px">
+      </label>
+      <label class="small">Date
+        <input type="text" name="match_date" placeholder="YYYY-MM-DD" style="width:120px">
+      </label>
+    </div>
+    <div class="row">
+      <label class="small">Team A
+        <select name="team_a_global_id">
+          <option value="">—</option>
+          {% for t in team_options %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+        </select>
+      </label>
+      <label class="small">Team B
+        <select name="team_b_global_id">
+          <option value="">—</option>
+          {% for t in team_options %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+        </select>
+      </label>
+      <label class="checkbox-label"><input type="checkbox" name="walkover" value="1"> Walkover</label>
+      <label class="small">Walkover winner
+        <select name="walkover_winner_team_id">
+          <option value="">—</option>
+          {% for t in team_options %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+        </select>
+      </label>
+    </div>
+    <button class="btn btn-small btn-primary" type="submit">Save match</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Import scorecard CSV</h2>
+  <form method="post" action="{{ url_for('matches.admin_scorer_import') }}" enctype="multipart/form-data">
+    <div class="row">
+      <label class="small">Season
+        <select name="season_id" required>
+          <option value="">— season —</option>
+          {% for s in season_options %}
+            <option value="{{ s.id }}" {% if s.id == config.season_slug %}selected{% endif %}>{{ s.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="small">Match ID override
+        <input type="text" name="match_id" placeholder="auto from CSV" style="width:140px">
+      </label>
+      <label class="small">Venue override
+        <input type="text" name="venue" placeholder="optional" style="width:140px">
+      </label>
+    </div>
+    <div class="row">
+      <label class="small">Date
+        <input type="text" name="match_date" placeholder="YYYY-MM-DD" style="width:120px">
+      </label>
+      <input type="file" name="csv" accept=".csv" required>
+      <label class="checkbox-label"><input type="checkbox" name="confirm_overwrite" value="1"> Overwrite existing</label>
+      <label class="checkbox-label"><input type="checkbox" name="include_in_fantasy_points" value="1" checked> Fantasy points</label>
+    </div>
+    <button class="btn btn-small btn-primary" type="submit">Import</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Registry</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Match</th><th>Between</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody>
+        {% for m in registry %}
+          <tr>
+            <td>{{ m.match_number or m.match_id }}
+              <a class="small" href="{{ url_for('matches.match_summary', season_id=m.season_id, match_id=m.match_id) }}">view</a></td>
+            <td class="muted">{{ m.between }}</td>
+            <td>
+              {% if m.walkover %}<span class="tag tag-danger">walkover</span>
+              {% elif m.match_key in recent_imports|map(attribute='match_key') %}<span class="tag tag-active">imported</span>
+              {% else %}<span class="tag">—</span>{% endif %}
+            </td>
+            <td>
+              <form method="post" action="{{ url_for('matches.admin_scorer_registry_delete') }}" class="row">
+                <input type="hidden" name="season_id" value="{{ m.season_id }}">
+                <input type="hidden" name="match_id" value="{{ m.match_id }}">
+                <button class="btn btn-small btn-danger" type="submit">Delete</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Recent imports</h2>
+  {% if recent_imports %}
+    <ul class="feed">
+      {% for imp in recent_imports %}
+        <li><b>{{ imp.match_id }}</b>
+          <span class="muted">{{ imp.uploaded_at[:16] }} · {{ imp.source_file }} ·
+            {{ imp.team_rows }} teams / {{ imp.player_rows }} players ·
+            <a href="{{ url_for('matches.match_summary', season_id=imp.season_id, match_id=imp.match_id) }}">view</a></span>
+          <form method="post" action="{{ url_for('matches.admin_scorer_undo') }}" class="row">
+            <input type="hidden" name="season_id" value="{{ imp.season_id }}">
+            <input type="hidden" name="match_id" value="{{ imp.match_id }}">
+            <button class="btn btn-small btn-danger" type="submit">Undo</button>
+          </form>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="muted">No imports yet.</p>
+  {% endif %}
+</section>
+{% endblock %}

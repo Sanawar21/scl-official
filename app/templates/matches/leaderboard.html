@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Leaderboards{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Leaderboards</h1>
+  {% if match_seasons %}
+    <div class="season-switch">
+      {% for s in match_seasons %}
+        <a class="tag {% if s.slug == season_id %}tag-active{% endif %}"
+           href="{{ url_for('matches.leaderboards', season=s.slug) }}">{{ s.name }}</a>
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>
+
+{% if not boards %}
+  <div class="card"><p class="muted">No match data yet.</p></div>
+{% else %}
+<div class="grid">
+  <section class="card">
+    <h2>Most Runs</h2>
+    {% if boards.batters %}
+      <ol class="feed">
+        {% for b in boards.batters %}
+          <li><a href="{{ url_for('matches.player_detail', slug=b.slug) }}"><b>{{ b.player_name }}</b></a>
+            <span class="muted">{{ b.runs }} runs ({{ b.matches }} m)</span></li>
+        {% endfor %}
+      </ol>
+    {% else %}<p class="muted small">—</p>{% endif %}
+  </section>
+
+  <section class="card">
+    <h2>Most Wickets</h2>
+    {% if boards.bowlers %}
+      <ol class="feed">
+        {% for b in boards.bowlers %}
+          <li><a href="{{ url_for('matches.player_detail', slug=b.slug) }}"><b>{{ b.player_name }}</b></a>
+            <span class="muted">{{ b.wickets }} wkts ({{ b.matches }} m)</span></li>
+        {% endfor %}
+      </ol>
+    {% else %}<p class="muted small">—</p>{% endif %}
+  </section>
+
+  <section class="card">
+    <h2>Fantasy Points</h2>
+    {% if boards.fantasy %}
+      <ol class="feed">
+        {% for b in boards.fantasy %}
+          <li><a href="{{ url_for('matches.player_detail', slug=b.slug) }}"><b>{{ b.player_name }}</b></a>
+            <span class="muted">{{ b.fantasy_score }} pts</span></li>
+        {% endfor %}
+      </ol>
+    {% else %}<p class="muted small">—</p>{% endif %}
+  </section>
+
+  <section class="card">
+    <h2>Best Strike Rate <span class="muted small">(min 6 balls)</span></h2>
+    {% if boards.strike_rates %}
+      <ol class="feed">
+        {% for b in boards.strike_rates %}
+          <li><a href="{{ url_for('matches.player_detail', slug=b.slug) }}"><b>{{ b.player_name }}</b></a>
+            <span class="muted">{{ '%.2f'|format(b.strike_rate) }}</span></li>
+        {% endfor %}
+      </ol>
+    {% else %}<p class="muted small">—</p>{% endif %}
+  </section>
+
+  <section class="card">
+    <h2>Best Economy <span class="muted small">(min 6 balls)</span></h2>
+    {% if boards.economies %}
+      <ol class="feed">
+        {% for b in boards.economies %}
+          <li><a href="{{ url_for('matches.player_detail', slug=b.slug) }}"><b>{{ b.player_name }}</b></a>
+            <span class="muted">{{ '%.2f'|format(b.economy) }}</span></li>
+        {% endfor %}
+      </ol>
+    {% else %}<p class="muted small">—</p>{% endif %}
+  </section>
+
+  <section class="card">
+    <h2>Team Fantasy</h2>
+    {% if boards.teams_fantasy %}
+      <ol class="feed">
+        {% for t in boards.teams_fantasy %}
+          <li><b>{{ t.team_name }}</b>
+            <span class="muted">{{ t.fantasy_points }} pts ({{ t.matches }} m)</span></li>
+        {% endfor %}
+      </ol>
+    {% else %}<p class="muted small">—</p>{% endif %}
+  </section>
+</div>
+{% endif %}
+{% endblock %}

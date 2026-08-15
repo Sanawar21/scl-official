@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}{{ summary.match_title or summary.match_id }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ summary.match_title or summary.match_id }}</h1>
+  <p class="muted">{{ summary.between }}{% if summary.venue %} · {{ summary.venue }}{% endif %}
+    {% if summary.match_date %} · {{ summary.match_date }}{% endif %}</p>
+  {% if summary.result %}<p><b>{{ summary.result }}</b></p>{% endif %}
+  {% if summary.toss %}<p class="muted small">Toss: {{ summary.toss }}</p>{% endif %}
+  <a class="btn btn-small" href="{{ url_for('matches.matches_index', season=summary.season_id) }}">← All matches</a>
+</div>
+
+{% if summary.walkover %}
+  <div class="card"><p class="muted">Walkover — no scorecard.</p></div>
+{% elif not summary.has_uploaded_data %}
+  <div class="card"><p class="muted">No scorecard uploaded yet.</p></div>
+{% else %}
+  {% for sec in summary.team_sections %}
+    <section class="card">
+      <h2>{{ sec.team_name }} <span class="muted small">{{ sec.total }}</span></h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Batter</th><th>Runs</th><th>Balls</th><th>4s</th><th>6s</th><th>SR</th></tr></thead>
+          <tbody>
+            {% for b in sec.batting %}
+              <tr>
+                <td>{{ b.player_name }} <span class="muted small">{{ b.status }}</span></td>
+                <td>{{ b.runs }}</td>
+                <td>{{ b.balls_faced }}</td>
+                <td>{{ b.fours }}</td>
+                <td>{{ b.sixes }}</td>
+                <td>{{ b.sr_display }}</td>
+              </tr>
+            {% endfor %}
+            <tr class="muted"><td>Extras</td><td colspan="5">{{ sec.extras }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <h3 class="small muted">Bowling</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Bowler</th><th>Overs</th><th>Runs</th><th>Wkts</th><th>Econ</th></tr></thead>
+          <tbody>
+            {% for b in sec.bowling %}
+              <tr>
+                <td>{{ b.player_name }}</td>
+                <td>{{ b.overs_display }}</td>
+                <td>{{ b.runs_conceded }}</td>
+                <td>{{ b.wickets }}</td>
+                <td>{{ b.econ_display }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  {% endfor %}
+
+  <section class="card">
+    <h2>Fantasy points</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Player</th><th>Team</th><th>Fantasy</th></tr></thead>
+        <tbody>
+          {% for p in summary.fantasy_leaderboard %}
+            <tr>
+              <td>{{ p.player_name }}</td>
+              <td class="muted">{{ p.team_name }}</td>
+              <td>{{ p.fantasy_score }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endif %}
+{% endblock %}

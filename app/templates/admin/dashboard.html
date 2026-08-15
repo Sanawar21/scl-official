@@ -1,0 +1,360 @@
+{% extends "base.html" %}
+{% block title %}Admin{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Admin Control Room</h1>
+  <a class="btn" href="{{ url_for('auth.link_page') }}">Link Accounts</a>
+</div>
+
+{% if not seasons %}
+  <section class="card">
+    <h2>Create your first season</h2>
+    <form method="post" action="{{ url_for('admin.season_create') }}">
+      <label>Season name <input type="text" name="name" placeholder="e.g. Season 2" required></label>
+      <button class="btn btn-primary" type="submit">Create season</button>
+    </form>
+  </section>
+{% else %}
+
+<div class="season-switch">
+  {% for s in seasons %}
+    <a class="tag {% if s.id == season_id %}tag-active{% endif %}"
+       href="{{ url_for('admin.dashboard', season=s.id) }}">{{ s.name }}</a>
+  {% endfor %}
+  <details class="inline-details">
+    <summary class="tag">+ new</summary>
+    <form method="post" action="{{ url_for('admin.season_create') }}">
+      <input type="text" name="name" placeholder="Season name" required>
+      <button class="btn btn-small" type="submit">Create</button>
+    </form>
+  </details>
+</div>
+
+{% set state = state %}
+{% set ruleset = state.ruleset %}
+{% set phase = state.phase %}
+
+<section class="card">
+  <h2>Ruleset — {{ season_id }} <span class="tag">{{ phase }}</span></h2>
+  <details>
+    <summary>Edit ruleset (setup only)</summary>
+    <form method="post" action="{{ url_for('admin.season_ruleset', season_id=season_id) }}">
+      <label>Phase order (comma-separated: platinum, gold, break, silver, phase_b)
+        <input type="text" name="phase_order" value="{{ ruleset.phase_order | join(', ') }}"></label>
+      <div class="grid-3">
+        {% for tier in ['platinum', 'gold', 'silver'] %}
+          <div class="tier-box">
+            <h4>{{ tier|capitalize }}</h4>
+            <label>Purse <input type="number" name="tier_purses_{{ tier }}_purse" value="{{ ruleset.tier_purses[tier] }}"></label>
+            <label>Base price <input type="number" name="tier_base_prices_{{ tier }}_base" value="{{ ruleset.tier_base_prices[tier] }}"></label>
+            <label>Credits <input type="number" name="tier_credits_{{ tier }}_credit" value="{{ ruleset.tier_credits[tier] }}"></label>
+          </div>
+        {% endfor %}
+      </div>
+      <div class="grid-3">
+        <label>Total credits <input type="number" name="total_credits" value="{{ ruleset.total_credits }}"></label>
+        <label>Bid increment <input type="number" name="bid_increment" value="{{ ruleset.bid_increment }}"></label>
+        <label>Phase B price <input type="number" name="phase_b_price" value="{{ ruleset.phase_b_price }}"></label>
+        <label>Credit refund rate <input type="number" name="credit_refund_rate" value="{{ ruleset.credit_refund_rate }}"></label>
+        <label>Required players <input type="number" name="required_players" value="{{ ruleset.required_players }}"></label>
+        <label>Break minutes <input type="number" name="break_minutes" value="{{ ruleset.break_minutes }}"></label>
+      </div>
+      <button class="btn btn-small" type="submit">Save ruleset</button>
+    </form>
+  </details>
+</section>
+
+<div class="grid">
+  <section class="card">
+    <h2>Players ({{ state.players | length }})</h2>
+    <form method="post" action="{{ url_for('admin.player_add', season_id=season_id) }}">
+      <div class="row">
+        <input type="text" name="name" placeholder="Player name" required>
+        <select name="tier">
+          {% for tier in ['platinum', 'gold', 'silver'] %}<option value="{{ tier }}">{{ tier }}</option>{% endfor %}
+        </select>
+        <select name="speciality">
+          {% for spec in ['ALL_ROUNDER', 'BATTER', 'BOWLER'] %}<option>{{ spec }}</option>{% endfor %}
+        </select>
+        <button class="btn btn-small btn-primary" type="submit">Add</button>
+      </div>
+    </form>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Name</th><th>Tier</th><th>Base</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          {% for p in state.players %}
+            <tr>
+              <td>
+                <details>
+                  <summary>{{ p.name }}</summary>
+                  <form method="post" action="{{ url_for('admin.player_update', season_id=season_id, player_id=p.id) }}">
+                    <input type="text" name="name" value="{{ p.name }}">
+                    <select name="tier">
+                      {% for tier in ['platinum', 'gold', 'silver'] %}
+                        <option value="{{ tier }}" {% if p.tier == tier %}selected{% endif %}>{{ tier }}</option>
+                      {% endfor %}
+                    </select>
+                    <select name="speciality">
+                      {% for spec in ['ALL_ROUNDER', 'BATTER', 'BOWLER'] %}
+                        <option {% if p.speciality == spec %}selected{% endif %}>{{ spec }}</option>
+                      {% endfor %}
+                    </select>
+                    <button class="btn btn-small" type="submit">Save</button>
+                  </form>
+                </details>
+              </td>
+              <td>{{ p.tier }}</td>
+              <td>{{ p.base_price }}</td>
+              <td>{{ p.status }}{% if p.sold_to_team_name != '-' %} → {{ p.sold_to_team_name }}{% endif %}</td>
+              <td>
+                <form method="post" action="{{ url_for('admin.player_delete', season_id=season_id, player_id=p.id) }}"
+                      onsubmit="return confirm('Remove {{ p.name }}?')">
+                  <button class="btn btn-small btn-danger" type="submit">✕</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Teams ({{ state.teams | length }})</h2>
+    <form method="post" action="{{ url_for('admin.team_create', season_id=season_id) }}">
+      <div class="row">
+        <input type="text" name="name" placeholder="Team name" required>
+        <select name="manager_player_id" required>
+          <option value="">— manager player —</option>
+          {% for gp in available_manager_players %}
+            <option value="{{ gp.id }}">{{ gp.name }} ({{ gp.tier }})</option>
+          {% endfor %}
+        </select>
+        <button class="btn btn-small btn-primary" type="submit">Create</button>
+      </div>
+    </form>
+    {% for team in state.teams %}
+      <div class="team-box {% if team.control_status == 'admin_takeover' %}team-takeover{% endif %}">
+        <div class="team-head">
+          <strong>{{ team.name }}</strong>
+          <span class="muted">Mgr: {{ team.manager_name }} ({{ team.manager_tier }})</span>
+          {% if team.control_status == 'admin_takeover' %}
+            <span class="tag tag-danger">ADMIN CONTROL</span>
+          {% endif %}
+        </div>
+        <div class="team-stats">
+          <span>Purse: <strong>{{ team.purse_remaining }}</strong></span>
+          <span>Credits: <strong>{{ team.credits_remaining }}</strong></span>
+          <span>XI: {{ team.player_labels | length }} / Bench: {{ team.bench_labels | length }}</span>
+        </div>
+        <div class="chips">
+          {% for label in team.player_labels %}<span class="chip">{{ label }}</span>{% endfor %}
+          {% for label in team.bench_labels %}<span class="chip chip-bench">{{ label }}</span>{% endfor %}
+        </div>
+        <div class="row">
+          <form method="post" action="{{ url_for('admin.team_gift', season_id=season_id, team_id=team.id) }}">
+            <input type="number" name="amount" placeholder="amount" min="1" style="width:90px" required>
+            <select name="operation"><option value="add">Gift +</option><option value="remove">Take −</option></select>
+            <input type="text" name="comment" placeholder="reason" style="width:130px">
+            <button class="btn btn-small" type="submit">Apply</button>
+          </form>
+          {% if team.control_status == 'manager_controlled' %}
+            <form method="post" action="{{ url_for('admin.takeover', season_id=season_id, team_id=team.id) }}">
+              <input type="text" name="reason" placeholder="fumble reason" style="width:130px">
+              <button class="btn btn-small btn-danger" type="submit">Take over</button>
+            </form>
+          {% else %}
+            <form method="post" action="{{ url_for('admin.restore', season_id=season_id, team_id=team.id) }}">
+              <button class="btn btn-small" type="submit">Restore</button>
+            </form>
+          {% endif %}
+          <form method="post" action="{{ url_for('admin.team_delete', season_id=season_id, team_id=team.id) }}"
+                onsubmit="return confirm('Delete {{ team.name }}?')">
+            <button class="btn btn-small btn-danger" type="submit">✕</button>
+          </form>
+        </div>
+      </div>
+    {% endfor %}
+  </section>
+</div>
+
+<section class="card">
+  <h2>Auction Control</h2>
+  <div class="grid">
+    <div>
+      <h3>Phase</h3>
+      <form method="post" action="{{ url_for('admin.phase_set', season_id=season_id) }}">
+        <select name="phase">
+          {% for p in state.flow %}
+            <option value="{{ p }}" {% if phase == p %}selected{% endif %}>{{ p }}</option>
+          {% endfor %}
+          <option value="complete" {% if phase == 'complete' %}selected{% endif %}>complete</option>
+          <option value="transfers_open" {% if phase == 'transfers_open' %}selected{% endif %}>transfers_open</option>
+        </select>
+        <button class="btn btn-small" type="submit">Set phase</button>
+      </form>
+      {% if phase == 'phase_b' %}
+        <p class="muted small">Phase B readiness: {{ state.phase_b_readiness.unsold_players }} unsold,
+          {{ state.phase_b_readiness.incomplete_fill_needed }} needed to fill.</p>
+      {% endif %}
+      <div class="row">
+        <form method="post" action="{{ url_for('admin.nominate', season_id=season_id) }}">
+          <button class="btn" type="submit">Nominate next</button>
+        </form>
+        <form method="post" action="{{ url_for('admin.previous', season_id=season_id) }}">
+          <button class="btn" type="submit">Step back</button>
+        </form>
+        <form method="post" action="{{ url_for('admin.close_lot', season_id=season_id) }}">
+          <button class="btn btn-primary" type="submit">Close lot</button>
+        </form>
+      </div>
+      {% if phase in ['phase_b', 'complete', 'transfers_open'] %}
+        <form method="post" action="{{ url_for('admin.complete', season_id=season_id) }}">
+          <button class="btn btn-danger" type="submit">Complete draft + penalties</button>
+        </form>
+      {% endif %}
+      <form method="post" action="{{ url_for('admin.publish', season_id=season_id) }}">
+        <label>Publish snapshot <input type="text" name="name" placeholder="public name (optional)" style="width:200px"></label>
+        <button class="btn" type="submit">Publish</button>
+      </form>
+    </div>
+    <div>
+      <h3>Current Lot</h3>
+      {% if state.current_player %}
+        <div class="lot-box">
+          <div class="lot-name">{{ state.current_player.name }} <span class="tag">{{ state.current_player.tier }}</span></div>
+          <div class="lot-bid">Current bid: <strong>{{ state.current_player.current_bid }}</strong>
+            <span class="muted">by {{ state.current_player.current_bidder_team_name }}</span></div>
+          <div class="lot-base">Base: {{ state.current_player.base_price }}</div>
+        </div>
+      {% else %}
+        <p class="muted">No player nominated.</p>
+      {% endif %}
+      <h3>Bid feed</h3>
+      <ul class="feed">
+        {% for b in state.bids[:15] %}
+          <li><span class="chip">{{ b.team_name }}</span> {{ b.player_name }} — {{ b.amount }}
+            <span class="muted">{{ b.ts_display }}</span></li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Transfers (post-auction admin control)</h2>
+  {% if phase in ['complete', 'transfers_open'] %}
+    <form method="post" action="{{ url_for('admin.transfer', season_id=season_id) }}">
+      <div class="row">
+        <select name="player_id" required>
+          <option value="">— player —</option>
+          {% for p in state.players if p.status == 'sold' %}
+            <option value="{{ p.id }}">{{ p.name }} ({{ p.sold_to_team_name }})</option>
+          {% endfor %}
+        </select>
+        <select name="team_to" required>
+          <option value="">— to team —</option>
+          {% for t in state.teams %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+        </select>
+        <input type="number" name="price" placeholder="price" value="0" style="width:80px">
+        <input type="number" name="credits" placeholder="credits" value="0" style="width:80px">
+        <input type="text" name="note" placeholder="note" style="width:130px">
+        <button class="btn btn-small btn-primary" type="submit">Transfer</button>
+      </div>
+    </form>
+  {% else %}
+    <p class="muted small">Transfers unlock after the draft is completed.</p>
+  {% endif %}
+  {% if transfers %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>When</th><th>Player</th><th>From</th><th>To</th><th>Price</th><th>Credits</th></tr></thead>
+        <tbody>
+          {% for tr in transfers %}
+            <tr>
+              <td>{{ tr.created_at[:16] }}</td>
+              <td>{{ players_by_id.get(tr.player_id, {}).get('name', tr.player_id) }}</td>
+              <td>{{ teams_by_id.get(tr.team_from, {}).get('name', '—') }}</td>
+              <td>{{ teams_by_id.get(tr.team_to, {}).get('name', '—') }}</td>
+              <td>{{ tr.price }}</td>
+              <td>{{ tr.credits }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Manager assignment</h2>
+  {% if assignable_users %}
+    <form method="post" action="{{ url_for('auth.assign_manager') }}">
+      <select name="user_id" required>
+        <option value="">— linked user —</option>
+        {% for u in assignable_users %}
+          <option value="{{ u.id }}">{{ u.username }} ({{ u.player_name }})</option>
+        {% endfor %}
+      </select>
+      <select name="team_id" required>
+        <option value="">— their team —</option>
+        {% for u in assignable_users if u.team_id %}
+          <option value="{{ u.team_id }}">{{ u.team_name }}</option>
+        {% endfor %}
+      </select>
+      <button class="btn btn-small" type="submit">Assign as manager</button>
+    </form>
+  {% else %}
+    <p class="muted small">No linked players waiting for a team assignment.</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Action log &amp; undo</h2>
+  <form method="post" action="{{ url_for('admin.undo', season_id=season_id) }}">
+    <button class="btn btn-danger" type="submit">↩ Undo last action</button>
+  </form>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>#</th><th>Action</th><th>Actor</th><th>When</th><th>State</th></tr></thead>
+      <tbody>
+        {% for a in action_log[:20] %}
+          <tr>
+            <td>{{ loop.index }}</td>
+            <td>{{ a.action_type }}</td>
+            <td>{{ a.actor }}</td>
+            <td>{{ a.created_at[:19] }}</td>
+            <td>{% if a.undone_at %}<span class="tag">undone</span>{% else %}<span class="tag tag-active">live</span>{% endif %}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Bank adjust (player accounts)</h2>
+  <form method="post" action="{{ url_for('admin.bank_adjust') }}">
+    <input type="hidden" name="season" value="{{ season_id }}">
+    <select name="account_id" required>
+      <option value="">— account —</option>
+      {% for t in state.teams %}
+        {% set gp_id = t.manager_player_id %}
+        {% if gp_id %}
+          <option value="player:{{ gp_id }}">{{ t.manager_name }} ({{ t.name }} manager)</option>
+        {% endif %}
+      {% endfor %}
+      {% for gp in global_players %}
+        <option value="player:{{ gp.id }}">{{ gp.name }} (player)</option>
+      {% endfor %}
+    </select>
+    <input type="number" name="amount" placeholder="amount (can be negative)" required style="width:140px">
+    <input type="text" name="comment" placeholder="reason" required style="width:140px">
+    <button class="btn btn-small" type="submit">Adjust</button>
+  </form>
+  <p class="muted small">Enter a player account id directly if the player isn't listed.</p>
+</section>
+
+{% endif %}
+{% endblock %}
