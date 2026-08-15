@@ -1,4 +1,9 @@
-from flask import Blueprint, current_app, flash, redirect, render_template, request, session, url_for
+import re
+from io import BytesIO
+
+from flask import (Blueprint, current_app, flash, make_response, redirect,
+                   render_template, render_template_string, request, send_file,
+                   session, url_for)
 
 from .. import rules as R
 from ..authz import login_required
@@ -37,6 +42,28 @@ def _pick_season(requested=""):
 
 
 # ----------------------------------------------------------------------
+# offline scorer (public, like the reference app)
+# ----------------------------------------------------------------------
+@matches_bp.get("/scorer")
+def scorer_page():
+    svc = _scorer_service()
+    html = render_template_string(svc.template_source(), **svc.build_scorer_context())
+    return make_response(html)
+
+
+@matches_bp.get("/scorer/download")
+def scorer_download():
+    svc = _scorer_service()
+    context = svc.build_scorer_context()
+    html = render_template_string(svc.template_source(), **context)
+    response = make_response(html)
+    response.headers["Content-Type"] = "text/html; charset=utf-8"
+    response.headers["Content-Disposition"] = (
+        f'attachment; filename="{context["scorer_download_filename"]}"')
+    return response
+
+
+# ----------------------------------------------------------------------
 # public pages
 # ----------------------------------------------------------------------
 @matches_bp.get("/matches")
@@ -69,6 +96,26 @@ def match_summary(season_id, match_id):
         flash("Match not found.", "error")
         return redirect(url_for("matches.matches_index", season=season_id))
     return render_template("matches/summary.html", summary=summary)
+
+
+@matches_bp.get("/matches/<season_id>/<match_id>/scorecard")
+def match_scorecard(season_id, match_id):
+    """Official scorecard PDF, generated from the imported match data."""
+    svc = _scorer_service()
+    season_id = season_id.lower()
+    summary = svc.match_summary(season_id, match_id)
+    if not summary:
+        flash("Match not found.", "error")
+        return redirect(url_for("matches.matches_index", season=season_id))
+    if not summary.get("has_uploaded_data"):
+        flash("No uploaded data for this match yet.", "error")
+        return redirect(url_for("matches.match_summary", season_id=season_id, match_id=match_id))
+    entries = [e for e in _finance_service().list_finance_entries(season_id)
+               if e.get("match_id") == match_id and not e.get("undone_at")]
+    pdf = current_app.extensions["scorecard_service"].build(summary, entries)
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "-", match_id).strip("-") or "match"
+    return send_file(BytesIO(pdf), mimetype="application/pdf", as_attachment=True,
+                     download_name=f"{season_id}-{safe}-scorecard.pdf")
 
 
 @matches_bp.get("/finances")

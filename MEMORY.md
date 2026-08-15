@@ -100,6 +100,7 @@ Update this file whenever you learn something durable. Keep it current as the bu
 - [x] **Increment 5 (wager platform) built and tested** — 15 new tests (34 total); plan in `WAGER_PLAN.md`
 - [x] **Matches/stats built and tested** — 17 new tests (51 total); plan in `MATCHES_PLAN.md`; S1 scorer data imported via `--phase stats`
 - [x] **Finances + Vault wiring built and tested** — 21 new tests (72 total); plan in `FINANCES_PLAN.md`; S1 finance ledger imported via `--phase finance`
+- [x] **Offline scorer + scorecard PDF built and tested** — 7 new tests (79 total); plan in `OFFLINE_SCORER_PLAN.md`; `/scorer`, call-up batting order, DB-fed PDF (reportlab)
 - [x] **Git repo initialized** (`git init` + regular commits), per user request (2026-08-15)
 
 ## Increment 1 — what was built (structure)
@@ -169,6 +170,29 @@ Update this file whenever you learn something durable. Keep it current as the bu
   (exit 2 on drift; final purses 2285/1145/2885/1365) + wallet seed (`purse` tx "Season 1 final
   purse"). `--phase all` = core + stats + finance.
 
+## Offline scorer + scorecard PDF — what was built (Increment: offline scorer)
+
+- **Offline scorer page** (`app/templates/scorer/scorer.html`, port of `../SCL/scorer.html`):
+  public `/scorer` (in-browser scoring) + `/scorer/download` (standalone `scorer-v<version>.html`,
+  fully offline). Payload from `ScorerService.build_scorer_context()`: **local** team/player ids
+  (round-trip through the import's local→global maps), manager added to every roster (S1
+  managers play — they're NOT in `teams.players` JSON), plus `matches` from the match registry
+  so the setup screen pre-fills. Season = config.season_slug, else latest season with teams.
+- **Call-up batting order fix** (user bug report: "batsmen weren't in call-up order"): the
+  scorer's CSV exports a `Batter Order` column that was never read. Now imported into
+  `match_player_stats.batter_order` (min per player; innings-start non-striker who never faces
+  → 2; opener striker w/o data → 1; no-column fallback = first-appearance order).
+  `match_summary` sorts batting by it → summary page AND PDF both fixed. S1's 13 matches have
+  no ball-by-ball → keep old ordering (go-forward fix for Season 2).
+- **`match_stats.delivery_log`** (JSON TEXT column, migration in `_MIGRATIONS`): the parsed
+  ball-by-ball rows, written at import (walkover = `[]`). Powers the PDF's Fall of Wickets and
+  future ball-by-ball views.
+- **Scorecard PDF from the DB** (`app/services/scorecard_service.py`, reportlab 5.0.0): fed by
+  `match_summary` + `delivery_log` (FOW) + `season_finance_entries` for the match (revenue
+  section = real rewards/adjustments, not scoreCard.py's hardcoded S1 REVENUE). Route
+  `/matches/<season>/<match>/scorecard` (public, per user decision), linked from match summary
+  + admin scorer. reportlab added to `requirements.txt` + installed.
+
 ## Wager platform — what was built (Increment 5)
 
 - `wagers` + `wager_bets` tables; `app/services/wager_service.py`; `app/routes/wagers.py`; templates
@@ -205,6 +229,19 @@ Update this file whenever you learn something durable. Keep it current as the bu
   silently breaks compounding.
 - **`process_pending` returns only matches where something happened** (reward or yield applied) so
   the backfill button shows meaningful counts and re-runs report nothing.
+- **Offline scorer payload uses LOCAL ids** — that's what makes the CSV round-trip work: the
+  import's `_identity_maps` resolve local→global (then name fallback). The manager is not in
+  `teams.players` JSON (only the 3 bought players) but DOES play — rosters must add the manager
+  via `players.global_player_id = teams.manager_player_id`.
+- **`batter_order` is nullable** — S1 rows are NULL (aggregated import, no ball-by-ball). Any
+  sort/display must handle None (match_summary puts them last; template shows '—').
+- **`match_stats.delivery_log` is nullable too** — `json_loads(row.get("delivery_log"), [])`
+  and old matches just omit the FOW line.
+- **PDF byte check is `pdf[:4] == b"%PDF"`**, not `[:5]` — reportlab writes `%PDF-1.4`.
+- reportlab 5.0.0 is a new major; platypus Table/Paragraph APIs used here are stable.
+- When resolving a team's "global" reference for the scorer prefill, map BOTH
+  `global_team_id → local id` AND `local id → local id` — teams without a global id are
+  referenced by their local id in the registry.
 - `app.config.from_object(dict)` does NOT work — dicts must go through `app.config.update()`.
 - Flask-SocketIO 5.3.6 does NOT serve a client bundle at `/socket.io/socket.io.js` (400). Live
   updates therefore use **4s polling** (`app.js` `startLive`/`startManager`); server-side

@@ -7,7 +7,12 @@
     {% if summary.match_date %} · {{ summary.match_date }}{% endif %}</p>
   {% if summary.result %}<p><b>{{ summary.result }}</b></p>{% endif %}
   {% if summary.toss %}<p class="muted small">Toss: {{ summary.toss }}</p>{% endif %}
-  <a class="btn btn-small" href="{{ url_for('matches.matches_index', season=summary.season_id) }}">← All matches</a>
+  <div class="row">
+    <a class="btn btn-small" href="{{ url_for('matches.matches_index', season=summary.season_id) }}">← All matches</a>
+    {% if summary.has_uploaded_data %}
+      <a class="btn btn-small btn-primary" href="{{ url_for('matches.match_scorecard', season_id=summary.season_id, match_id=summary.match_id) }}">Scorecard PDF</a>
+    {% endif %}
+  </div>
 </div>
 
 {% if summary.walkover %}
@@ -20,10 +25,11 @@
       <h2>{{ sec.team_name }} <span class="muted small">{{ sec.total }}</span></h2>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Batter</th><th>Runs</th><th>Balls</th><th>4s</th><th>6s</th><th>SR</th></tr></thead>
+          <thead><tr><th>#</th><th>Batter</th><th>Runs</th><th>Balls</th><th>4s</th><th>6s</th><th>SR</th></tr></thead>
           <tbody>
             {% for b in sec.batting %}
               <tr>
+                <td class="muted">{{ b.batter_order if b.batter_order is not none else '—' }}</td>
                 <td>{{ b.player_name }} <span class="muted small">{{ b.status }}</span></td>
                 <td>{{ b.runs }}</td>
                 <td>{{ b.balls_faced }}</td>
@@ -32,7 +38,7 @@
                 <td>{{ b.sr_display }}</td>
               </tr>
             {% endfor %}
-            <tr class="muted"><td>Extras</td><td colspan="5">{{ sec.extras }}</td></tr>
+            <tr class="muted"><td>Extras</td><td colspan="6">{{ sec.extras }}</td></tr>
           </tbody>
         </table>
       </div>

@@ -1,8 +1,10 @@
 # SCL Rebuild — Implementation Plan
 
-Status: **auction + prod import + wager platform + matches/stats + finances/vault built** —
-72 tests pass (19 auction + 4 bank + 15 wager + 17 matches/stats + 21 finance), E2E verified.
-Plans: `PROD_IMPORT_PLAN.md`, `WAGER_PLAN.md`, `MATCHES_PLAN.md`, `FINANCES_PLAN.md`.
+Status: **auction + prod import + wager platform + matches/stats + finances/vault + offline
+scorer built** — 79 tests pass (19 auction + 4 bank + 15 wager + 17 matches/stats + 21 finance
++ 7 scorer/PDF), E2E verified.
+Plans: `PROD_IMPORT_PLAN.md`, `WAGER_PLAN.md`, `MATCHES_PLAN.md`, `FINANCES_PLAN.md`,
+`OFFLINE_SCORER_PLAN.md`.
 See MEMORY.md for build notes and gotchas. Docs not final; rules fluid per season.
 Stack (decided): Flask + SQLite + Flask-SocketIO, server-rendered Jinja, mobile-first
 Rebuild home: this repo (`SCL-official`). Reference implementation: `../SCL` (Flask + TinyDB).
@@ -160,4 +162,6 @@ setup → phase_a_<tier>… (configured order, optional break) → break → pha
    plan + payout model in `WAGER_PLAN.md` (pooled Yes/No AMM on the central bank: propose →
    blind-estimate calibration → solvency veto → peer phase → house injection/guarantee →
    proportional resolution; voided = 100% refunds)
-6. Offline scorer (downloadable HTML → CSV → admin import; port existing scorer)
+6. ✅ Offline scorer (downloadable HTML → CSV → admin import; port existing scorer) — **built**;
+   plan in `OFFLINE_SCORER_PLAN.md` (public `/scorer` + `/scorer/download`, call-up batting
+   order via `batter_order`, DB-fed scorecard PDF via reportlab)

@@ -257,7 +257,8 @@ CREATE TABLE IF NOT EXISTS match_stats (
   source_file TEXT,
   uploaded_by TEXT,
   uploaded_at TEXT,
-  include_in_fantasy_points INTEGER NOT NULL DEFAULT 1
+  include_in_fantasy_points INTEGER NOT NULL DEFAULT 1,
+  delivery_log TEXT
 );
 
 CREATE TABLE IF NOT EXISTS match_team_stats (
@@ -318,7 +319,8 @@ CREATE TABLE IF NOT EXISTS match_player_stats (
   economy REAL,
   fantasy_score INTEGER DEFAULT 0,
   fantasy_bat_points REAL,
-  fantasy_bowl_points REAL
+  fantasy_bowl_points REAL,
+  batter_order INTEGER
 );
 
 CREATE INDEX IF NOT EXISTS idx_match_registry_season ON match_registry(season_id);

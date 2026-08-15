@@ -1,8 +1,8 @@
 # SCL Rebuild — Session Resume Handoff
 
 Read this first in a new session, then `MEMORY.md` (living context + gotchas) and `PLAN.md`
-(feature plan). Last updated 2026-08-15 at the end of the session that built the finances/vault
-increment (and initialized the git repo).
+(feature plan). Last updated 2026-08-15 at the end of the session that built the offline
+scorer + integrated scorecard PDF increment.
 
 ## Quickstart
 
@@ -99,6 +99,27 @@ ruleset drives everything. Docs (3 PDFs, NOT final) + extracted `.txt` in the pr
   `/leaderboards`, `/teams[/<slug>]`, `/players/<slug>`; admin `/admin/scorer` (config, registry
   CRUD, CSV import + undo). Nav links in `base.html`.
 
+### 6. Offline scorer + scorecard PDF
+- **Offline scorer page** (port of `../SCL/scorer.html`): `app/templates/scorer/scorer.html`,
+  served at public `/scorer` (use in-browser at the ground) + `/scorer/download` (standalone
+  `scorer-v<version>.html`, works fully offline). Payload built by `build_scorer_context()`
+  from **live DB rosters** — local team/player ids (round-trip through the import's local→global
+  maps), manager included in every roster (managers play!), plus the season's `match_registry`
+  so the setup screen pre-fills match id/teams/venue.
+- **Batting order fix**: batsmen now display in **call-up order**, not by runs. The scorer's CSV
+  already exports a `Batter Order` column that was never read → imported into new
+  `match_player_stats.batter_order` (min per player; innings-start non-striker who never faces
+  → 2; opener striker without data → 1; no-column fallback = first-appearance order).
+  `match_summary` sorts batting by it, so the summary page AND the PDF are both fixed. S1's
+  13 matches have no ball-by-ball → they keep old ordering (go-forward fix).
+- **`match_stats.delivery_log`**: ball-by-ball rows stored as JSON at import (enables FOW +
+  future ball-by-ball views).
+- **Scorecard PDF from the DB** (`app/services/scorecard_service.py`, reportlab): fed by
+  `match_summary` + `delivery_log` (Fall of Wickets) + the season finance ledger (revenue
+  section = real rewards/adjustments for that match, not hardcoded S1 numbers). Route
+  `/matches/<season>/<match>/scorecard`, linked from match summary + admin scorer.
+- Plan: `OFFLINE_SCORER_PLAN.md`.
+
 ## Architecture map
 
 ```
@@ -119,9 +140,11 @@ app/
                             accept an optional conn for in-transaction money ops)
     wager_service.py        wager lifecycle + proportional/house-guarantee payout
     scorer_service.py       registry, CSV import, walkover, league table, leaderboards,
-                            summaries, profiles
+                            summaries, profiles, offline-scorer context, batter_order,
+                            delivery_log
     finance_service.py      season finance: match rewards, adjust/transfer, ledger, undo,
                             process_pending, credit hint (wallet == team purse)
+    scorecard_service.py    reportlab PDF scorecard from match_summary + delivery_log + ledger
   routes/
     auth.py                 /auth/login|logout|signup, /auth/admin/link...
     admin.py                /admin control room + bank adjust + /admin/finances
@@ -130,13 +153,15 @@ app/
     banking.py              /account (balances, vault lock, reinvest, deposit)
     wagers.py               /wagers board|detail|admin
     matches.py              /matches, /table, /leaderboards, /teams, /players, /admin/scorer,
-                            /finances[/<season>]
+                            /finances[/<season>], /scorer, /scorer/download,
+                            /matches/<s>/<m>/scorecard
   templates/                base.html + viewer/, admin/, manager/, auth/, banking/, wagers/, matches/,
-                            teams/, players/
+                            teams/, players/, scorer/ (offline scorer HTML)
   static/css/app.css        dark mobile-first theme (.card/.table-wrap/.tag/.chip/.feed/.grid…)
   static/js/app.js          live board via 4s polling of /api/state
 tests/                      conftest.py (_setup helper) + test_auction (16), test_bank (4),
-                            test_wager (15), test_matches (17), test_finance (21) — 72 total
+                            test_wager (15), test_matches (17), test_finance (21),
+                            test_scorer_offline (7) — 79 total
 ```
 
 ## Conventions & gotchas (also in MEMORY.md — do not rediscover)
@@ -162,28 +187,31 @@ tests/                      conftest.py (_setup helper) + test_auction (16), tes
 
 ## Remaining increments (in PLAN.md)
 
-1. ✅ **Finances + Vault wiring — built.** Auto match rewards + yield on finalization,
-   M12 unlock, ledger + undo, S1 `--phase finance` import, `/admin/finances` + public
-   `/finances[/<season>]`. Plan: `FINANCES_PLAN.md`.
-2. **Offline scorer** — port `../SCL/scorer.html` (standalone mobile HTML → ball-by-ball CSV →
-   admin import) and `scoreCard.py` (CSV → PDF scorecard).
-3. **Admin dashboard consolidation** — admin pages split across auction / wagers / scorer / link;
-   no single overview.
+1. ✅ **Finances + Vault wiring — built.**
+2. ✅ **Offline scorer — built.** `/scorer` + `/scorer/download`, call-up batting order fix,
+   DB-fed scorecard PDF. Plan: `OFFLINE_SCORER_PLAN.md`.
+3. **Admin dashboard consolidation** — admin pages split across auction / wagers / scorer /
+   finances / link; no single overview.
 4. **Wager polish** — socket live updates, auto-resolve markets from match results (registry exists now).
 5. **Fantasy entries (optional)** — S1 data for 17 fantasy teams exists but no schema; only
    per-player fantasy points feed leaderboards today.
+6. **Ball-by-ball match view** (nice-to-have, now possible: `delivery_log` is stored).
 
 ## Handoff state at session end
 
-- 72/72 tests green; E2E verified: full `--phase all` import clean (league table matches old
-  aggregates; finance cross-check clean), manager wallets == final purses
-  (2285/1145/2885/1365), `/finances`, `/finances/season-1`, `/admin/finances` all render with
-  the 44-row S1 ledger, adjust/transfer/undo flows work against a DB copy.
-- **Balances reset to 0** on the real `data/scl.db` (user: new economic system; everyone starts
-  at 0, grants come later). History kept (44 ledger rows + `balance_reset` transactions).
-  Tool: `scripts/reset_balances.py` (dry-run default, `--yes` writes).
-- Git: repo initialized at `SCL-official`, commits made per increment — commit after each
-  milestone from now on (user request).
+- **79/79 tests green** (72 + 7 new scorer tests). E2E verified: `/scorer` + `/scorer/download`
+  render with live rosters (season-1, managers included), a scorer-format CSV imports and
+  shows batsmen in call-up order (Alice 1 / Bob 2 / Eve 3 despite Eve scoring most), the
+  scorecard PDF route returns a valid PDF with the posted match rewards as revenue.
+- **reportlab==5.0.0** added to `requirements.txt` and installed in `.venv` (scorecard PDF).
+- The real `data/scl.db` (season-1) has the new `delivery_log`/`batter_order` columns via the
+  `_MIGRATIONS` bootstrap (existing rows are NULL — S1 scorecards keep old ordering; the fix
+  applies to newly imported matches, i.e. Season 2).
+- Balances remain reset to 0 (new economy), history intact.
+- ⚠ `match_stats.delivery_log` / `match_player_stats.batter_order` are **nullable** — any code
+  that reads `match_player_stats` must tolerate None batter_order (match_summary does).
 - ⚠ Restart the stale server on port 10001 (old code) before browser-verifying new routes.
+- Git: repo at `SCL-official`, one commit per milestone (user request).
 - `PLAN.md` + `MEMORY.md` + this file are the source of truth; per-increment plans in
-  `PROD_IMPORT_PLAN.md`, `WAGER_PLAN.md`, `MATCHES_PLAN.md`, `FINANCES_PLAN.md`.
+  `PROD_IMPORT_PLAN.md`, `WAGER_PLAN.md`, `MATCHES_PLAN.md`, `FINANCES_PLAN.md`,
+  `OFFLINE_SCORER_PLAN.md`.

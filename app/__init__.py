@@ -8,6 +8,7 @@ from .services.auth_service import AuthService
 from .services.bank_service import BankService
 from .services.finance_service import FinanceService
 from .services.scorer_service import ScorerService
+from .services.scorecard_service import ScorecardService
 from .services.wager_service import WagerService
 
 socketio = SocketIO(async_mode="threading")
@@ -32,6 +33,7 @@ def create_app(config_object=None):
     wager_service = WagerService(db, bank_service)
     scorer_service = ScorerService(db)
     finance_service = FinanceService(db, bank_service, auction_service)
+    scorecard_service = ScorecardService()
 
     auth_service.seed_admin_if_missing(app.config.get("ADMIN_USERNAME"),
                                        app.config.get("ADMIN_PASSWORD"))
@@ -43,6 +45,7 @@ def create_app(config_object=None):
     app.extensions["wager_service"] = wager_service
     app.extensions["scorer_service"] = scorer_service
     app.extensions["finance_service"] = finance_service
+    app.extensions["scorecard_service"] = scorecard_service
 
     from .routes.admin import admin_bp
     from .routes.auth import auth_bp

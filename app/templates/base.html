@@ -17,6 +17,7 @@
       <a href="{{ url_for('matches.league_table') }}">Table</a>
       <a href="{{ url_for('matches.leaderboards') }}">Top</a>
       <a href="{{ url_for('matches.finances_index') }}">Finances</a>
+      <a href="{{ url_for('matches.scorer_page') }}">Scorer</a>
       {% if current_user and current_user.role == 'admin' %}
         <a href="{{ url_for('admin.dashboard') }}">Admin</a>
         <a href="{{ url_for('admin.finances') }}">Finances&nbsp;Admin</a>

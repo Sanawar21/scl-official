@@ -10,6 +10,13 @@
 </div>
 
 <section class="card">
+  <h2>Offline scorer</h2>
+  <p class="muted">Score on the ground, download the CSV, then import it below.
+    <a href="{{ url_for('matches.scorer_download') }}">Download the offline HTML</a> ·
+    <a href="{{ url_for('matches.scorer_page') }}">Open in browser</a></p>
+</section>
+
+<section class="card">
   <h2>Config</h2>
   <form method="post" action="{{ url_for('matches.admin_scorer_config') }}" class="row">
     <label class="small">Season
@@ -154,7 +161,8 @@
         <li><b>{{ imp.match_id }}</b>
           <span class="muted">{{ imp.uploaded_at[:16] }} · {{ imp.source_file }} ·
             {{ imp.team_rows }} teams / {{ imp.player_rows }} players ·
-            <a href="{{ url_for('matches.match_summary', season_id=imp.season_id, match_id=imp.match_id) }}">view</a></span>
+            <a href="{{ url_for('matches.match_summary', season_id=imp.season_id, match_id=imp.match_id) }}">view</a> ·
+            <a href="{{ url_for('matches.match_scorecard', season_id=imp.season_id, match_id=imp.match_id) }}">PDF</a></span>
           <form method="post" action="{{ url_for('matches.admin_scorer_undo') }}" class="row">
             <input type="hidden" name="season_id" value="{{ imp.season_id }}">
             <input type="hidden" name="match_id" value="{{ imp.match_id }}">

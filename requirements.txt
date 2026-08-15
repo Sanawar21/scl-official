@@ -3,3 +3,4 @@ Flask-SocketIO==5.3.6
 python-socketio==5.11.4
 Werkzeug==3.0.3
 pytest==8.2.2
+reportlab==5.0.0

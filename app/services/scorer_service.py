@@ -195,6 +195,109 @@ class ScorerService:
         return config
 
     # ------------------------------------------------------------------
+    # offline scorer (downloadable HTML)
+    # ------------------------------------------------------------------
+    def template_source(self) -> str:
+        template = Path(__file__).resolve().parent.parent / "templates" / "scorer" / "scorer.html"
+        return template.read_text(encoding="utf-8")
+
+    def download_filename(self, config: dict = None) -> str:
+        cfg = config or self.load_config()
+        version = re.sub(r"[^A-Za-z0-9._-]+", "-", str(cfg.get("version") or "1.0.0")).strip("-")
+        return f"scorer-v{version or '1.0.0'}.html"
+
+    def build_scorer_context(self) -> dict:
+        """Context for the offline scorer template (config + payload).
+
+        The payload carries live rosters (local ids — the CSV round-trips through
+        the import's local->global maps) plus the season's match registry for
+        setup-screen prefill.
+        """
+        config = self.load_config()
+        season_slug = (config.get("season_slug") or "").strip().lower()
+        with self.db.read() as conn:
+            season_slug, teams, matches = self._scorer_payload(conn, season_slug)
+            season_row = conn.execute(
+                "SELECT name FROM seasons WHERE id = ?", (season_slug,)).fetchone() if season_slug else None
+        season_name = (season_row["name"] if season_row else None) or season_slug or config["title"]
+        payload = {
+            "title": config["title"],
+            "version": config["version"],
+            "max_overs": config["max_overs"],
+            "season": {"slug": season_slug, "name": season_name},
+            "teams": teams,
+            "matches": matches,
+        }
+        return {
+            "scorer_config": config,
+            "scorer_payload": payload,
+            "scorer_download_filename": self.download_filename(config),
+            "scorer_download_url": "/scorer/download",
+        }
+
+    def _scorer_payload(self, conn, season_slug: str):
+        """(resolved_season_slug, roster_teams, registry_matches) for the scorer."""
+        if not season_slug:
+            latest = conn.execute(
+                "SELECT season_id FROM teams GROUP BY season_id ORDER BY season_id DESC LIMIT 1"
+            ).fetchone()
+            season_slug = (latest["season_id"] if latest else "") or ""
+        if not season_slug:
+            return "", [], []
+        rows = conn.execute(
+            "SELECT * FROM teams WHERE season_id = ?", (season_slug,)).fetchall()
+        if not rows:
+            return season_slug, [], []
+
+        player_names = {r["id"]: r["name"] for r in conn.execute(
+            "SELECT id, name FROM players WHERE season_id = ?", (season_slug,)).fetchall()}
+        gid_to_local = {}
+        roster = []
+        for t in rows:
+            gid = (t["global_team_id"] or "").strip()
+            if gid:
+                gid_to_local.setdefault(gid, t["id"])
+            # Teams without a global id are referenced by their local id in the
+            # registry; map that too so prefill resolves either way.
+            gid_to_local.setdefault(t["id"], t["id"])
+            roster_ids = json_loads(t["players"], []) + json_loads(t["bench"], [])
+            seen = set()
+            players = []
+            for pid in roster_ids:
+                if pid in seen or not player_names.get(pid):
+                    continue
+                seen.add(pid)
+                players.append({"id": pid, "name": player_names[pid]})
+            # The manager is one of the 4 players but is not in the sold list;
+            # include them so they can be selected as a batter/bowler.
+            mgr_local = conn.execute(
+                "SELECT id FROM players WHERE season_id = ? AND global_player_id = ?",
+                (season_slug, t["manager_player_id"])).fetchone()
+            mgr_id = (mgr_local["id"] if mgr_local else "")
+            if mgr_id and mgr_id not in seen and player_names.get(mgr_id):
+                seen.add(mgr_id)
+                players.append({"id": mgr_id, "name": player_names[mgr_id]})
+            roster.append({
+                "id": t["id"],
+                "name": t["name"],
+                "manager_id": t["manager_player_id"],
+                "players": players,
+            })
+
+        matches = []
+        for r in conn.execute(
+                "SELECT match_id, venue, \"between\", team_a_global_id, team_b_global_id "
+                "FROM match_registry WHERE season_id = ?", (season_slug,)).fetchall():
+            matches.append({
+                "match_id": r["match_id"],
+                "venue": r["venue"] or "",
+                "between": r["between"] or "",
+                "team_a_id": gid_to_local.get((r["team_a_global_id"] or "").strip(), ""),
+                "team_b_id": gid_to_local.get((r["team_b_global_id"] or "").strip(), ""),
+            })
+        return season_slug, roster, matches
+
+    # ------------------------------------------------------------------
     # identity maps (local csv ids -> global ids)
     # ------------------------------------------------------------------
     def _identity_maps(self):
@@ -361,8 +464,8 @@ class ScorerService:
         conn.execute(
             "INSERT INTO match_stats (match_key, season_id, match_id, result, toss, "
             "winner_team_id, delivery_rows, team_rows, player_rows, source_file, uploaded_by, "
-            "uploaded_at, include_in_fantasy_points) VALUES (?, ?, ?, ?, '', ?, 0, 2, 0, "
-            "'walkover', 'admin', ?, 0)",
+            "uploaded_at, include_in_fantasy_points, delivery_log) VALUES (?, ?, ?, ?, '', ?, 0, 2, 0, "
+            "'walkover', 'admin', ?, 0, '[]')",
             (match_key, reg["season_id"], match_id, f"{winner_name} won by walkover",
              winner, _now()))
 
@@ -499,6 +602,54 @@ class ScorerService:
     # ------------------------------------------------------------------
     # derivation (ball-by-ball -> team/player rows + fantasy)
     # ------------------------------------------------------------------
+    def _batter_order_values(self, rows: list, maps: dict) -> dict:
+        """player_id -> call-up order (1, 2, ...) per the scorer's 'Batter Order'.
+
+        The scorer assigns orders at innings start (striker 1, non-striker 2) and
+        to each new batter; the CSV carries the striker's order per ball, so the
+        minimum per player is their call-up order. The innings-start non-striker
+        who never faces a ball is fixed to order 2 from the first row of each
+        innings. Players without any order data fall back to first-appearance
+        order (after the known orders).
+        """
+        orders = {}
+        appearance = {}
+        first_row_by_innings = {}
+        for idx, row in enumerate(rows):
+            inn = str(row.get("Innings Order") or "1").strip() or "1"
+            first_row_by_innings.setdefault(inn, row)
+            batter_id = self._normalize_player_id(
+                row.get("Batter ID"), row.get("Batter"), maps)
+            if batter_id:
+                appearance.setdefault(batter_id, idx)
+                raw = str(row.get("Batter Order") or "").strip()
+                if raw.isdigit():
+                    order = int(raw)
+                    if batter_id not in orders or order < orders[batter_id]:
+                        orders[batter_id] = order
+        for first_row in first_row_by_innings.values():
+            # Openers without any order data: striker 1, non-striker 2.
+            striker_id = self._normalize_player_id(
+                first_row.get("Batter ID"), first_row.get("Batter"), maps)
+            if striker_id and striker_id not in orders:
+                orders[striker_id] = 1
+            ns_id = self._normalize_player_id(
+                first_row.get("Non Strike Batter ID"),
+                first_row.get("Non Strike Batter"), maps)
+            if ns_id:
+                if ns_id not in orders or orders[ns_id] > 2:
+                    orders[ns_id] = 2
+        max_known = max(orders.values()) if orders else 0
+        result = {}
+        for player_id in set(appearance) | set(orders):
+            if player_id in orders:
+                result[player_id] = orders[player_id]
+            elif player_id in appearance:
+                # Never faced (or old CSV without the column): after the known
+                # orders, in first-appearance order.
+                result[player_id] = max_known + 1 + appearance[player_id]
+        return result
+
     def _derive_match_stats(self, rows, season_id: str, source_file: str, uploaded_by: str,
                             match_date: str = "", include_in_fantasy_points: bool = True,
                             substitution_ins=None):
@@ -511,6 +662,7 @@ class ScorerService:
         key = _match_key(season_id, match_id)
         maps = self._identity_maps()
         player_meta = maps["player_meta"]
+        batter_orders = self._batter_order_values(rows, maps)
 
         team_rows = {}
         player_rows = {}
@@ -652,6 +804,7 @@ class ScorerService:
                 p["strike_rate"] = round(p["runs"] * 100.0 / p["balls_faced"], 2)
             if p["balls_bowled"] > 0:
                 p["economy"] = round(p["runs_conceded"] * 6.0 / p["balls_bowled"], 2)
+            p["batter_order"] = batter_orders.get(p["player_id"])
 
         outcome, winner_id = self._build_match_outcome(
             {tid: t["team_name"] for tid, t in team_rows.items()}, match_result)
@@ -681,7 +834,8 @@ class ScorerService:
         }
         return {"match_key": key, "match_row": match_row,
                 "team_rows": list(team_rows.values()),
-                "player_rows": list(player_rows.values())}
+                "player_rows": list(player_rows.values()),
+                "delivery_log": json_dumps(rows)}
 
     def _build_match_outcome(self, team_name_by_id: dict, match_result: str):
         normalized = _norm(match_result)
@@ -709,12 +863,12 @@ class ScorerService:
             conn.execute(
                 "INSERT INTO match_stats (match_key, season_id, match_id, result, toss, "
                 "winner_team_id, delivery_rows, team_rows, player_rows, source_file, "
-                "uploaded_by, uploaded_at, include_in_fantasy_points) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "uploaded_by, uploaded_at, include_in_fantasy_points, delivery_log) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (m["match_key"], m["season_id"], m["match_id"], m["result"], m["toss"],
                  m["winner_team_id"], m["delivery_rows"], m["team_rows"], m["player_rows"],
                  m["source_file"], m["uploaded_by"], m["uploaded_at"],
-                 m["include_in_fantasy_points"]))
+                 m["include_in_fantasy_points"], derived.get("delivery_log") or "[]"))
             for t in derived["team_rows"]:
                 conn.execute(
                     "INSERT INTO match_team_stats (id, match_key, season_id, team_id, team_name, "
@@ -736,15 +890,15 @@ class ScorerService:
                     "player_name, team_id, team_name, role, tier, matches, innings_batted, "
                     "not_out, dismissed, runs, balls_faced, fours, sixes, innings_bowled, "
                     "balls_bowled, runs_conceded, wickets, wides, noballs, strike_rate, economy, "
-                    "fantasy_score, fantasy_bat_points, fantasy_bowl_points) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "fantasy_score, fantasy_bat_points, fantasy_bowl_points, batter_order) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (secrets.token_hex(8), key, m["season_id"], p["player_id"], p["player_name"],
                      p["team_id"], p["team_name"], p["role"], p["tier"], p["matches"],
                      p["innings_batted"], p["not_out"], p["dismissed"], p["runs"],
                      p["balls_faced"], p["fours"], p["sixes"], p["innings_bowled"],
                      p["balls_bowled"], p["runs_conceded"], p["wickets"], p["wides"],
                      p["noballs"], p["strike_rate"], p["economy"], p["fantasy_score"],
-                     p["fantasy_bat_points"], p["fantasy_bowl_points"]))
+                     p["fantasy_bat_points"], p["fantasy_bowl_points"], p["batter_order"]))
 
     # ------------------------------------------------------------------
     # fantasy
@@ -1117,8 +1271,13 @@ class ScorerService:
             tid = team["team_id"]
             batting = [p for p in player_rows
                        if p["team_id"] == tid and _safe_int(p["innings_batted"]) > 0]
-            batting.sort(key=lambda p: (_safe_int(p["runs"]), _safe_int(p["balls_faced"]),
-                                        p["player_name"].lower()), reverse=True)
+            # Show batsmen in call-up order (batter_order from the scorer CSV),
+            # not by runs; players without an order go last, runs as tiebreak.
+            batting.sort(key=lambda p: (
+                0 if p.get("batter_order") is not None else 1,
+                p.get("batter_order") if p.get("batter_order") is not None else 10 ** 9,
+                -_safe_int(p["runs"]),
+                p["player_name"].lower()))
             for b in batting:
                 b["status"] = "out" if _safe_int(b["dismissed"]) > 0 else "not out"
                 b["sr_display"] = (f"{_safe_float(b['strike_rate']):.1f}"
@@ -1166,6 +1325,7 @@ class ScorerService:
             "team_sections": sections,
             "fantasy_leaderboard": fantasy,
             "registry": registry,
+            "delivery_log": json_loads(match_row.get("delivery_log"), []) if match_row else [],
         }
 
     def team_profile(self, team_slug: str) -> dict:

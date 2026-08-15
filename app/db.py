@@ -79,6 +79,8 @@ class Database:
         ("vault_positions", "unlocked", "ALTER TABLE vault_positions ADD COLUMN unlocked INTEGER NOT NULL DEFAULT 0"),
         ("vault_positions", "unlocked_at", "ALTER TABLE vault_positions ADD COLUMN unlocked_at TEXT"),
         ("rulesets", "match_reward_amount", "ALTER TABLE rulesets ADD COLUMN match_reward_amount INTEGER NOT NULL DEFAULT 200"),
+        ("match_stats", "delivery_log", "ALTER TABLE match_stats ADD COLUMN delivery_log TEXT"),
+        ("match_player_stats", "batter_order", "ALTER TABLE match_player_stats ADD COLUMN batter_order INTEGER"),
     )
     # Column drops for existing DBs (schema.py already omits them).
     _DROP_MIGRATIONS = (
