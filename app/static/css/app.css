@@ -307,6 +307,17 @@ input[type="checkbox"] { width: auto; }
 .row input, .row select { width: auto; }
 .checkbox-label { display: inline-flex; align-items: center; gap: 6px; color: var(--text); font-size: 14px; }
 .field-hint { color: var(--muted); font-size: 12.5px; margin: 2px 0 0; }
+label.field { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
+label.field select, label.field input { width: auto; min-width: 110px; }
+
+/* margin calculator tables */
+.mc-table td, .mc-table th { font-size: 12.5px; padding: 5px 8px; }
+.mc-table tr.nrr-good { background: var(--success-soft, #eafaf1); }
+.mc-table .nrr-good td:first-child { font-weight: 700; }
+
+/* per-match 'what's at stake' */
+.stakes-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.stake-box { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; background: var(--surface); }
 
 /* --------------------------------------------------------------------------
    tables

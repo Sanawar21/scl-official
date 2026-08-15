@@ -1,7 +1,7 @@
 import re
 from io import BytesIO
 
-from flask import (Blueprint, current_app, flash, make_response, redirect,
+from flask import (Blueprint, current_app, flash, jsonify, make_response, redirect,
                    render_template, render_template_string, request, send_file,
                    session, url_for)
 
@@ -22,6 +22,10 @@ def _auction_service():
 
 def _finance_service():
     return current_app.extensions["finance_service"]
+
+
+def _scenario_service():
+    return current_app.extensions["scenario_service"]
 
 
 def _season_id():
@@ -91,11 +95,13 @@ def matches_season(season_id):
 @matches_bp.get("/matches/<season_id>/<match_id>")
 def match_summary(season_id, match_id):
     svc = _scorer_service()
-    summary = svc.match_summary(season_id.lower(), match_id)
+    season_id = season_id.lower()
+    summary = svc.match_summary(season_id, match_id)
     if not summary:
         flash("Match not found.", "error")
         return redirect(url_for("matches.matches_index", season=season_id))
-    return render_template("matches/summary.html", summary=summary)
+    stakes = _scenario_service().match_stakes(season_id, match_id)
+    return render_template("matches/summary.html", summary=summary, stakes=stakes)
 
 
 @matches_bp.get("/matches/<season_id>/<match_id>/scorecard")
@@ -159,8 +165,27 @@ def league_table():
     svc = _scorer_service()
     season_id, match_seasons = _pick_season(_season_id())
     standings = svc.league_table(season_id) if season_id else []
+    scenarios = _scenario_service().scenarios(season_id) if season_id else None
     return render_template("matches/table.html", season_id=season_id,
-                           match_seasons=match_seasons, standings=standings)
+                           match_seasons=match_seasons, standings=standings,
+                           scenarios=scenarios)
+
+
+@matches_bp.get("/table/scenarios/calc")
+def scenario_calc():
+    """JSON endpoint for the required-margin calculator (recomputed live)."""
+    season_id, _ = _pick_season(_season_id())
+    team = (request.args.get("team") or "").strip()
+    opponent = (request.args.get("opponent") or "").strip()
+    rival = (request.args.get("rival") or "").strip()
+    try:
+        opp_score = max(0, int(request.args.get("opp_score") or 0))
+    except ValueError:
+        opp_score = 0
+    result = _scenario_service().margin_calc(season_id, team, opponent, rival, opp_score)
+    if result is None:
+        return jsonify({"error": "Invalid selection."}), 400
+    return jsonify(result)
 
 
 @matches_bp.get("/leaderboards")

@@ -2,7 +2,7 @@
 
 Read this first in a new session, then `MEMORY.md` (living context + gotchas) and `PLAN.md`
 (feature plan). Last updated 2026-08-15 at the end of the session that shipped the
-**ball-by-ball match view** (147 tests).
+**qualification scenarios + NRR predictor** (164 tests).
 
 ## Quickstart
 
@@ -10,8 +10,29 @@ Read this first in a new session, then `MEMORY.md` (living context + gotchas) an
 ./.venv/Scripts/python.exe run.py          # start server (debug, port 10001)
 # or without reloader:
 ./.venv/Scripts/python.exe -c "from app import create_app, socketio; app = create_app(); socketio.run(app, host='0.0.0.0', port=10001, debug=False, use_reloader=False)"
-./.venv/Scripts/python.exe -m pytest tests/ -q   # 147 tests (88 unit + 59 e2e)
+./.venv/Scripts/python.exe -m pytest tests/ -q   # 164 tests (99 unit + 65 e2e)
 ```
+
+## Qualification scenarios + NRR predictor — DONE (2026-08-15)
+
+Ported the standalone `scl-nrr-calc` tool (`C:\Users\sanaw\Downloads\scl-nrr-calc (2)`) into
+the platform as `app/services/scenario_service.py` — same math (calculate/qualStatus/buildReq/
+calcBattingFirst/calcChasing), but fed from `match_team_stats` + `match_registry` instead of
+pasted JSON. Plan: `SCENARIOS_PLAN.md`.
+
+Three surfaces:
+1. **`/table` "Qualification scenarios" card** — per team: status chip (Qualified / Safe /
+   In contention / Eliminated) + plain-English requirement ("Must win all 2 remaining; NRR
+   likely the decider").
+2. **Required margin calculator** on `/table` — pick team / opponent / target rival / assumed
+   opponent score → batting-first min-margin table + chase max-balls table (direct-clash and
+   3rd-party cases), recomputed via `GET /table/scenarios/calc` (JSON endpoint, no reload).
+3. **"What's at stake" panel** on each match summary page — both teams' status + a
+   head-to-head / overtake margin hint for that fixture.
+
+Top-N is season-aware (no schema change): a season whose registry exceeds the double
+round-robin count has a final → top-2 qualify (S1); otherwise top-1 (S2: champion = table
+topper). Walkovers count 2 pts with no NRR change (0 balls).
 
 ## Frontend transformation — DONE (2026-08-15)
 

@@ -384,6 +384,27 @@ Update this file whenever you learn something durable. Keep it current as the bu
 - Wager polish: socket updates, auto-resolve from match results; fantasy entries (S1 data exists, no schema)
 - Matches polish: `between` is a SQL keyword — quoted in schema/service/import; keep that in mind if adding columns
 
+## Qualification scenarios + NRR predictor — DONE (2026-08-15)
+
+Ported the standalone `scl-nrr-calc` tool (user's Downloads folder) into
+`app/services/scenario_service.py` — pure functions fed from `match_team_stats` +
+`match_registry` (no pasted JSON). Three surfaces: `/table` "Qualification scenarios" card
+(status chip + plain-English requirement per team), the required-margin calculator on
+`/table` (JSON endpoint `/table/scenarios/calc`; batting-first min margin + chase max-balls,
+direct-clash vs 3rd-party-rival cases), and a per-match "What's at stake" panel on match
+summaries. Plan + status: `SCENARIOS_PLAN.md`.
+
+Key mechanics:
+- **Top-N is season-aware, no schema change**: `qualify_count` = 2 if the season's registry
+  has more entries than the double round-robin count (`teams × (teams-1)`) — S1 has 13 (12 RR
+  + the M13 final) → top-2; otherwise 1 (S2: champion = table topper).
+- **Remaining fixtures** = unplayed registry entries, capped at 2 per team pair (a 3rd meeting
+  like S1's final is a knockout, not a qualification fixture).
+- **Walkover** (S1 M6): counts as a win (2 pts) with 0 balls → no NRR change; the
+  division-by-zero guards mirror `league_table`'s.
+- Margin math uses **exact** run/ball totals (not the 2dp-rounded `nrr_display`); NRR for
+  comparisons is computed from raw aggregates.
+
 ## Ball-by-ball match view — DONE (2026-08-15)
 
 `/matches/<season>/<match>/balls` — play-by-play from the stored `delivery_log`: innings tabs

@@ -53,5 +53,112 @@
       <span>Points: win 2, tie 1 · Tie-breakers: NRR → head-to-head → boundaries</span>
     </div>
   </section>
+
+  {% if scenarios and scenarios.rows %}
+    <section class="card" id="scenarios">
+      <div class="card-head">
+        <h2>Qualification scenarios</h2>
+        <span class="tag {% if scenarios.complete %}tag-active{% else %}tag-info{% endif %}">
+          {% if scenarios.complete %}Season complete{% else %}Top {{ scenarios.qualify_count }} qualify{% endif %}
+        </span>
+      </div>
+      {% if not scenarios.complete %}
+        <p class="small muted" style="margin:0 0 10px">What each team needs before the next match{% if scenarios.remaining %} — {{ scenarios.remaining|length }} fixture{{ 's' if scenarios.remaining|length != 1 else '' }} left{% endif %}.</p>
+      {% endif %}
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>#</th><th>Team</th><th>Pts</th><th>Max</th><th>NRR</th><th>Rem.</th><th>Status</th><th>What they need</th></tr></thead>
+          <tbody>
+            {% for r in scenarios.rows %}
+              <tr>
+                <td class="muted">{{ r.position }}</td>
+                <td><b>{{ r.team_name }}</b></td>
+                <td><b>{{ r.points }}</b></td>
+                <td class="muted">{{ r.max_points }}</td>
+                <td class="nrr-cell">{{ r.nrr_display }}</td>
+                <td>{{ r.remaining }}</td>
+                <td><span class="chip chip-{{ r.status_cls }}">{{ r.status }}</span></td>
+                <td class="small">{{ r.requirement }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card" id="margin-calc">
+      <div class="card-head"><h2>Required margin calculator</h2>
+        <span class="tag tag-info">NRR predictor</span></div>
+      <p class="small muted" style="margin:0 0 12px">Pick your team, the opponent, and the rival to overtake on NRR — see what win margin or chase is required.</p>
+      <div class="row" style="flex-wrap:wrap;gap:10px;align-items:flex-end">
+        <label class="field"><span class="small">Your team</span>
+          <select id="mc-team">{% for r in scenarios.rows %}<option>{{ r.team_name }}</option>{% endfor %}</select></label>
+        <label class="field"><span class="small">Opponent</span>
+          <select id="mc-opponent">{% for r in scenarios.rows %}<option>{{ r.team_name }}</option>{% endfor %}</select></label>
+        <label class="field"><span class="small">Target rival (NRR)</span>
+          <select id="mc-rival">{% for r in scenarios.rows %}<option>{{ r.team_name }}</option>{% endfor %}</select></label>
+        <label class="field"><span class="small">Opponent score</span>
+          <input type="number" id="mc-score" value="30" min="0" max="999" style="width:90px"></label>
+        <button class="btn btn-primary" id="mc-go">Calculate</button>
+      </div>
+      <div id="mc-result" style="margin-top:14px"></div>
+    </section>
+  {% endif %}
 {% endif %}
+<script>
+(function () {
+  var wrap = document.getElementById("mc-result");
+  if (!wrap) return;
+  var season = {{ season_id|tojson }};
+  function url() {
+    return "/table/scenarios/calc?season=" + encodeURIComponent(season) +
+      "&team=" + encodeURIComponent(document.getElementById("mc-team").value) +
+      "&opponent=" + encodeURIComponent(document.getElementById("mc-opponent").value) +
+      "&rival=" + encodeURIComponent(document.getElementById("mc-rival").value) +
+      "&opp_score=" + encodeURIComponent(document.getElementById("mc-score").value);
+  }
+  function fmt(n) { return (n >= 0 ? "+" : "") + Number(n).toFixed(3); }
+  function render(data) {
+    if (data.error) { wrap.innerHTML = "<div class=\"banner\">" + data.error + "</div>"; return; }
+    var bf = data.batting_first, ch = data.chasing;
+    var mode = data.direct ? "<span class=\"chip chip-info\">Direct clash</span>"
+      : "<span class=\"chip chip-warn\">3-team scenario</span>";
+    var verdict;
+    if (bf.min_margin <= 1) {
+      verdict = "<div class=\"banner banner-success\">Any winning margin (1+ runs) keeps <b>" + data.team + "</b> ahead of " + data.rival + " on NRR.</div>";
+    } else {
+      verdict = "<div class=\"banner banner-warn\"><b>" + data.team + "</b> batting first must win by <b>" + bf.min_margin + " run" + (bf.min_margin === 1 ? "" : "s") + "</b> (opponent " + bf.opp_score + ", score " + (bf.opp_score + bf.min_margin) + "+).</div>";
+    }
+    var chase;
+    if (ch.impossible) {
+      chase = "<div class=\"banner banner-danger\">Even chasing " + ch.my_score + " in 1 ball is not enough to overtake " + data.rival + " on NRR alone.</div>";
+    } else if (ch.any_win_sufficient) {
+      chase = "<div class=\"banner banner-success\">Any successful chase within the full innings keeps <b>" + data.team + "</b> ahead of " + data.rival + " on NRR.</div>";
+    } else {
+      chase = "<div class=\"banner banner-warn\"><b>" + data.team + "</b> chasing " + ch.my_score + " must get there within <b>" + ch.max_balls + " balls</b> (" + Math.floor(ch.max_balls / 6) + "." + (ch.max_balls % 6) + " ov).</div>";
+    }
+    var rows = bf.table.map(function (r) {
+      return "<tr" + (r.beats ? " class=\"nrr-good\"" : "") + "><td>+" + r.margin + "</td><td>" + r.my_score + " vs " + bf.opp_score + "</td><td>" + fmt(r.nrr_a) + "</td><td>" + fmt(r.nrr_b) + "</td><td>" + (r.beats ? "✓" : "✗") + "</td></tr>";
+    }).join("");
+    var crows = ch.table.map(function (r) {
+      return "<tr" + (r.beats ? " class=\"nrr-good\"" : "") + "><td>" + r.overs + " ov</td><td>" + fmt(r.nrr_a) + "</td><td>" + fmt(r.nrr_b) + "</td><td>" + (r.beats ? "✓" : "✗") + "</td></tr>";
+    }).join("");
+    wrap.innerHTML =
+      "<div class=\"row\" style=\"gap:8px;flex-wrap:wrap\">" + mode + "<span class=\"muted small\">" + data.team + " vs " + data.opponent + " (benchmark " + data.rival + ")" + "</span></div>" +
+      verdict + chase +
+      "<div class=\"row\" style=\"gap:14px;align-items:flex-start;flex-wrap:wrap;margin-top:10px\">" +
+      "<div style=\"flex:1;min-width:260px\"><h4 class=\"small\">Batting first — win margin</h4><div class=\"table-wrap\"><table class=\"mc-table\"><thead><tr><th>Margin</th><th>Scores</th><th>" + data.team + " NRR</th><th>" + data.rival + " NRR</th><th></th></tr></thead><tbody>" + rows + "</tbody></table></div></div>" +
+      "<div style=\"flex:1;min-width:260px\"><h4 class=\"small\">Chasing — balls to target</h4><div class=\"table-wrap\"><table class=\"mc-table\"><thead><tr><th>Chase in</th><th>" + data.team + " NRR</th><th>" + data.rival + " NRR</th><th></th></tr></thead><tbody>" + crows + "</tbody></table></div></div>" +
+      "</div>";
+  }
+  document.getElementById("mc-go").addEventListener("click", function () {
+    fetch(url()).then(function (r) { return r.json(); }).then(render).catch(function () {
+      wrap.innerHTML = "<div class=\"banner banner-danger\">Couldn't calculate.</div>";
+    });
+  });
+  document.getElementById("mc-score").addEventListener("change", function () {
+    document.getElementById("mc-go").click();
+  });
+})();
+</script>
 {% endblock %}

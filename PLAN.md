@@ -194,6 +194,15 @@ verified before the next):
 ⚠ Data-parity rule (user requirement): every data point visible today stays visible in the
 redesign — audit table in FRONTEND_PLAN.md.
 
+## Qualification scenarios + NRR predictor — DONE (2026-08-15)
+
+Ported the standalone `scl-nrr-calc` tool into `app/services/scenario_service.py` (plan:
+`SCENARIOS_PLAN.md`). Three surfaces: `/table` "Qualification scenarios" card (per-team
+status + what they need), the required-margin calculator on `/table` (JSON endpoint
+`/table/scenarios/calc`, direct-clash + 3rd-party cases), and a per-match "What's at stake"
+panel on match summaries. Top-N season-aware: registry > RR count → final → top-2 (S1),
+else top-1 (S2). 11 unit + 6 e2e tests (164 total: 99 unit + 65 e2e).
+
 ## Ball-by-ball match view — DONE (2026-08-15)
 
 `/matches/<season>/<match>/balls` — play-by-play for scorer-scored matches: innings tabs,
