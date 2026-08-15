@@ -120,6 +120,9 @@ Update this file whenever you learn something durable. Keep it current as the bu
   (market cards with pool bars + fair odds, collapsible propose flow) + detail (pool visual with
   percents, live "you'd win X" stake preview), manager dashboard (team hub stat row, squad XI/
   bench, bid action bar) — 11 new e2e tests (134 total)
+- [x] **Frontend transformation Phase 4 built** — admin polish: overview status cards as stat
+  tiles with primary link buttons, labeled bank-adjust + phase forms, wager lifecycle steppers
+  on the wagers admin, link-page empty state — 7 new e2e tests (141 total)
 
 ## Increment 1 — what was built (structure)
 
@@ -330,6 +333,14 @@ Update this file whenever you learn something durable. Keep it current as the bu
 - The e2e seed's wager is **calibrated + finalized to `vetted`** (house p(No)=60% → Yes fair 2.5x,
   No fair 1.67x) so the stake flow and "you'd win" preview are testable. Alice's seed balance is
   4500 (5000 − 500 opening stake); the test asserting 4500 depends on that.
+- **Admin overview markup (Phase 4 restyle)**: cards are now stat tiles — unit tests assert
+  `<div class="stat-label">Teams</div><div class="stat-value">2</div>` style markup (no more
+  `Teams: <strong>2</strong>`). The House tile on the wagers card only renders when a house
+  account exists (`{% if house %}`).
+- The wagers admin uses a **lifecycle stepper** (reuses `.stepper` CSS): proposed → calibrating →
+  vetted → frozen → resolved (+ a voided terminal step). Current step = `li.current`.
+- Phase 1-4 are all committed (0d9db4d → Phase 3; Phase 4 = 141 tests). The redesign touched
+  EVERY template except the offline scorer (deliberately standalone).
 - `app.config.from_object(dict)` does NOT work — dicts must go through `app.config.update()`.
 - Flask-SocketIO 5.3.6 does NOT serve a client bundle at `/socket.io/socket.io.js` (400). Live
   updates therefore use **4s polling** (`app.js` `startLive`/`startManager`); server-side

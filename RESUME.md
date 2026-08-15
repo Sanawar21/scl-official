@@ -2,7 +2,7 @@
 
 Read this first in a new session, then `MEMORY.md` (living context + gotchas) and `PLAN.md`
 (feature plan). Last updated 2026-08-15 at the end of the session that shipped the frontend
-transformation Phase 3 (player/manager surfaces: banking/vault, wagers, manager dashboard).
+transformation Phase 4 (admin polish). Only Phase 5 (final suite + docs) remains for the redesign.
 
 ## Quickstart
 
@@ -10,7 +10,7 @@ transformation Phase 3 (player/manager surfaces: banking/vault, wagers, manager 
 ./.venv/Scripts/python.exe run.py          # start server (debug, port 10001)
 # or without reloader:
 ./.venv/Scripts/python.exe -c "from app import create_app, socketio; app = create_app(); socketio.run(app, host='0.0.0.0', port=10001, debug=False, use_reloader=False)"
-./.venv/Scripts/python.exe -m pytest tests/ -q   # 134 tests (85 unit + 49 e2e)
+./.venv/Scripts/python.exe -m pytest tests/ -q   # 141 tests (85 unit + 56 e2e)
 ```
 
 E2E tests (Playwright, Chromium installed via `python -m playwright install chromium`):

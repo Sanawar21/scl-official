@@ -15,11 +15,27 @@
 
 {% for w in wagers %}
   <section class="card">
-    <div class="row">
-      <h2 style="margin:0"><a href="{{ url_for('wagers.detail', wager_id=w.id) }}">{{ w.title }}</a></h2>
-      <span class="tag {% if w.status == 'resolved' %}tag-active{% elif w.status == 'voided' %}tag-danger{% endif %}">{{ w.status }}</span>
+    <div class="card-head">
+      <h2><a href="{{ url_for('wagers.detail', wager_id=w.id) }}">{{ w.title }}</a></h2>
+      <span class="chip {% if w.status == 'resolved' %}chip-success{% elif w.status == 'voided' %}chip-danger{% elif w.status == 'vetted' %}chip-info{% else %}chip-warn{% endif %}">{{ w.status }}</span>
     </div>
-    <div class="row muted small">
+    {% set lifecycle = ['proposed', 'calibrating', 'vetted', 'frozen', 'resolved'] %}
+    {% set cur = lifecycle.index(w.status) if w.status in lifecycle else (lifecycle.index('frozen') + 1) %}
+    <div class="stepper" style="margin-bottom:8px">
+      <ol>
+        {% for st in lifecycle %}
+          {% if w.status != 'voided' or st != 'resolved' %}
+            <li class="{% if lifecycle.index(st) == cur %}current{% elif lifecycle.index(st) < cur %}done{% endif %}">
+              <span class="step-dot"></span><span class="step-label">{{ st }}</span>
+            </li>
+          {% endif %}
+        {% endfor %}
+        {% if w.status == 'voided' %}
+          <li class="step current"><span class="step-dot"></span><span class="step-label">voided</span></li>
+        {% endif %}
+      </ol>
+    </div>
+    <div class="team-stats muted small">
       <span>by {{ w.initiator_name }}</span>
       <span>pot {{ w.pot }} ({{ w.yes_total }} / {{ w.no_total }})</span>
       <span>house injected {{ w.house_injected }}</span>

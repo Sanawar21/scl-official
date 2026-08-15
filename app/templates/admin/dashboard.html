@@ -186,7 +186,8 @@
     <div>
       <h3>Phase</h3>
       <form method="post" action="{{ url_for('admin.phase_set', season_id=season_id) }}">
-        <select name="phase">
+        <label for="phase-select">Auction phase</label>
+        <select name="phase" id="phase-select">
           {% for p in state.flow %}
             <option value="{{ p }}" {% if phase == p %}selected{% endif %}>{{ p }}</option>
           {% endfor %}
@@ -338,7 +339,8 @@
   <h2>Bank adjust (player accounts)</h2>
   <form method="post" action="{{ url_for('admin.bank_adjust') }}">
     <input type="hidden" name="season" value="{{ season_id }}">
-    <select name="account_id" required>
+    <label for="bank-account">Account</label>
+    <select name="account_id" id="bank-account" required>
       <option value="">— account —</option>
       {% for t in state.teams %}
         {% set gp_id = t.manager_player_id %}
@@ -350,11 +352,20 @@
         <option value="player:{{ gp.id }}">{{ gp.name }} (player)</option>
       {% endfor %}
     </select>
-    <input type="number" name="amount" placeholder="amount (can be negative)" required style="width:140px">
-    <input type="text" name="comment" placeholder="reason" required style="width:140px">
-    <button class="btn btn-small" type="submit">Adjust</button>
+    <div class="grid" style="margin:6px 0">
+      <div>
+        <label for="bank-amount">Amount (can be negative)</label>
+        <input type="number" name="amount" id="bank-amount" placeholder="e.g. 500 or -200" required>
+      </div>
+      <div>
+        <label for="bank-comment">Reason</label>
+        <input type="text" name="comment" id="bank-comment" placeholder="e.g. grant, fine, credit saved…" required>
+      </div>
+    </div>
+    <button class="btn btn-small btn-primary" type="submit">Adjust account</button>
   </form>
-  <p class="muted small">Enter a player account id directly if the player isn't listed.</p>
+  <p class="muted small">Grants, fines and bonuses all go through here — enter a comment so the
+    ledger stays meaningful. A manager's wallet IS their team's purse.</p>
 </section>
 
 {% endif %}

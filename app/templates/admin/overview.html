@@ -34,60 +34,65 @@
 
 <div class="grid">
   <section class="card">
-    <h2><a href="{{ url_for('admin.auction', season=season_id) }}">Auction</a></h2>
-    <div class="team-stats">
-      <span>Phase: <strong>{{ state.phase }}</strong></span>
-      <span>Teams: <strong>{{ teams_count }}</strong></span>
-      <span>Players: <strong>{{ players_sold }}/{{ players_total }}</strong> sold</span>
+    <div class="card-head"><h2>Auction</h2>
+      <a class="btn btn-small btn-secondary" href="{{ url_for('admin.auction', season=season_id) }}">Open control</a>
+    </div>
+    <div class="stat-row" style="margin-bottom:6px">
+      <div class="stat-tile"><div class="stat-label">Phase</div><div class="stat-value" style="font-size:16px">{{ state.phase }}</div></div>
+      <div class="stat-tile"><div class="stat-label">Teams</div><div class="stat-value">{{ teams_count }}</div></div>
+      <div class="stat-tile"><div class="stat-label">Sold</div><div class="stat-value">{{ players_sold }}/{{ players_total }}</div></div>
     </div>
     {% if current_lot %}
-      <p class="muted small">Current lot: {{ current_lot.name }} ({{ current_lot.tier }})
+      <p class="muted small">Current lot: <b>{{ current_lot.name }}</b> ({{ current_lot.tier }})
         · bid {{ current_lot.current_bid }}</p>
     {% endif %}
     {% if snapshots %}
       <p class="muted small">Published: {{ snapshots[0].name or snapshots[0].id }}</p>
     {% endif %}
-    <p class="small"><a href="{{ url_for('admin.auction', season=season_id) }}">Open auction control →</a></p>
   </section>
 
   <section class="card">
-    <h2><a href="{{ url_for('matches.admin_scorer', season=season_id) }}">Matches</a></h2>
-    <div class="team-stats">
-      <span>Registry: <strong>{{ registry_count }}</strong></span>
-      <span>Finalized: <strong>{{ finalized_count }}</strong></span>
-      <span>Pending finance: <strong>{{ pending_finance }}</strong></span>
+    <div class="card-head"><h2>Matches</h2>
+      <a class="btn btn-small btn-secondary" href="{{ url_for('matches.admin_scorer', season=season_id) }}">Scorer admin</a>
     </div>
-    <p class="small"><a href="{{ url_for('matches.league_table', season=season_id) }}">League table →</a> ·
-      <a href="{{ url_for('matches.admin_scorer', season=season_id) }}">Scorer admin →</a></p>
+    <div class="stat-row" style="margin-bottom:6px">
+      <div class="stat-tile"><div class="stat-label">Registry</div><div class="stat-value">{{ registry_count }}</div></div>
+      <div class="stat-tile"><div class="stat-label">Finalized</div><div class="stat-value">{{ finalized_count }}</div></div>
+      <div class="stat-tile"><div class="stat-label">Pending fin.</div><div class="stat-value">{{ pending_finance }}</div></div>
+    </div>
+    <p class="small"><a href="{{ url_for('matches.league_table', season=season_id) }}">League table →</a></p>
   </section>
 
   <section class="card">
-    <h2><a href="{{ url_for('admin.finances', season=season_id) }}">Finances</a></h2>
-    <div class="team-stats">
-      <span>Team wallets: <strong>{{ wallet_total }}</strong></span>
-      <span>Vault positions: <strong>{{ vault_positions }}</strong></span>
-      <span>Yield: <strong>{{ yield_progress }}/12</strong> matches</span>
+    <div class="card-head"><h2>Finances</h2>
+      <a class="btn btn-small btn-secondary" href="{{ url_for('admin.finances', season=season_id) }}">Finance admin</a>
     </div>
-    <p class="small"><a href="{{ url_for('admin.finances', season=season_id) }}">Finance admin →</a></p>
+    <div class="stat-row" style="margin-bottom:6px">
+      <div class="stat-tile"><div class="stat-label">Team wallets</div><div class="stat-value">{{ wallet_total }}</div></div>
+      <div class="stat-tile"><div class="stat-label">Vault</div><div class="stat-value">{{ vault_positions }}</div></div>
+      <div class="stat-tile"><div class="stat-label">Yield</div><div class="stat-value">{{ yield_progress }}/12</div></div>
+    </div>
   </section>
 
   <section class="card">
-    <h2><a href="{{ url_for('wagers.admin') }}">Wagers</a></h2>
-    <div class="team-stats">
-      <span>Open: <strong>{{ wagers | selectattr('status', 'in', ['proposed', 'calibrating', 'active', 'frozen']) | list | length }}</strong></span>
-      <span>Resolved: <strong>{{ wagers | selectattr('status', 'equalto', 'resolved') | list | length }}</strong></span>
-      {% if house %}<span>House: <strong>{{ house.liquid_cash }}</strong></span>{% endif %}
+    <div class="card-head"><h2>Wagers</h2>
+      <a class="btn btn-small btn-secondary" href="{{ url_for('wagers.admin') }}">Wager admin</a>
     </div>
-    <p class="small"><a href="{{ url_for('wagers.admin') }}">Wager admin →</a></p>
+    <div class="stat-row" style="margin-bottom:6px">
+      <div class="stat-tile"><div class="stat-label">Open</div><div class="stat-value">{{ wagers | selectattr('status', 'in', ['proposed', 'calibrating', 'active', 'frozen']) | list | length }}</div></div>
+      <div class="stat-tile"><div class="stat-label">Resolved</div><div class="stat-value">{{ wagers | selectattr('status', 'equalto', 'resolved') | list | length }}</div></div>
+      {% if house %}<div class="stat-tile"><div class="stat-label">House</div><div class="stat-value">{{ house.liquid_cash }}</div></div>{% endif %}
+    </div>
   </section>
 
   <section class="card">
-    <h2><a href="{{ url_for('auth.link_page') }}">Accounts</a></h2>
-    <div class="team-stats">
-      <span>Unlinked signups: <strong>{{ unlinked_count }}</strong></span>
-      <span>Linked players: <strong>{{ linked_count }}</strong></span>
+    <div class="card-head"><h2>Accounts</h2>
+      <a class="btn btn-small btn-secondary" href="{{ url_for('auth.link_page') }}">Link accounts</a>
     </div>
-    <p class="small"><a href="{{ url_for('auth.link_page') }}">Link accounts →</a></p>
+    <div class="stat-row" style="margin-bottom:6px">
+      <div class="stat-tile"><div class="stat-label">Unlinked</div><div class="stat-value">{{ unlinked_count }}</div></div>
+      <div class="stat-tile"><div class="stat-label">Linked</div><div class="stat-value">{{ linked_count }}</div></div>
+    </div>
   </section>
 </div>
 

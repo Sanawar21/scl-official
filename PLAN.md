@@ -186,7 +186,8 @@ verified before the next):
   wagers market cards with pool bars + "you'd win" stake preview, manager team hub) — 11 new
   e2e tests (134 total); fixed a pre-existing manager-dashboard bug + the bid-affordability
   purse_remaining bug in app.js
-- [ ] Phase 4 — Admin polish + final pass
+- [x] **Phase 4 — Admin polish** (overview stat-tile cards + primary links, labeled bank-adjust/
+  phase forms, wager lifecycle steppers, link-page states) — 7 new e2e tests (141 total)
 - [ ] Phase 5 — Full suite green + docs
 
 ⚠ Data-parity rule (user requirement): every data point visible today stays visible in the

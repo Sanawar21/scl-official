@@ -246,7 +246,10 @@ the site point to it.
    trades panel). Fixed two pre-existing bugs: manager dashboard 500 (raw team without labels)
    and `renderManagerControls` reading the dropped `purse_remaining`. 11 new e2e tests
    (134 total).
-5. **Phase 4 — Admin polish** (overview cards, form consistency) + final pass.
+5. ✅ **Phase 4 — Admin polish** (DONE 2026-08-15): overview status cards → stat tiles with
+   primary link buttons; labeled bank-adjust + phase-set forms; wager lifecycle steppers on the
+   wagers admin (reuses the `.stepper` component); link-page empty states. 7 new e2e tests
+   (141 total).
 6. **Phase 5 — Full Playwright suite green + docs (MEMORY/RESUME/PLAN) + commit.**
 
 ## Delivery cadence

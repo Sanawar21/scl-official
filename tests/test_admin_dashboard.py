@@ -54,12 +54,13 @@ def test_overview_numbers(app):
         team_a_global_id=teams[0]["id"], team_b_global_id=teams[1]["id"])
     client = _login(app)
     body = client.get(f"/admin?season={sid}").data.decode("utf-8")
-    assert "Teams: <strong>2</strong>" in body
-    assert "Registry: <strong>1</strong>" in body
-    assert "Finalized: <strong>1</strong>" in body
-    assert "Pending finance: <strong>1</strong>" in body
+    # Phase 4 restyle: overview cards use stat tiles (label + value divs).
+    assert '<div class="stat-label">Teams</div><div class="stat-value">2</div>' in body
+    assert '<div class="stat-label">Registry</div><div class="stat-value">1</div>' in body
+    assert '<div class="stat-label">Finalized</div><div class="stat-value">1</div>' in body
+    assert '<div class="stat-label">Pending fin.</div><div class="stat-value">1</div>' in body
     # wallet_total = the two managers' tier purses (platinum 9000 + gold 10000).
-    assert "Team wallets: <strong>19000</strong>" in body
+    assert '<div class="stat-label">Team wallets</div><div class="stat-value">19000</div>' in body
     assert "Wagers" in body
 
 
@@ -70,7 +71,7 @@ def test_overview_wager_card(app, wager):
     wager.create_wager(user, "Royales win Match 1", "", "Yes", "No", "Yes", 100)
     client = _login(app)
     body = client.get(f"/admin?season={season['id']}").data.decode("utf-8")
-    assert "Open: <strong>1</strong>" in body
+    assert '<div class="stat-label">Open</div><div class="stat-value">1</div>' in body
 
 
 def test_auction_post_redirects_to_auction(app):
