@@ -123,6 +123,9 @@ Update this file whenever you learn something durable. Keep it current as the bu
 - [x] **Frontend transformation Phase 4 built** — admin polish: overview status cards as stat
   tiles with primary link buttons, labeled bank-adjust + phase forms, wager lifecycle steppers
   on the wagers admin, link-page empty state — 7 new e2e tests (141 total)
+- [x] **Frontend transformation Phase 5 — COMPLETE** — final suite green (141: 85 unit + 56 e2e),
+  mobile sweep of every page per role passed; plan `FRONTEND_PLAN.md` marked done. The redesign
+  touched every template except the offline scorer.
 
 ## Increment 1 — what was built (structure)
 

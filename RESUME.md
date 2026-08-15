@@ -2,7 +2,7 @@
 
 Read this first in a new session, then `MEMORY.md` (living context + gotchas) and `PLAN.md`
 (feature plan). Last updated 2026-08-15 at the end of the session that shipped the frontend
-transformation Phase 4 (admin polish). Only Phase 5 (final suite + docs) remains for the redesign.
+transformation **Phase 5 — the redesign is COMPLETE** (141 tests, mobile sweep passed).
 
 ## Quickstart
 
@@ -12,6 +12,17 @@ transformation Phase 4 (admin polish). Only Phase 5 (final suite + docs) remains
 ./.venv/Scripts/python.exe -c "from app import create_app, socketio; app = create_app(); socketio.run(app, host='0.0.0.0', port=10001, debug=False, use_reloader=False)"
 ./.venv/Scripts/python.exe -m pytest tests/ -q   # 141 tests (85 unit + 56 e2e)
 ```
+
+## Frontend transformation — DONE (2026-08-15)
+
+All five phases shipped (plan: `FRONTEND_PLAN.md`): light-theme design system + role-aware
+shell (Phase 1), public surfaces (2), player/manager surfaces (3), admin polish (4), final
+suite + mobile sweep (5). Every page redesigned except the offline scorer (deliberately
+standalone). Playwright e2e: `tests/e2e/` — 56 browser tests covering nav/auth, auction
+rendering, wagers, banking/vault, matches, finances, admin, and the live viewer.
+
+Backlog (not part of the redesign): player/manager dashboard enhancements, wager polish
+(socket live updates + auto-resolve from match results), fantasy entries, ball-by-ball match view.
 
 E2E tests (Playwright, Chromium installed via `python -m playwright install chromium`):
 `tests/e2e/` — boots the real app on a random port against a temp DB (`data/scl.db` is never

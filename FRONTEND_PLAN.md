@@ -250,7 +250,17 @@ the site point to it.
    primary link buttons; labeled bank-adjust + phase-set forms; wager lifecycle steppers on the
    wagers admin (reuses the `.stepper` component); link-page empty states. 7 new e2e tests
    (141 total).
-6. **Phase 5 — Full Playwright suite green + docs (MEMORY/RESUME/PLAN) + commit.**
+6. ✅ **Phase 5 — Final pass** (DONE 2026-08-15): full suite green (141 tests: 85 unit + 56 e2e),
+   mobile sweep of every redesigned page (bottom bar + drawer verified per role), docs updated.
+
+---
+
+## STATUS: COMPLETE ✅ (2026-08-15)
+
+Every part of the platform is redesigned (light theme, mobile-first) with the Playwright
+suite covering the flows. Remaining backlog items are NOT part of this increment:
+individual player/manager dashboard enhancements, wager polish (socket live updates +
+auto-resolve from match results), fantasy entries, and a ball-by-ball match view.
 
 ## Delivery cadence
 

@@ -188,7 +188,8 @@ verified before the next):
   purse_remaining bug in app.js
 - [x] **Phase 4 — Admin polish** (overview stat-tile cards + primary links, labeled bank-adjust/
   phase forms, wager lifecycle steppers, link-page states) — 7 new e2e tests (141 total)
-- [ ] Phase 5 — Full suite green + docs
+- [x] **Phase 5 — Full suite green + docs** — **frontend transformation COMPLETE** (141 tests:
+  85 unit + 56 e2e; mobile sweep per role passed)
 
 ⚠ Data-parity rule (user requirement): every data point visible today stays visible in the
 redesign — audit table in FRONTEND_PLAN.md.
