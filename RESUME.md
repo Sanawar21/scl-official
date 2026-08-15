@@ -1,8 +1,8 @@
 # SCL Rebuild — Session Resume Handoff
 
 Read this first in a new session, then `MEMORY.md` (living context + gotchas) and `PLAN.md`
-(feature plan). Last updated 2026-08-15 at the end of the session that built the admin
-dashboard consolidation increment.
+(feature plan). Last updated 2026-08-15 at the end of the session that started the frontend
+transformation (Phase 0: Playwright infra + baseline smoke over the current UI).
 
 ## Quickstart
 
@@ -10,8 +10,14 @@ dashboard consolidation increment.
 ./.venv/Scripts/python.exe run.py          # start server (debug, port 10001)
 # or without reloader:
 ./.venv/Scripts/python.exe -c "from app import create_app, socketio; app = create_app(); socketio.run(app, host='0.0.0.0', port=10001, debug=False, use_reloader=False)"
-./.venv/Scripts/python.exe -m pytest tests/ -q   # 72 tests
+./.venv/Scripts/python.exe -m pytest tests/ -q   # 98 tests (85 unit + 13 e2e)
 ```
+
+E2E tests (Playwright, Chromium installed via `python -m playwright install chromium`):
+`tests/e2e/` — boots the real app on a random port against a temp DB (`data/scl.db` is never
+touched), seeds one season + users (admin / alice / cara / dave) + a wager, drives the flows
+in a real browser. Run them with the rest of the suite (`pytest tests/`) or alone:
+`pytest tests/e2e/ -q`.
 
 - App: http://127.0.0.1:10001 — admin login `admin` / `admin123` (env-overridable:
   `SCL_ADMIN_USERNAME`, `SCL_ADMIN_PASSWORD`, `SCL_SECRET_KEY`, `SCL_DB_PATH`).

@@ -167,3 +167,19 @@ setup → phase_a_<tier>… (configured order, optional break) → break → pha
 6. ✅ Offline scorer (downloadable HTML → CSV → admin import; port existing scorer) — **built**;
    plan in `OFFLINE_SCORER_PLAN.md` (public `/scorer` + `/scorer/download`, call-up batting
    order via `batter_order`, DB-fed scorecard PDF via reportlab)
+
+## Frontend transformation (in progress)
+
+Full UX redesign + Playwright UI suite — plan in `FRONTEND_PLAN.md`. Phased (each committed +
+verified before the next):
+
+- [x] **Phase 0 — Playwright infra + baseline smoke** (13 e2e tests locking current flows;
+  server booted per session on a temp DB)
+- [ ] Phase 1 — Shell + design system (base.html, CSS tokens, toast JS, mobile nav) + Home + Auth
+- [ ] Phase 2 — Public surfaces (live board, published, matches, table, leaderboards, profiles, finances)
+- [ ] Phase 3 — Player/manager surfaces (banking/vault, wagers, manager dashboard)
+- [ ] Phase 4 — Admin polish + final pass
+- [ ] Phase 5 — Full suite green + docs
+
+⚠ Data-parity rule (user requirement): every data point visible today stays visible in the
+redesign — audit table in FRONTEND_PLAN.md.

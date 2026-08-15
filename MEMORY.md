@@ -103,6 +103,9 @@ Update this file whenever you learn something durable. Keep it current as the bu
 - [x] **Offline scorer + scorecard PDF built and tested** — 7 new tests (79 total); plan in `OFFLINE_SCORER_PLAN.md`; `/scorer`, call-up batting order, DB-fed PDF (reportlab)
 - [x] **Admin dashboard consolidation built and tested** — 6 new tests (85 total); plan in `ADMIN_DASHBOARD_PLAN.md`; `/admin` = overview + shared tab shell
 - [x] **Git repo initialized** (`git init` + regular commits), per user request (2026-08-15)
+- [x] **Frontend transformation Phase 0 built** — Playwright e2e infra + 13 baseline smoke tests
+  (98 total) locking the CURRENT flows before the redesign; plan in `FRONTEND_PLAN.md`
+  (decisions: pytest-playwright, light theme, mobile-first, data-parity guaranteed)
 
 ## Increment 1 — what was built (structure)
 
@@ -270,6 +273,20 @@ Update this file whenever you learn something durable. Keep it current as the bu
 - The tab shell links to `url_for('admin.auction', season=...)` etc. — passing an Undefined
   season_id into url_for breaks, so templates without a season pass `tabs('wagers')` with no
   season arg (the macro defaults to '').
+- **Playwright e2e gotchas** (Phase 0):
+  - CSS uppercases headings (`text-transform: uppercase` in app.css) — assert on
+    `body.inner_text().lower()` or you'll chase phantom misses like `Vault positions` vs
+    `VAULT POSITIONS`.
+  - Legacy `page.fill('input[name=...]')` targets the FIRST match (non-strict) — scope
+    selectors (`section#bank input[name='amount']`) when a page has several same-named fields
+    (team-gift forms + bank adjust all use `name="amount"`).
+  - JSON endpoints return compact bodies — check `'"ok":true'`, not `'"ok": true'`.
+  - `page.goto` on a download URL raises "Download is starting" — use
+    `page.request.get(...)` and assert content-disposition/type instead.
+  - e2e server: `socketio.run(..., allow_unsafe_werkzeug=True)` is REQUIRED (Flask-SocketIO
+    5.3.6 raises without it); boot in a daemon thread on a free port, poll `/` for readiness.
+  - The e2e seed reuses service calls, not HTTP: `auction.create_team` → `auth.assign_manager`
+    requires the user's player to BE the team's manager — pick manager users accordingly.
 - `app.config.from_object(dict)` does NOT work — dicts must go through `app.config.update()`.
 - Flask-SocketIO 5.3.6 does NOT serve a client bundle at `/socket.io/socket.io.js` (400). Live
   updates therefore use **4s polling** (`app.js` `startLive`/`startManager`); server-side
