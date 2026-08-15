@@ -3,43 +3,64 @@
 {% block content %}
 <div class="page-head">
   <h1>{{ state.published_name }}</h1>
-  <p class="muted">Published {{ state.published_at }} · Final phase: {{ state.phase }}</p>
+  <p class="page-sub">Published {{ state.published_at }} · Final phase: {{ state.phase }}</p>
 </div>
 
 <section class="card">
-  <h2>Final Squads</h2>
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>Team</th><th>Manager</th><th>Squad</th><th>Purse Left</th><th>Credits Left</th></tr></thead>
-      <tbody>
-        {% for team in state.teams %}
-          <tr>
-            <td>{{ team.name }}{% if not team.is_active %} <span class="tag">inactive</span>{% endif %}</td>
-            <td>{{ team.manager_name }}</td>
-            <td>
-              {% for label in team.player_labels %}<span class="chip">{{ label }}</span>{% endfor %}
-              {% for label in team.bench_labels %}<span class="chip chip-bench">{{ label }}</span>{% endfor %}
-            </td>
-            <td>{{ team.purse_remaining }}</td>  <!-- wallet == purse -->
-            <td>{{ team.credits_remaining }}</td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  <div class="hero" style="padding: 20px 12px">
+    <p class="muted small" style="margin:0 0 4px">SEASON COMPLETE</p>
+    <h1 style="margin:0">{{ state.published_name }}</h1>
+    <p class="hero-sub">Final squads and auction results for everyone</p>
   </div>
 </section>
 
 <section class="card">
-  <h2>All Players</h2>
+  <div class="card-head"><h2>Final squads</h2></div>
+  <div class="grid">
+    {% for team in state.teams %}
+      <div class="team-box {% if not team.is_active %}muted{% endif %}">
+        <div class="team-head">
+          <b>{{ team.name }}</b>
+          {% if not team.is_active %}<span class="tag">inactive</span>{% endif %}
+          <span class="chip chip-info">{{ team.manager_name }}</span>
+        </div>
+        <div class="row" style="margin-top:8px">
+          {% for label in team.player_labels %}<span class="chip">{{ label }}</span>{% endfor %}
+          {% for label in team.bench_labels %}<span class="chip chip-bench">{{ label }}</span>{% endfor %}
+        </div>
+        <div class="team-stats">
+          <span>Wallet left: <strong>{{ team.purse_remaining }}</strong></span>
+          <span>Credits left: <strong>{{ team.credits_remaining }}</strong></span>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="card">
+  <div class="card-head">
+    <h2>All players</h2>
+    <div class="row">
+      <input type="search" id="player-filter" placeholder="Search name…" style="width:160px">
+      <select id="tier-filter" style="width:auto">
+        <option value="">All tiers</option>
+        {% for tier in ['platinum', 'gold', 'silver'] %}<option>{{ tier }}</option>{% endfor %}
+      </select>
+      <select id="status-filter" style="width:auto">
+        <option value="">All statuses</option>
+        {% for st in ['sold', 'unsold'] %}<option>{{ st }}</option>{% endfor %}
+      </select>
+    </div>
+  </div>
   <div class="table-wrap">
-    <table>
+    <table id="players-table">
       <thead><tr><th>Player</th><th>Tier</th><th>Status</th><th>Team</th><th>Price</th></tr></thead>
       <tbody>
         {% for p in state.players %}
-          <tr>
+          <tr data-tier="{{ p.tier }}" data-status="{{ p.status }}">
             <td>{{ p.name }}</td>
-            <td>{{ p.tier }}</td>
-            <td>{{ p.status }}</td>
+            <td><span class="tag">{{ p.tier }}</span></td>
+            <td>{% if p.status == 'sold' %}<span class="chip chip-success">sold</span>{% else %}<span class="chip chip-warn">{{ p.status }}</span>{% endif %}</td>
             <td>{{ p.sold_to_team_name }}</td>
             <td>{{ p.sold_price }}</td>
           </tr>
@@ -48,4 +69,26 @@
     </table>
   </div>
 </section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (function () {
+    const table = document.getElementById('players-table');
+    if (!table) return;
+    const q = document.getElementById('player-filter');
+    const tier = document.getElementById('tier-filter');
+    const status = document.getElementById('status-filter');
+    function apply() {
+      const query = (q.value || '').toLowerCase();
+      table.querySelectorAll('tbody tr').forEach(function (row) {
+        const matchName = row.children[0].textContent.toLowerCase().indexOf(query) !== -1;
+        const matchTier = !tier.value || row.dataset.tier === tier.value;
+        const matchStatus = !status.value || row.dataset.status === status.value;
+        row.hidden = !(matchName && matchTier && matchStatus);
+      });
+    }
+    [q, tier, status].forEach(function (ctl) { ctl.addEventListener('input', apply); });
+  })();
+</script>
 {% endblock %}

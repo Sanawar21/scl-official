@@ -3,10 +3,8 @@
 {% block content %}
 <div class="page-head">
   <h1>{{ summary.match_title or summary.match_id }}</h1>
-  <p class="muted">{{ summary.between }}{% if summary.venue %} · {{ summary.venue }}{% endif %}
+  <p class="page-sub">{{ summary.between }}{% if summary.venue %} · {{ summary.venue }}{% endif %}
     {% if summary.match_date %} · {{ summary.match_date }}{% endif %}</p>
-  {% if summary.result %}<p><b>{{ summary.result }}</b></p>{% endif %}
-  {% if summary.toss %}<p class="muted small">Toss: {{ summary.toss }}</p>{% endif %}
   <div class="row">
     <a class="btn btn-small" href="{{ url_for('matches.matches_index', season=summary.season_id) }}">← All matches</a>
     {% if summary.has_uploaded_data %}
@@ -15,14 +13,25 @@
   </div>
 </div>
 
+{% if summary.result %}
+  <div class="banner banner-success">{{ summary.result }}</div>
+{% endif %}
+{% if summary.toss %}
+  <p class="muted small">Toss: {{ summary.toss }}</p>
+{% endif %}
+
 {% if summary.walkover %}
-  <div class="card"><p class="muted">Walkover — no scorecard.</p></div>
+  <div class="empty"><div class="empty-title">Walkover</div><p class="small">No scorecard for this match.</p></div>
 {% elif not summary.has_uploaded_data %}
-  <div class="card"><p class="muted">No scorecard uploaded yet.</p></div>
+  <div class="empty"><div class="empty-title">No scorecard uploaded yet</div>
+    <p class="small">The scorer file for this match hasn't been imported.</p></div>
 {% else %}
   {% for sec in summary.team_sections %}
     <section class="card">
-      <h2>{{ sec.team_name }} <span class="muted small">{{ sec.total }}</span></h2>
+      <div class="card-head">
+        <h2>{{ sec.team_name }}</h2>
+        <span class="tag tag-active">{{ sec.total }}</span>
+      </div>
       <div class="table-wrap">
         <table>
           <thead><tr><th>#</th><th>Batter</th><th>Runs</th><th>Balls</th><th>4s</th><th>6s</th><th>SR</th></tr></thead>
@@ -30,19 +39,26 @@
             {% for b in sec.batting %}
               <tr>
                 <td class="muted">{{ b.batter_order if b.batter_order is not none else '—' }}</td>
-                <td>{{ b.player_name }} <span class="muted small">{{ b.status }}</span></td>
-                <td>{{ b.runs }}</td>
+                <td>{{ b.player_name }}
+                  {% if b.status == 'not out' %}<span class="chip chip-success">not out</span>
+                  {% else %}<span class="muted small">{{ b.status }}</span>{% endif %}</td>
+                <td><b>{{ b.runs }}</b></td>
                 <td>{{ b.balls_faced }}</td>
                 <td>{{ b.fours }}</td>
                 <td>{{ b.sixes }}</td>
                 <td>{{ b.sr_display }}</td>
               </tr>
             {% endfor %}
-            <tr class="muted"><td>Extras</td><td colspan="6">{{ sec.extras }}</td></tr>
+            <tr class="muted"><td></td><td>Extras</td><td colspan="5">{{ sec.extras }}</td></tr>
+            <tr class="muted"><td></td><td>Total</td><td colspan="5">{{ sec.total }}</td></tr>
           </tbody>
         </table>
       </div>
-      <h3 class="small muted">Bowling</h3>
+      {% if sec.fow %}
+        <p class="small muted" style="margin:10px 0 0">Fall of wickets:
+          {% for f in sec.fow %}<span class="chip">{{ f }}</span>{% endfor %}</p>
+      {% endif %}
+      <h3>Bowling</h3>
       <div class="table-wrap">
         <table>
           <thead><tr><th>Bowler</th><th>Overs</th><th>Runs</th><th>Wkts</th><th>Econ</th></tr></thead>
@@ -52,7 +68,7 @@
                 <td>{{ b.player_name }}</td>
                 <td>{{ b.overs_display }}</td>
                 <td>{{ b.runs_conceded }}</td>
-                <td>{{ b.wickets }}</td>
+                <td><b>{{ b.wickets }}</b></td>
                 <td>{{ b.econ_display }}</td>
               </tr>
             {% endfor %}
@@ -63,7 +79,7 @@
   {% endfor %}
 
   <section class="card">
-    <h2>Fantasy points</h2>
+    <div class="card-head"><h2>Fantasy points</h2></div>
     <div class="table-wrap">
       <table>
         <thead><tr><th>Player</th><th>Team</th><th>Fantasy</th></tr></thead>
@@ -72,7 +88,7 @@
             <tr>
               <td>{{ p.player_name }}</td>
               <td class="muted">{{ p.team_name }}</td>
-              <td>{{ p.fantasy_score }}</td>
+              <td><b>{{ p.fantasy_score }}</b></td>
             </tr>
           {% endfor %}
         </tbody>

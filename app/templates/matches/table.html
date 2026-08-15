@@ -6,7 +6,7 @@
   {% if match_seasons %}
     <div class="season-switch">
       {% for s in match_seasons %}
-        <a class="tag {% if s.slug == season_id %}tag-active{% endif %}"
+        <a class="{% if s.slug == season_id %}active{% endif %}"
            href="{{ url_for('matches.league_table', season=s.slug) }}">{{ s.name }}</a>
       {% endfor %}
     </div>
@@ -14,36 +14,44 @@
 </div>
 
 {% if not standings %}
-  <div class="card"><p class="muted">No match data yet for this season.</p></div>
+  <div class="empty"><div class="empty-title">No match data yet</div>
+    <p class="small">Standings appear once matches are scored for this season.</p></div>
 {% else %}
   <section class="card">
     <div class="table-wrap">
-      <table>
+      <table class="table-standings">
         <thead>
-          <tr>
-            <th>#</th><th>Team</th><th>P</th><th>W</th><th>L</th><th>T</th>
-            <th>Pts</th><th>NRR</th><th>For</th><th>Against</th>
-          </tr>
+          <tr><th>#</th><th>Team</th><th>P</th><th>W</th><th>L</th><th>T</th>
+            <th>Pts</th><th>NRR</th><th></th></tr>
         </thead>
         <tbody>
           {% for s in standings %}
-            <tr>
-              <td>{{ s.rank }}</td>
-              <td><a href="{{ url_for('matches.team_detail', slug=s.slug) }}">{{ s.team_name }}</a></td>
+            <tr class="{% if s.rank == 1 %}zone-champion{% elif s.rank <= 4 %}zone-qualify{% endif %}">
+              <td class="rank-cell"><b>{{ s.rank }}</b></td>
+              <td><a href="{{ url_for('matches.team_detail', slug=s.slug) }}"><b>{{ s.team_name }}</b></a></td>
               <td>{{ s.played }}</td>
               <td>{{ s.wins }}</td>
               <td>{{ s.losses }}</td>
               <td>{{ s.draws }}</td>
               <td><b>{{ s.points }}</b></td>
-              <td>{{ s.nrr_display }}</td>
-              <td class="muted">{{ s.runs_for }}/{{ s.balls_for }}b</td>
-              <td class="muted">{{ s.runs_against }}/{{ s.balls_against }}b</td>
+              <td class="nrr-cell">{{ s.nrr_display }}</td>
+              <td>
+                <details class="inline-details">
+                  <summary class="small">for/against</summary>
+                  <span class="small muted">For: {{ s.runs_for }}/{{ s.balls_for }}b ·
+                    Against: {{ s.runs_against }}/{{ s.balls_against }}b</span>
+                </details>
+              </td>
             </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
-    <p class="muted small">Points: win 2, tie 1. Tie-breakers: NRR → head-to-head → boundaries.</p>
+    <div class="row small muted" style="margin-top:10px">
+      <span class="chip chip-success">★ champion zone</span>
+      <span class="chip chip-info">qualification zone</span>
+      <span>Points: win 2, tie 1 · Tie-breakers: NRR → head-to-head → boundaries</span>
+    </div>
   </section>
 {% endif %}
 {% endblock %}

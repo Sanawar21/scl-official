@@ -48,29 +48,46 @@
   function el(id) { return document.getElementById(id); }
 
   function renderBudget(state) {
+    const cards = el("budget-cards");
     const tbody = el("budget-board");
-    if (!tbody) return;
-    tbody.innerHTML = state.public_budget_board.map(function (t) {
-      return "<tr>" +
-        "<td>" + esc(t.team_name) + (t.control_status === "admin_takeover" ? ' <span class="tag tag-danger">admin</span>' : "") + "</td>" +
-        "<td>" + esc(t.purse_remaining) + "</td>" +
-        "<td>" + esc(t.credits_remaining) + "</td>" +
-        "<td>" + esc(t.active_count) + "</td>" +
-        "<td>" + esc(t.bench_count) + "</td>" +
-        "</tr>";
-    }).join("");
+    if (!cards && !tbody) return;
+    const takeover = function (t) {
+      return t.control_status === "admin_takeover"
+        ? ' <span class="chip chip-danger">admin</span>' : "";
+    };
+    if (cards) {
+      cards.innerHTML = state.public_budget_board.map(function (t) {
+        return '<div class="stat-tile">' +
+          '<div class="stat-label">' + esc(t.team_name) + takeover(t) + "</div>" +
+          '<div class="stat-value">' + esc(t.purse_remaining) + "</div>" +
+          '<div class="small muted">' + esc(t.credits_remaining) + " credits · " +
+          esc(t.active_count) + " XI / " + esc(t.bench_count) + " bench</div>" +
+          "</div>";
+      }).join("");
+    }
+    if (tbody) {
+      tbody.innerHTML = state.public_budget_board.map(function (t) {
+        return "<tr>" +
+          "<td>" + esc(t.team_name) + takeover(t) + "</td>" +
+          "<td>" + esc(t.purse_remaining) + "</td>" +
+          "<td>" + esc(t.credits_remaining) + "</td>" +
+          "<td>" + esc(t.active_count) + "</td>" +
+          "<td>" + esc(t.bench_count) + "</td>" +
+          "</tr>";
+      }).join("");
+    }
   }
 
   function renderLot(state) {
     const box = el("current-lot");
     if (!box) return;
     const p = state.current_player;
-    if (!p) { box.innerHTML = '<p class="muted">No player nominated.</p>'; return; }
+    if (!p) { box.innerHTML = '<div class="empty"><div class="empty-title">No player nominated</div><p class="small">The admin hasn’t opened a lot yet.</p></div>'; return; }
     const bidder = p.current_bidder_team_name && p.current_bidder_team_name !== "-"
       ? ' <span class="muted">by ' + esc(p.current_bidder_team_name) + "</span>" : "";
     box.innerHTML =
       '<div class="lot-box">' +
-      '<div class="lot-name">' + esc(p.name) + ' <span class="tag">' + esc(p.tier) + "</span></div>" +
+      '<div class="lot-name">' + esc(p.name) + " <span class='tag tag-active'>" + esc(p.tier) + "</span></div>" +
       '<div class="lot-bid">Current bid: <strong>' + esc(p.current_bid) + "</strong>" + bidder + "</div>" +
       '<div class="lot-base">Base: ' + esc(p.base_price) + " · Credits: " + esc(p.credits) + "</div>" +
       "</div>";
@@ -97,12 +114,35 @@
     }).join("") || '<li class="muted">No bids on this lot yet.</li>';
   }
 
+  function phaseLabel(phase) {
+    const m = phase.match(/^phase_a_(.+)$/);
+    if (m) return m[1].charAt(0).toUpperCase() + m[1].slice(1);
+    if (phase === "break") return "Trade break";
+    if (phase === "phase_b") return "Phase B";
+    return phase.charAt(0).toUpperCase() + phase.slice(1);
+  }
+
   function renderPhase(state) {
-    const box = el("phase-box");
-    if (!box) return;
-    box.innerHTML = '<span class="tag tag-active">' + esc(state.phase) + "</span>";
+    const stepper = el("phase-stepper");
+    if (!stepper) return;
+    const flow = state.flow || [];
+    const current = state.phase;
+    let html = "<div class='stepper'><ol>";
+    flow.forEach(function (ph) {
+      const idx = flow.indexOf(ph);
+      const curIdx = flow.indexOf(current);
+      let cls = "step";
+      if (idx === curIdx) cls += " current";
+      else if (idx < curIdx) cls += " done";
+      html += "<li class='" + cls + "'><span class='step-dot'></span><span class='step-label'>" +
+        esc(phaseLabel(ph)) + "</span></li>";
+    });
+    if (current === "complete") html += "<li class='step current'><span class='step-dot'></span><span class='step-label'>Complete</span></li>";
+    else if (current === "transfers_open") html += "<li class='step current'><span class='step-dot'></span><span class='step-label'>Transfers</span></li>";
+    html += "</ol></div>";
+    stepper.innerHTML = html;
     const read = el("phase-readiness");
-    if (read && state.phase === "phase_b") {
+    if (read && current === "phase_b") {
       read.textContent = "Phase B: " + state.phase_b_readiness.unsold_players + " unsold, " +
         state.phase_b_readiness.incomplete_fill_needed + " needed to fill incomplete teams.";
     }

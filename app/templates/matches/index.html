@@ -6,7 +6,7 @@
   {% if match_seasons %}
     <div class="season-switch">
       {% for s in match_seasons %}
-        <a class="tag {% if s.slug == season_id %}tag-active{% endif %}"
+        <a class="{% if s.slug == season_id %}active{% endif %}"
            href="{{ url_for('matches.matches_index', season=s.slug) }}">{{ s.name }}</a>
       {% endfor %}
     </div>
@@ -14,35 +14,25 @@
 </div>
 
 {% if not registry %}
-  <div class="card"><p class="muted">No matches registered yet.</p></div>
+  <div class="empty"><div class="empty-title">No matches registered yet</div>
+    <p class="small">Fixtures appear here once the admin adds them.</p></div>
 {% else %}
-  <section class="card">
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>#</th><th>Match</th><th>Between</th><th>Venue</th><th>Result</th></tr></thead>
-        <tbody>
-          {% for m in registry %}
-            <tr>
-              <td>{{ m.match_number or m.match_id }}</td>
-              <td>
-                <a href="{{ url_for('matches.match_summary', season_id=m.season_id, match_id=m.match_id) }}">
-                  {{ m.match_title or m.match_id }}
-                </a>
-              </td>
-              <td>{{ m.between }}</td>
-              <td class="muted">{{ m.venue }}</td>
-              <td>
-                {% if m.walkover %}
-                  <span class="tag tag-danger">walkover</span>
-                {% else %}
-                  <span class="tag">{% if m.match_date %}{{ m.match_date }}{% else %}—{% endif %}</span>
-                {% endif %}
-              </td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </section>
+  <div class="grid">
+    {% for m in registry %}
+      <a class="result-card" style="text-decoration:none"
+         href="{{ url_for('matches.match_summary', season_id=m.season_id, match_id=m.match_id) }}">
+        <div class="rc-head">
+          <span class="rc-title">{{ m.match_number or m.match_id }}</span>
+          <span class="rc-meta">{{ m.match_date or '—' }}{% if m.venue %} · {{ m.venue }}{% endif %}</span>
+        </div>
+        <div class="rc-line">{{ m.between or m.match_title or m.match_id }}</div>
+        {% if m.walkover %}
+          <span class="chip chip-danger" style="align-self:flex-start">walkover</span>
+        {% elif m.match_title and m.match_title != m.between %}
+          <span class="rc-meta">{{ m.match_title }}</span>
+        {% endif %}
+      </a>
+    {% endfor %}
+  </div>
 {% endif %}
 {% endblock %}

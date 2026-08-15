@@ -390,6 +390,73 @@ th { color: var(--muted); font-size: 11.5px; text-transform: uppercase; letter-s
 .balance-box { flex: 1; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; }
 .balance { font-size: 26px; font-weight: 800; }
 
+/* ledger feed (public finances) */
+.ledger-feed li { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; }
+.ledger-icon { flex: none; font-size: 15px; width: 22px; text-align: center; }
+.ledger-body { flex: 1; }
+.ledger-amount { flex: none; font-weight: 700; }
+
+/* tabs (leaderboards) — pure CSS, radio-driven */
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+.tab-input { position: absolute; opacity: 0; pointer-events: none; }
+.tab-label {
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  margin: 0;
+}
+.tab-input:checked + .tab-label { background: var(--primary); border-color: var(--primary); color: #fff; }
+.tab-panel { display: none; width: 100%; }
+#lb-bat:checked ~ #panel-bat,
+#lb-bowl:checked ~ #panel-bowl,
+#lb-fantasy:checked ~ #panel-fantasy,
+#lb-sr:checked ~ #panel-sr,
+#lb-econ:checked ~ #panel-econ,
+#lb-team:checked ~ #panel-team { display: block; }
+.podium-list li { display: flex; gap: 10px; align-items: center; }
+.rank-badge {
+  display: inline-block;
+  width: 24px; height: 24px;
+  line-height: 24px;
+  text-align: center;
+  border-radius: 50%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 700;
+  flex: none;
+}
+.podium-list li.podium { background: var(--surface-2); border-radius: var(--radius-sm); padding: 8px 10px; margin: 2px -10px; border: 1px solid var(--border); }
+.podium-list li.podium:nth-child(1) .rank-badge { background: var(--gold); border-color: var(--gold); color: #fff; }
+.podium-list li.podium:nth-child(2) .rank-badge { background: #9aa3af; border-color: #9aa3af; color: #fff; }
+.podium-list li.podium:nth-child(3) .rank-badge { background: #c98a4b; border-color: #c98a4b; color: #fff; }
+
+/* league table zones */
+.table-standings td { vertical-align: middle; }
+.rank-cell { width: 34px; }
+.rank-cell b { display: inline-block; width: 22px; height: 22px; line-height: 22px; text-align: center; border-radius: 50%; background: var(--surface-2); border: 1px solid var(--border); font-size: 12px; }
+.zone-champion { background: var(--warn-soft); }
+.zone-champion .rank-cell b { background: var(--gold); border-color: var(--gold); color: #fff; }
+.zone-qualify { background: var(--primary-soft); }
+.zone-qualify .rank-cell b { background: var(--primary); border-color: var(--primary); color: #fff; }
+.nrr-cell { font-weight: 700; }
+
+/* phase stepper (live board) */
+.stepper { overflow-x: auto; }
+.stepper ol { list-style: none; display: flex; gap: 4px; margin: 0; padding: 0; }
+.stepper li { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.stepper li + li::before { content: "›"; color: var(--border); margin: 0 2px; }
+.step-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--surface-2); border: 1px solid var(--border); display: inline-block; }
+.stepper li.done { color: var(--muted); }
+.stepper li.done .step-dot { background: var(--success); border-color: var(--success); }
+.stepper li.current { color: var(--text); font-weight: 700; }
+.stepper li.current .step-dot { background: var(--primary); border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+
 /* result cards (home latest results) */
 .result-card { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--surface-2); border: 1px solid var(--border); margin-bottom: 10px; }
 .result-card .rc-head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; flex-wrap: wrap; }

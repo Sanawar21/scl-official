@@ -6,7 +6,7 @@
   {% if seasons %}
     <div class="season-switch">
       {% for s in seasons %}
-        <a class="tag {% if s.id == season_id %}tag-active{% endif %}"
+        <a class="{% if s.id == season_id %}active{% endif %}"
            href="{{ url_for('viewer.live', season=s.id) }}">{{ s.name }}</a>
       {% endfor %}
     </div>
@@ -14,29 +14,27 @@
 </div>
 
 {% if not state %}
-  <div class="card"><p class="muted">No season available yet.</p></div>
+  <div class="empty"><div class="empty-title">No season available yet</div>
+    <p class="small">Once the admin creates a season, the live board appears here.</p></div>
 {% else %}
 <div id="live-root" data-season="{{ season_id }}">
-  <div class="grid">
-    <section class="card" id="lot-card">
-      <h2>Current Lot</h2>
-      <div id="current-lot"><p class="muted">Loading…</p></div>
-    </section>
-
-    <section class="card">
-      <h2>Phase</h2>
-      <div id="phase-box">
-        <span class="tag tag-active">{{ state.phase }}</span>
-      </div>
-      <div id="phase-readiness" class="muted small"></div>
-    </section>
-  </div>
+  <section class="card">
+    <div class="card-head">
+      <h2>Current lot</h2>
+      <div id="phase-stepper"></div>
+    </div>
+    <div id="current-lot"><p class="muted">Loading…</p></div>
+  </section>
 
   <section class="card">
-    <h2>Budget Board</h2>
-    <div class="table-wrap">
+    <div class="card-head">
+      <h2>Budget board</h2>
+      <button class="btn btn-small btn-ghost" id="budget-toggle" type="button">Table view</button>
+    </div>
+    <div id="budget-cards" class="grid"></div>
+    <div id="budget-table-wrap" class="table-wrap" hidden>
       <table>
-        <thead><tr><th>Team</th><th>Purse</th><th>Credits</th><th>XI</th><th>Bench</th></tr></thead>
+        <thead><tr><th>Team</th><th>Wallet</th><th>Credits</th><th>XI</th><th>Bench</th></tr></thead>
         <tbody id="budget-board"></tbody>
       </table>
     </div>
@@ -44,11 +42,11 @@
 
   <div class="grid">
     <section class="card">
-      <h2>Bid Feed</h2>
+      <h2>Bid feed</h2>
       <ul class="feed" id="bid-feed"></ul>
     </section>
     <section class="card">
-      <h2>Current Lot Bids</h2>
+      <h2>Current lot bids</h2>
       <ul class="feed" id="lot-bids"></ul>
     </section>
   </div>
@@ -61,6 +59,15 @@
   const stateUrl = "{{ url_for('viewer.api_state', season=season_id) if season_id else '' }}";
   window.addEventListener('load', () => {
     if (stateUrl) window.startLive(stateUrl, "{{ season_id }}");
+    const toggle = document.getElementById('budget-toggle');
+    if (toggle) toggle.addEventListener('click', () => {
+      const cards = document.getElementById('budget-cards');
+      const table = document.getElementById('budget-table-wrap');
+      const isTable = !table.hidden;
+      table.hidden = isTable;
+      cards.hidden = !isTable;
+      toggle.textContent = isTable ? 'Card view' : 'Table view';
+    });
   });
 </script>
 {% endblock %}

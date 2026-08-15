@@ -3,25 +3,27 @@
 {% block content %}
 <div class="page-head">
   <h1>{{ profile.player_name }}</h1>
-  {% if profile.meta.speciality %}<span class="tag tag-active">{{ profile.meta.speciality }}</span>{% endif %}
-  {% if profile.meta.tier %}<span class="tag">{{ profile.meta.tier }}</span>{% endif %}
+  <div class="row">
+    {% if profile.meta.speciality %}<span class="chip chip-info">{{ profile.meta.speciality }}</span>{% endif %}
+    {% if profile.meta.tier %}<span class="tag tag-active">{{ profile.meta.tier }}</span>{% endif %}
+  </div>
 </div>
 
 <section class="card">
-  <h2>Career</h2>
-  <div class="balance-row">
-    <div class="balance-box"><div class="muted small">Matches</div><div class="balance">{{ profile.global_stats.matches }}</div></div>
-    <div class="balance-box"><div class="muted small">Runs</div><div class="balance">{{ profile.global_stats.runs }}</div></div>
-    <div class="balance-box"><div class="muted small">SR</div><div class="balance">{{ '%.2f'|format(profile.global_stats.strike_rate) if profile.global_stats.balls_faced else '—' }}</div></div>
-    <div class="balance-box"><div class="muted small">Wkts</div><div class="balance">{{ profile.global_stats.wickets }}</div></div>
-    <div class="balance-box"><div class="muted small">Econ</div><div class="balance">{{ '%.2f'|format(profile.global_stats.economy) if profile.global_stats.balls_bowled else '—' }}</div></div>
-    <div class="balance-box"><div class="muted small">Fantasy</div><div class="balance">{{ profile.global_stats.fantasy_score }}</div></div>
+  <div class="card-head"><h2>Career</h2></div>
+  <div class="stat-row">
+    <div class="stat-tile"><div class="stat-label">Matches</div><div class="stat-value">{{ profile.global_stats.matches }}</div></div>
+    <div class="stat-tile"><div class="stat-label">Runs</div><div class="stat-value">{{ profile.global_stats.runs }}</div></div>
+    <div class="stat-tile"><div class="stat-label">SR</div><div class="stat-value">{{ '%.2f'|format(profile.global_stats.strike_rate) if profile.global_stats.balls_faced else '—' }}</div></div>
+    <div class="stat-tile"><div class="stat-label">Wickets</div><div class="stat-value">{{ profile.global_stats.wickets }}</div></div>
+    <div class="stat-tile"><div class="stat-label">Econ</div><div class="stat-value">{{ '%.2f'|format(profile.global_stats.economy) if profile.global_stats.balls_bowled else '—' }}</div></div>
+    <div class="stat-tile"><div class="stat-label">Fantasy</div><div class="stat-value">{{ profile.global_stats.fantasy_score }}</div></div>
   </div>
 </section>
 
 {% if profile.per_season %}
 <section class="card">
-  <h2>By season</h2>
+  <div class="card-head"><h2>By season</h2></div>
   <div class="table-wrap">
     <table>
       <thead><tr><th>Season</th><th>M</th><th>Runs</th><th>Wkts</th><th>Fantasy</th></tr></thead>
@@ -37,7 +39,7 @@
 
 {% if profile.matches %}
 <section class="card">
-  <h2>Match log</h2>
+  <div class="card-head"><h2>Match log</h2></div>
   <div class="table-wrap">
     <table>
       <thead><tr><th>Season</th><th>Team</th><th>Bat</th><th>Bowl</th><th>Fantasy</th></tr></thead>
@@ -48,7 +50,7 @@
             <td>{{ m.team_name }}</td>
             <td>{{ m.runs }} ({{ m.balls_faced }}b){% if m.dismissed %}*{% endif %}</td>
             <td>{{ m.wickets }}/{{ m.runs_conceded }} ({{ m.balls_bowled }}b)</td>
-            <td>{{ m.fantasy_score }}</td>
+            <td><b>{{ m.fantasy_score }}</b></td>
           </tr>
         {% endfor %}
       </tbody>

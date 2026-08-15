@@ -178,7 +178,10 @@ verified before the next):
 - [x] **Phase 1 — Shell + design system + Home + Auth** (light theme tokens + components in
   `app.css`, role-aware nav with mobile drawer + bottom bar, flash→toast, Home landing with
   latest results, auth card flows) — 13 new e2e tests (111 total)
-- [ ] Phase 2 — Public surfaces (live board, published, matches, table, leaderboards, profiles, finances)
+- [x] **Phase 2 — Public surfaces** (live board with phase stepper + budget cards, published
+  season with filterable players, matches result cards + scorecard with FOW, league table with
+  zones, tabbed leaderboards with podium, team/player profiles, public finances with ledger
+  feed) — 12 new e2e tests (123 total)
 - [ ] Phase 3 — Player/manager surfaces (banking/vault, wagers, manager dashboard)
 - [ ] Phase 4 — Admin polish + final pass
 - [ ] Phase 5 — Full suite green + docs

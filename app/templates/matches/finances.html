@@ -6,7 +6,7 @@
   {% if match_seasons %}
     <div class="season-switch">
       {% for s in match_seasons %}
-        <a class="tag {% if s.slug == season_id %}tag-active{% endif %}"
+        <a class="{% if s.slug == season_id %}active{% endif %}"
            href="{{ url_for('matches.finances_season', season_id=s.slug) }}">{{ s.name }}</a>
       {% endfor %}
     </div>
@@ -16,47 +16,49 @@
 </div>
 
 <section class="card">
-  <h2>Budget Board{% if season_id %} — {{ season_id }}{% endif %}</h2>
+  <div class="card-head">
+    <h2>Budget board{% if season_id %} — {{ season_id }}{% endif %}</h2>
+  </div>
   <p class="muted small">Each team's manager account balance. This is the team's money:
     match rewards, fines and transfers all move through it.</p>
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>Team</th><th>Wallet</th><th>Credits</th><th>Roster</th></tr></thead>
-      <tbody>
-        {% for b in board %}
-          <tr>
-            <td>{{ b.team_name }}</td>
-            <td><b>{{ b.wallet }}</b></td>
-            <td>{{ b.credits_remaining }}</td>
-            <td class="muted">{{ b.players_count }} players + {{ b.bench_count }} bench</td>
-          </tr>
-        {% else %}
-          <tr><td colspan="4" class="muted">No finance data for this season yet.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
+  {% if board %}
+    <div class="grid">
+      {% for b in board %}
+        <div class="stat-tile">
+          <div class="stat-label">{{ b.team_name }}</div>
+          <div class="stat-value">{{ b.wallet }}</div>
+          <div class="small muted">{{ b.credits_remaining }} credits ·
+            {{ b.players_count }} players + {{ b.bench_count }} bench</div>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="empty"><div class="empty-title">No finance data yet</div>
+      <p class="small">This season's budget board appears once teams exist.</p></div>
+  {% endif %}
 </section>
 
 <section class="card">
-  <h2>Transactions</h2>
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>When</th><th>Type</th><th>Details</th><th>Amount</th><th>Comment</th></tr></thead>
-      <tbody>
-        {% for row in entries %}
-          <tr {% if row.undone_at %}class="muted"{% endif %}>
-            <td>{{ row.created_at[:16] }}</td>
-            <td>{{ row.label }}</td>
-            <td>{{ row.summary }}</td>
-            <td>{{ row.amount }}</td>
-            <td>{{ row.comment or '-' }}</td>
-          </tr>
-        {% else %}
-          <tr><td colspan="5" class="muted">No finance transactions recorded for this season yet.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
+  <div class="card-head"><h2>Transactions</h2></div>
+  {% if entries %}
+    <ul class="feed ledger-feed">
+      {% for row in entries %}
+        {% set icon = '⇄' if row.type == 'transfer' else '🏆' if row.type == 'match_reward' else '➖' if (row.type == 'adjust' and row.operation != 'add') else '➕' %}
+        <li class="{% if row.undone_at %}muted{% endif %}">
+          <span class="ledger-icon" aria-hidden="true">{{ icon }}</span>
+          <span class="ledger-body">
+            <b>{{ row.label }}</b> {{ row.summary }}
+            <span class="small muted">{{ row.created_at[:16] }}</span>
+            {% if row.comment %}<span class="small muted"> — {{ row.comment }}</span>{% endif %}
+            {% if row.undone_at %}<span class="chip chip-warn">undone</span>{% endif %}
+          </span>
+          <span class="ledger-amount"><b>{{ row.amount }}</b></span>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <div class="empty"><div class="empty-title">No transactions yet</div>
+      <p class="small">The ledger fills in as rewards, fines and transfers are recorded.</p></div>
+  {% endif %}
 </section>
 {% endblock %}

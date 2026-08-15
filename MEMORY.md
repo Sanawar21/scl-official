@@ -109,6 +109,12 @@ Update this file whenever you learn something durable. Keep it current as the bu
 - [x] **Frontend transformation Phase 1 built** — shell + design system (light theme), role-aware
   nav + mobile drawer + bottom bar, flash→toast, Home landing dashboard (latest results from the
   match registry), auth card flows — 13 new e2e tests (111 total)
+- [x] **Frontend transformation Phase 2 built** — public surfaces restyled: live board (phase
+  stepper + budget cards + table toggle), published season (squads cards + filterable player
+  table), matches index (result cards) + scorecard summary (FOW line, result banner, PDF action),
+  league table (zone highlighting, expandable for/against), tabbed leaderboards with podium,
+  team/player profiles (stat tiles), public finances (budget cards + ledger icon feed) —
+  12 new e2e tests (123 total)
 
 ## Increment 1 — what was built (structure)
 
@@ -299,6 +305,15 @@ Update this file whenever you learn something durable. Keep it current as the bu
   styles kept for safety. Home route (`viewer.home`) now builds `latest_results` by calling
   `scorer.match_summary` per finalized match (capped at 4, newest first) — cheap at S1 scale.
 - `url_for` must be imported in `viewer.py` (added when Home gained result links).
+- **e2e seed now includes a finalized match (M1) + published snapshot** — `_seed_match` imports a
+  real CSV through `scorer.import_match_csv` (needs local team/player ids in the CSV and
+  `Valid Ball?` = "Yes", plus teams given `global_team_id` since `create_team` leaves it NULL).
+  `auction.publish()` creates the snapshot for `/season/<slug>`.
+- **`match_summary` now derives Fall of Wickets** from `delivery_log` (same logic as the PDF
+  service); S1 matches have no delivery_log so they just omit the line.
+- Leaderboard tabs are pure-CSS radio inputs; tests switch tabs by clicking `label[for='lb-…']`.
+- The `.stat-label`/`.card h3`/`th` text-transform: uppercase applies in templates too — e2e
+  assertions on those labels must lowercase the body (e.g. "PLAYED" not "Played").
 - `app.config.from_object(dict)` does NOT work — dicts must go through `app.config.update()`.
 - Flask-SocketIO 5.3.6 does NOT serve a client bundle at `/socket.io/socket.io.js` (400). Live
   updates therefore use **4s polling** (`app.js` `startLive`/`startManager`); server-side

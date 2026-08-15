@@ -231,8 +231,13 @@ the site point to it.
    flash→toast JS in `app.js`; Home → role-aware landing (hero + season status chip, quick
    actions grid per role, latest results from the match registry, published + seasons cards);
    Auth → card flows with role explainers + linking steps. 13 new e2e tests (111 total).
-3. **Phase 2 — Public surfaces**: live board, published, matches, table, leaderboards,
-   team/player profiles, public finances.
+3. ✅ **Phase 2 — Public surfaces** (DONE 2026-08-15): live board (hero lot + phase stepper +
+   budget cards with table toggle), published season (squads cards + client-side player filter),
+   matches index (result cards) + summary (scorecard layout, FOW line, sticky result banner, PDF
+   action), league table (ranked rows with champion/qualification zones + expandable for/against),
+   leaderboards (pure-CSS tabs + top-3 podium), team/player profiles (stat tiles), public
+   finances (budget cards + ledger icon feed). `match_summary` now derives Fall of Wickets from
+   `delivery_log`. 12 new e2e tests (123 total).
 4. **Phase 3 — Player/manager surfaces**: banking/vault, wagers board/detail, manager
    dashboard.
 5. **Phase 4 — Admin polish** (overview cards, form consistency) + final pass.

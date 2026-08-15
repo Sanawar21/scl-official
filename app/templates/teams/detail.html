@@ -3,23 +3,25 @@
 {% block content %}
 <div class="page-head">
   <h1>{{ profile.team_name }}</h1>
-  <a class="btn btn-small" href="{{ url_for('matches.teams_index') }}">← All teams</a>
+  <div class="row">
+    <a class="btn btn-small" href="{{ url_for('matches.teams_index') }}">← All teams</a>
+  </div>
 </div>
 
 <section class="card">
-  <h2>Record</h2>
-  <div class="balance-row">
-    <div class="balance-box"><div class="muted small">Played</div><div class="balance">{{ profile.global_stats.matches }}</div></div>
-    <div class="balance-box"><div class="muted small">Wins</div><div class="balance">{{ profile.global_stats.wins }}</div></div>
-    <div class="balance-box"><div class="muted small">Losses</div><div class="balance">{{ profile.global_stats.losses }}</div></div>
-    <div class="balance-box"><div class="muted small">Points</div><div class="balance">{{ profile.global_stats.points }}</div></div>
-    <div class="balance-box"><div class="muted small">NRR</div><div class="balance">{{ profile.global_stats.nrr_display }}</div></div>
+  <div class="card-head"><h2>Record</h2></div>
+  <div class="stat-row">
+    <div class="stat-tile"><div class="stat-label">Played</div><div class="stat-value">{{ profile.global_stats.matches }}</div></div>
+    <div class="stat-tile"><div class="stat-label">Wins</div><div class="stat-value">{{ profile.global_stats.wins }}</div></div>
+    <div class="stat-tile"><div class="stat-label">Losses</div><div class="stat-value">{{ profile.global_stats.losses }}</div></div>
+    <div class="stat-tile"><div class="stat-label">Points</div><div class="stat-value">{{ profile.global_stats.points }}</div></div>
+    <div class="stat-tile"><div class="stat-label">NRR</div><div class="stat-value">{{ profile.global_stats.nrr_display }}</div></div>
   </div>
 </section>
 
 {% if profile.season_stats %}
 <section class="card">
-  <h2>By season</h2>
+  <div class="card-head"><h2>By season</h2></div>
   <div class="table-wrap">
     <table>
       <thead><tr><th>Season</th><th>P</th><th>W</th><th>L</th><th>Pts</th><th>NRR</th><th>Fantasy</th></tr></thead>
@@ -30,7 +32,7 @@
             <td>{{ s.matches }}</td>
             <td>{{ s.wins }}</td>
             <td>{{ s.losses }}</td>
-            <td>{{ s.points }}</td>
+            <td><b>{{ s.points }}</b></td>
             <td>{{ s.nrr_display }}</td>
             <td>{{ s.fantasy_points }}</td>
           </tr>
@@ -44,7 +46,10 @@
 {% if profile.squads %}
   {% for squad in profile.squads %}
     <section class="card">
-      <h2>{{ squad.season_id }} squad <span class="muted small">{{ squad.name }}</span></h2>
+      <div class="card-head">
+        <h2>{{ squad.season_id }} squad</h2>
+        <span class="tag">{{ squad.name }}</span>
+      </div>
       {% if squad.players %}
         <div class="row">
           {% for p in squad.players %}

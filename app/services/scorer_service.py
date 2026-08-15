@@ -1302,6 +1302,24 @@ class ScorerService:
                 "bowling": bowling,
             })
 
+        # Fall of wickets, derived from the stored ball-by-ball log (S2+; S1 has none).
+        fow = {}
+        delivery_log = json_loads(match_row.get("delivery_log"), []) if match_row else []
+        if delivery_log:
+            fow = {}
+            wkt = {}
+            for row in delivery_log:
+                dismissed = str(row.get("Dismissed Batter") or "").strip()
+                if not dismissed or dismissed == "None":
+                    continue
+                team = str(row.get("Batting Team") or "").strip() or "?"
+                wkt[team] = wkt.get(team, 0) + 1
+                fow.setdefault(team, []).append(
+                    f"{row.get('Progressive Runs')}-{wkt[team]} "
+                    f"({dismissed}, {row.get('Over Number')}.{row.get('Ball Number')})")
+        for sec in sections:
+            sec["fow"] = fow.get(sec["team_name"], [])
+
         fantasy = sorted(player_rows,
                          key=lambda p: (_safe_int(p["fantasy_score"]), _safe_int(p["runs"]),
                                         _safe_int(p["wickets"])), reverse=True)
@@ -1325,7 +1343,7 @@ class ScorerService:
             "team_sections": sections,
             "fantasy_leaderboard": fantasy,
             "registry": registry,
-            "delivery_log": json_loads(match_row.get("delivery_log"), []) if match_row else [],
+            "delivery_log": delivery_log,
         }
 
     def team_profile(self, team_slug: str) -> dict:

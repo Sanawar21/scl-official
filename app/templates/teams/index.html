@@ -3,17 +3,21 @@
 {% block content %}
 <div class="page-head">
   <h1>Teams</h1>
+  <p class="page-sub">Every squad across all seasons</p>
 </div>
 
 {% if not teams %}
-  <div class="card"><p class="muted">No teams yet.</p></div>
+  <div class="empty"><div class="empty-title">No teams yet</div>
+    <p class="small">Teams appear here once the admin creates them.</p></div>
 {% else %}
   <div class="grid">
     {% for t in teams %}
-      <section class="card team-box">
-        <h2><a href="{{ url_for('matches.team_detail', slug=t.slug) }}">{{ t.name }}</a></h2>
-        <p class="muted small">{{ t.season_id }}</p>
-      </section>
+      <a class="stat-tile" style="text-decoration:none; display:flex; flex-direction:column; gap:6px"
+         href="{{ url_for('matches.team_detail', slug=t.slug) }}">
+        <span class="stat-value" style="font-size:18px">{{ t.name }}</span>
+        <span class="tag" style="align-self:flex-start">{{ t.season_id }}</span>
+        <span class="small muted">View record →</span>
+      </a>
     {% endfor %}
   </div>
 {% endif %}
