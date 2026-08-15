@@ -118,6 +118,18 @@ def match_scorecard(season_id, match_id):
                      download_name=f"{season_id}-{safe}-scorecard.pdf")
 
 
+@matches_bp.get("/matches/<season_id>/<match_id>/balls")
+def match_balls(season_id, match_id):
+    """Ball-by-ball view of a match (S2+ matches scored with the offline scorer)."""
+    svc = _scorer_service()
+    season_id = season_id.lower()
+    data = svc.ball_by_ball(season_id, match_id)
+    if not data:
+        flash("Match not found.", "error")
+        return redirect(url_for("matches.matches_index", season=season_id))
+    return render_template("matches/balls.html", data=data)
+
+
 @matches_bp.get("/finances")
 def finances_index():
     finance = _finance_service()

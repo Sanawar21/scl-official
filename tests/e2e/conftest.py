@@ -84,6 +84,11 @@ def _seed_match(app, season, players, teams):
         sid, "M1", match_number="Match 1", between="Thunder vs Blaze",
         venue="Ground 1", match_date="2026-08-01",
         team_a_global_id=gids[teams[0]["id"]], team_b_global_id=gids[teams[1]["id"]])
+    # M2: registered but never imported (drives the ball-by-ball empty state).
+    scorer.upsert_match_registry_entry(
+        sid, "M2", match_number="Match 2", between="Thunder vs Blaze",
+        venue="Ground 1", match_date="2026-08-02",
+        team_a_global_id=gids[teams[0]["id"]], team_b_global_id=gids[teams[1]["id"]])
 
     p = {pl["name"]: pl["id"] for pl in players}
     t0, t1 = teams  # Thunder, Blaze

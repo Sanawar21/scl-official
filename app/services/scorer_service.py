@@ -1346,6 +1346,146 @@ class ScorerService:
             "delivery_log": delivery_log,
         }
 
+    def ball_by_ball(self, season_id: str, match_id: str) -> dict:
+        """Play-by-play view of a match, derived from the stored delivery log.
+
+        Groups deliveries into innings -> overs -> balls, tagging each ball with
+        its outcome (runs, boundary, wicket, wide/no-ball) and deriving the Fall
+        of Wickets and partnerships per innings. Returns None when the match
+        doesn't exist; innings stay empty when no ball-by-ball data is stored
+        (pre-dates the scorer, e.g. S1's imported matches).
+        """
+        season_id = (season_id or "").strip().lower()
+        match_id = (match_id or "").strip()
+        key = _match_key(season_id, match_id)
+        with self.db.read() as conn:
+            registry = conn.execute(
+                "SELECT * FROM match_registry WHERE match_key = ?", (key,)).fetchone()
+            match_row = conn.execute(
+                "SELECT * FROM match_stats WHERE match_key = ?", (key,)).fetchone()
+        if not registry and not match_row:
+            return None
+        registry = row_to_dict(registry) if registry else {}
+        match_row = row_to_dict(match_row) if match_row else {}
+
+        innings = []
+        fow = []
+        partnerships = []
+        deliveries = json_loads(match_row.get("delivery_log"), []) if match_row else []
+        if deliveries:
+            # Group by Innings Order, preserving row order (scorer writes balls in order).
+            inn_teams = {}
+            inn_balls = {}
+            for row in deliveries:
+                inn = str(row.get("Innings Order") or "").strip() or "1"
+                inn_teams.setdefault(inn, str(row.get("Batting Team") or "").strip())
+                inn_balls.setdefault(inn, []).append(row)
+            for inn in sorted(inn_teams, key=_safe_int):
+                team = inn_teams[inn]
+                rows = inn_balls[inn]
+                overs = []
+                cur_over = None
+                runs_total = 0
+                wkts_total = 0
+                # Partnership tracking: runs since the last wicket (exclusive of
+                # the wicket ball itself), resets on each dismissal.
+                part_runs = 0
+                part_wkts = 0
+                last_partner = ""
+                for row in rows:
+                    over_no = _safe_int(row.get("Over Number"))
+                    ball_no = _safe_int(row.get("Ball Number"))
+                    if cur_over is None or cur_over["number"] != over_no:
+                        cur_over = {"number": over_no, "balls": []}
+                        overs.append(cur_over)
+                    runs_bat = _safe_int(row.get("Runs Bat"))
+                    runs_extra = _safe_int(row.get("Runs Extra"))
+                    runs = runs_bat + runs_extra
+                    extras_type = str(row.get("Extras Type") or "").strip()
+                    dismissed = str(row.get("Dismissed Batter") or "").strip()
+                    is_wicket = bool(dismissed and dismissed != "None")
+                    runs_total += runs
+                    if is_wicket:
+                        wkts_total += 1
+                        # Runs on the wicket ball belong to the outgoing
+                        # partnership only if no runs were taken (run-out edge
+                        # cases are ignored; close the partnership first).
+                        part_runs += runs
+                        part_wkts += 1
+                        partnerships.append({
+                            "innings": inn, "team": team, "runs": part_runs,
+                            "wickets": part_wkts, "partners": last_partner,
+                            "dismissed": dismissed,
+                            "at": f"{runs_total}-{wkts_total}",
+                        })
+                        part_runs = 0
+                        part_wkts = 0
+                        last_partner = ""
+                    else:
+                        part_runs += runs
+                        if not last_partner:
+                            last_partner = str(row.get("Batter") or "").strip()
+                    label = "W" if is_wicket else ""
+                    if not label:
+                        if extras_type == "Wide":
+                            label = f"{runs}wd"
+                        elif extras_type == "No Ball":
+                            label = f"{runs}nb"
+                        else:
+                            label = str(runs)
+                    cur_over["balls"].append({
+                        "ball_no": ball_no,
+                        "over_no": over_no,
+                        "label": label,
+                        "runs": runs,
+                        "runs_bat": runs_bat,
+                        "runs_extra": runs_extra,
+                        "extras_type": extras_type,
+                        "batter": str(row.get("Batter") or "").strip(),
+                        "bowler": str(row.get("Bowler") or "").strip(),
+                        "dismissed": dismissed if is_wicket else "",
+                        "progressive": f"{runs_total}/{wkts_total}",
+                    })
+                # Unbroken (current) partnership when the innings ends.
+                if part_runs or last_partner:
+                    partnerships.append({
+                        "innings": inn, "team": team, "runs": part_runs,
+                        "wickets": part_wkts or 0, "partners": last_partner,
+                        "dismissed": "", "current": True,
+                        "at": f"{runs_total}/{wkts_total}",
+                    })
+                fow_entry = []
+                wkt_count = 0
+                for row in rows:
+                    dismissed = str(row.get("Dismissed Batter") or "").strip()
+                    if dismissed and dismissed != "None":
+                        wkt_count += 1
+                        fow_entry.append(
+                            f"{row.get('Progressive Runs') or runs_total}-{wkt_count} "
+                            f"({dismissed}, {row.get('Over Number')}.{row.get('Ball Number')})")
+                fow.append({"innings": inn, "team": team, "entries": fow_entry})
+                innings.append({
+                    "innings": inn, "team": team,
+                    "total": f"{runs_total}/{wkts_total}",
+                    "runs": runs_total, "wickets": wkts_total,
+                    "overs": overs,
+                })
+
+        return {
+            "season_id": season_id, "match_id": match_id, "match_key": key,
+            "between": registry.get("between") or match_row.get("result") or "",
+            "match_number": registry.get("match_number") or "",
+            "match_title": registry.get("match_title") or match_row.get("result") or "",
+            "venue": registry.get("venue") or "",
+            "match_date": registry.get("match_date") or "",
+            "result": match_row.get("result") or "",
+            "toss": match_row.get("toss") or "",
+            "has_ball_by_ball": bool(deliveries),
+            "innings": innings,
+            "fow": fow,
+            "partnerships": partnerships,
+        }
+
     def team_profile(self, team_slug: str) -> dict:
         with self.db.read() as conn:
             teams = [dict(r) for r in conn.execute(

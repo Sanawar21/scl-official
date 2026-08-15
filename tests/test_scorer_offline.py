@@ -190,6 +190,127 @@ def test_batting_order_fallback_without_column(app, scorer):
 
 
 # ----------------------------------------------------------------------
+# ball-by-ball view
+# ----------------------------------------------------------------------
+def test_ball_by_ball_structure(app, scorer):
+    """ball_by_ball groups deliveries into innings/overs/balls with labels,
+    FOW, and (closed + unbroken) partnerships."""
+    season, player_rows, teams = _season_with_teams(app)
+    sid = season["id"]
+    t1, t2 = teams[0]["id"], teams[1]["id"]
+    _register(app, scorer, sid, teams[0], teams[1])
+
+    rows = [
+        _delivery("Alice", _pid(player_rows, "Alice"), 1, "Bob", _pid(player_rows, "Bob"),
+                  1, 1, 1, bat_team_id=t1, bowl_team_id=t2),
+        _delivery("Bob", _pid(player_rows, "Bob"), 2, "Alice", _pid(player_rows, "Alice"),
+                  1, 6, 7, bat_team_id=t1, bowl_team_id=t2,
+                  dismissed="Bob", dismissed_id=_pid(player_rows, "Bob"), wkt=1),
+        _delivery("Eve", _pid(player_rows, "Eve"), 3, "Bob", _pid(player_rows, "Bob"),
+                  1, 2, 9, bat_team_id=t1, bowl_team_id=t2),
+        _delivery("Cara", _pid(player_rows, "Cara"), 1, "Dave", _pid(player_rows, "Dave"),
+                  2, 4, 4, bat_team="Blaze", bat_team_id=t2,
+                  bowl_team="Thunder", bowl_team_id=t1),
+    ]
+    scorer.import_match_csv(_fake_upload(_csv_bytes(rows)), season_id=sid)
+
+    data = scorer.ball_by_ball(sid, "M1")
+    assert data["has_ball_by_ball"]
+    assert data["between"] == "Thunder vs Blaze"
+    assert len(data["innings"]) == 2
+
+    inn1 = data["innings"][0]
+    assert inn1["team"] == "Thunder"
+    assert inn1["total"] == "9/1"
+    assert len(inn1["overs"]) == 1
+    balls = inn1["overs"][0]["balls"]
+    assert [(b["label"], b["progressive"]) for b in balls] == \
+        [("1", "1/0"), ("W", "7/1"), ("2", "9/1")]
+    assert balls[1]["dismissed"] == "Bob"
+    assert balls[1]["batter"] == "Bob"
+    assert balls[1]["bowler"] == "Cara"  # _delivery defaults the bowler to Cara
+
+    inn2 = data["innings"][1]
+    assert inn2["team"] == "Blaze"
+    assert inn2["total"] == "4/0"
+    assert inn2["overs"][0]["balls"][0]["label"] == "4"
+
+    # FOW per innings; Blaze has none. (_delivery hardcodes Over 0 / Ball 1.)
+    fow = {f["innings"]: f["entries"] for f in data["fow"]}
+    assert fow["1"] == ["7-1 (Bob, 0.1)"]
+    assert fow["2"] == []
+
+    # Partnerships: closed 1st-wicket stand (7 runs) + unbroken 2nd stand (Eve),
+    # plus an unbroken Blaze stand.
+    parts = data["partnerships"]
+    inn1 = [p for p in parts if p["innings"] == "1"]
+    assert len(inn1) == 2
+    assert inn1[0]["runs"] == 7
+    assert inn1[0]["dismissed"] == "Bob"
+    assert inn1[1]["current"] is True
+    assert inn1[1]["runs"] == 2
+    assert inn1[1]["partners"] == "Eve"
+    unbroken = [p for p in parts if p["innings"] == "2"]
+    assert len(unbroken) == 1
+    assert unbroken[0]["current"] is True
+    assert unbroken[0]["runs"] == 4
+    assert unbroken[0]["partners"] == "Cara"
+
+
+def test_ball_by_ball_no_data_and_missing_match(app, scorer):
+    """Matches without a delivery log report empty innings; unknown matches are None."""
+    season, player_rows, teams = _season_with_teams(app)
+    sid = season["id"]
+    t1, t2 = teams[0]["id"], teams[1]["id"]
+    _register(app, scorer, sid, teams[0], teams[1])
+
+    # Registered but never imported -> no ball-by-ball data.
+    data = scorer.ball_by_ball(sid, "M1")
+    assert data is not None
+    assert data["has_ball_by_ball"] is False
+    assert data["innings"] == []
+
+    # Unknown match -> None (route redirects).
+    assert scorer.ball_by_ball(sid, "M999") is None
+
+
+def test_ball_by_ball_route(app, scorer):
+    """The /balls route renders the scorecard link + over grid, and redirects
+    for unknown matches."""
+    season, player_rows, teams = _season_with_teams(app)
+    sid = season["id"]
+    t1, t2 = teams[0]["id"], teams[1]["id"]
+    _register(app, scorer, sid, teams[0], teams[1])
+
+    rows = [
+        _delivery("Alice", _pid(player_rows, "Alice"), 1, "Bob", _pid(player_rows, "Bob"),
+                  1, 1, 1, bat_team_id=t1, bowl_team_id=t2),
+        _delivery("Bob", _pid(player_rows, "Bob"), 2, "Alice", _pid(player_rows, "Alice"),
+                  1, 6, 7, bat_team_id=t1, bowl_team_id=t2,
+                  dismissed="Bob", dismissed_id=_pid(player_rows, "Bob"), wkt=1),
+        _delivery("Cara", _pid(player_rows, "Cara"), 1, "Dave", _pid(player_rows, "Dave"),
+                  2, 4, 4, bat_team="Blaze", bat_team_id=t2,
+                  bowl_team="Thunder", bowl_team_id=t1),
+    ]
+    scorer.import_match_csv(_fake_upload(_csv_bytes(rows)), season_id=sid)
+
+    client = app.test_client()
+    resp = client.get(f"/matches/{sid}/M1/balls")
+    assert resp.status_code == 200
+    body = resp.get_data(as_text=True)
+    assert "Ball by ball" in body
+    assert "Over 0" in body
+    assert "Bob out" in body or "Bob" in body
+    # Summary page links through to the balls view.
+    summary = client.get(f"/matches/{sid}/M1")
+    assert b"Ball by ball" in summary.data
+
+    # Unknown match -> redirect to matches index.
+    resp = client.get(f"/matches/{sid}/M999/balls")
+    assert resp.status_code == 302
+
+
+# ----------------------------------------------------------------------
 # scorecard PDF
 # ----------------------------------------------------------------------
 def test_fall_of_wickets_helper():

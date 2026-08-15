@@ -245,6 +245,12 @@ Update this file whenever you learn something durable. Keep it current as the bu
 
 ## Gotchas learned (don't rediscover)
 
+- **The DB-path env var is `SCL_DB_PATH`** (app/config.py), NOT `SCL_DB` — setting `SCL_DB`
+  silently falls back to `data/scl.db` and a scratch script can **write into the real DB**.
+  (2026-08-15: an e2e-seed scratch run polluted `data/scl.db` with a Test Season + users +
+  wager + M1; cleaned manually — row ids backed up in `data/scl.db.pre-cleanup.bak` before
+  the DELETEs. For scratch scripts always pass `DB_PATH` via `create_app({"DB_PATH": ...})`
+  like tests/e2e/conftest does.)
 - **Never return via a separate read connection inside `db.write()`** — uncommitted rows are
   invisible to other connections (WAL). All returns must be outside the `with self.db.write()` block.
   (create_season/previous_player/bank adjust/lock had this bug; fixed.)
@@ -375,6 +381,17 @@ Update this file whenever you learn something durable. Keep it current as the bu
 
 ## Still to build (later increments)
 
-- Offline scorer (downloadable HTML → CSV → admin import; port `scorer.html`/`scoreCard.py`)
 - Wager polish: socket updates, auto-resolve from match results; fantasy entries (S1 data exists, no schema)
 - Matches polish: `between` is a SQL keyword — quoted in schema/service/import; keep that in mind if adding columns
+
+## Ball-by-ball match view — DONE (2026-08-15)
+
+`/matches/<season>/<match>/balls` — play-by-play from the stored `delivery_log`: innings tabs
+(pure-CSS radio tabs, same pattern as leaderboards), over-by-over ball chip grid
+(`.ball`/`.ball-wkt`/`.ball-four`/`.ball-six`/`.ball-extra`, `<details>` for per-ball detail),
+Fall of Wickets + Partnerships callouts. Backend: `ScorerService.ball_by_ball()` in
+`scorer_service.py` (groups deliveries → innings → overs → balls; FOW uses the CSV's
+`Progressive Runs`/`Over Number`/`Ball Number`; partnerships = runs since last wicket, plus an
+unbroken `current` stand when the innings ends). Summary page links through via
+`matches.match_balls`. S1's 13 matches have no `delivery_log` → the page shows a
+"ball-by-ball not available" state (go-forward for S2).

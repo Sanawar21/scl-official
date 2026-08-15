@@ -65,6 +65,51 @@ def test_match_summary_batting_order(page, base_url, seed):
     assert "Alice" in first_batter  # Alice opened (order 1); Dave hit 2nd
 
 
+def test_match_balls_over_grid(page, base_url, seed):
+    """Ball-by-ball page: innings tabs, over grid with ball chips, FOW + partnerships."""
+    sid = seed["season"]["id"]
+    page.goto(base_url + f"/matches/{sid}/M1/balls")
+    body = page.locator("body").inner_text()
+    assert "Ball by ball" in body
+    # two innings, over 1 in each, with ball labels 1 / W / 2 and 4 / 2
+    assert "Over 1" in body
+    assert page.locator(".over-block").count() == 2
+    # the wicket ball chip carries the dismiss styling
+    assert page.locator(".ball-wkt").count() == 1
+    assert page.locator(".ball-wkt").inner_text().strip() == "W"
+    # expand a ball to see the delivery detail
+    page.locator(".ball").first.click()
+    detail = page.locator(".ball-detail").first.inner_text()
+    assert "to" in detail
+    assert "Alice" in detail
+    # FOW + partnerships callouts render (headings are CSS-uppercased)
+    assert "FALL OF WICKETS" in body.upper()
+    assert "1-1 (Alice" in body
+    assert "PARTNERSHIPS" in body.upper()
+
+
+def test_match_balls_link_from_summary(page, base_url, seed):
+    """Summary page links to the ball-by-ball view."""
+    sid = seed["season"]["id"]
+    page.goto(base_url + f"/matches/{sid}/M1")
+    link = page.locator("a[href*='/balls']")
+    assert link.count() == 1
+    link.click()
+    page.wait_for_load_state("networkidle")
+    assert page.url.endswith("/balls")
+    assert page.locator(".over-block").count() >= 1
+
+
+def test_match_balls_empty_state(page, base_url, seed):
+    """A registered match with no delivery log shows the not-available state."""
+    sid = seed["season"]["id"]
+    page.goto(base_url + f"/matches/{sid}/M2/balls")  # M2 registered, never imported
+    body = page.locator("body").inner_text().lower()
+    assert "ball-by-ball not available" in body
+    assert page.locator(".over-block").count() == 0
+
+
+
 # ----------------------------------------------------------------------
 # league table
 # ----------------------------------------------------------------------

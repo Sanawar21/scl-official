@@ -193,3 +193,11 @@ verified before the next):
 
 ⚠ Data-parity rule (user requirement): every data point visible today stays visible in the
 redesign — audit table in FRONTEND_PLAN.md.
+
+## Ball-by-ball match view — DONE (2026-08-15)
+
+`/matches/<season>/<match>/balls` — play-by-play for scorer-scored matches: innings tabs,
+over-by-over ball chip grid (color-coded), expandable delivery details, Fall of Wickets +
+Partnerships. Powered by `ScorerService.ball_by_ball()` over the stored `delivery_log`;
+summary page links through. S1 (no delivery_log) shows the not-available state. 3 new unit
+tests + 4 new e2e tests (147 total: 88 unit + 59 e2e).

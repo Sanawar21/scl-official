@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Ball by ball · {{ data.match_title or data.match_id }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Ball by ball</h1>
+  <p class="page-sub">{{ data.match_title or data.match_id }}{% if data.between %} · {{ data.between }}{% endif %}
+    {% if data.venue %} · {{ data.venue }}{% endif %}</p>
+  <div class="row">
+    <a class="btn btn-small" href="{{ url_for('matches.match_summary', season_id=data.season_id, match_id=data.match_id) }}">← Scorecard</a>
+  </div>
+</div>
+
+{% if data.result %}
+  <div class="banner banner-success">{{ data.result }}</div>
+{% endif %}
+{% if data.toss %}
+  <p class="muted small">Toss: {{ data.toss }}</p>
+{% endif %}
+
+{% if not data.has_ball_by_ball %}
+  <div class="empty">
+    <div class="empty-title">Ball-by-ball not available</div>
+    <p class="small">This match predates the offline scorer, so no ball-by-ball data was stored.
+      Matches scored from Season 2 onward show the full over-by-over view.</p>
+  </div>
+{% else %}
+  {% for inn in data.innings %}
+    <input type="radio" class="tab-input" name="balls-tabs" id="balls-tab-{{ inn.innings }}" {% if loop.first %}checked{% endif %}>
+    <label class="tab-label" for="balls-tab-{{ inn.innings }}">{{ inn.team }} · {{ inn.total }}</label>
+  {% endfor %}
+
+  {% for inn in data.innings %}
+    <section class="tab-panel" id="panel-{{ inn.innings }}">
+      <div class="card">
+        <div class="card-head">
+          <h2>Innings {{ inn.innings }} — {{ inn.team }}</h2>
+          <span class="tag tag-active">{{ inn.total }}</span>
+        </div>
+
+        <div class="balls-grid">
+          {% for over in inn.overs %}
+            <div class="over-block">
+              <div class="over-head">Over {{ over.number }}</div>
+              <div class="over-balls">
+                {% for ball in over.balls %}
+                  <details class="ball {% if ball.dismissed %}ball-wkt{% elif ball.runs_extra %}ball-extra{% elif ball.runs_bat >= 6 %}ball-six{% elif ball.runs_bat == 4 %}ball-four{% endif %}">
+                    <summary title="{{ ball.batter }} to {{ ball.bowler }}">{{ ball.label }}</summary>
+                    <div class="ball-detail">
+                      <p><b>{{ ball.over_no }}.{{ ball.ball_no }}</b> — {{ ball.batter }} to {{ ball.bowler }},
+                        {{ ball.runs }} run{{ 's' if ball.runs != 1 else '' }}
+                        <span class="muted">({{ ball.progressive }})</span></p>
+                      {% if ball.extras_type %}<p class="small muted">{{ ball.extras_type }}{% if ball.runs_extra %} +{{ ball.runs_extra }}{% endif %}</p>{% endif %}
+                      {% if ball.dismissed %}<p class="small chip chip-danger">{{ ball.dismissed }} out</p>{% endif %}
+                    </div>
+                  </details>
+                {% endfor %}
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      {% set inn_fow = data.fow | selectattr('innings', 'equalto', inn.innings) | first %}
+      {% if inn_fow and inn_fow.entries %}
+        <section class="card">
+          <div class="card-head"><h3>Fall of wickets</h3></div>
+          <div class="row" style="flex-wrap:wrap;gap:8px">
+            {% for f in inn_fow.entries %}<span class="chip">{{ f }}</span>{% endfor %}
+          </div>
+        </section>
+      {% endif %}
+
+      {% set inn_parts = data.partnerships | selectattr('innings', 'equalto', inn.innings) | list %}
+      {% if inn_parts %}
+        <section class="card">
+          <div class="card-head"><h3>Partnerships</h3></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Wicket</th><th>Partners</th><th>Runs</th><th>At</th><th>Out</th></tr></thead>
+              <tbody>
+                {% for p in inn_parts %}
+                  <tr>
+                    <td class="muted">{{ p.wickets }}</td>
+                    <td>{{ p.partners or '—' }}</td>
+                    <td><b>{{ p.runs }}</b></td>
+                    <td>{{ p.at }}</td>
+                    <td class="muted">{{ p.dismissed }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      {% endif %}
+    </section>
+  {% endfor %}
+{% endif %}
+{% endblock %}

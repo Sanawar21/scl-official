@@ -9,6 +9,7 @@
     <a class="btn btn-small" href="{{ url_for('matches.matches_index', season=summary.season_id) }}">← All matches</a>
     {% if summary.has_uploaded_data %}
       <a class="btn btn-small btn-primary" href="{{ url_for('matches.match_scorecard', season_id=summary.season_id, match_id=summary.match_id) }}">Scorecard PDF</a>
+      <a class="btn btn-small" href="{{ url_for('matches.match_balls', season_id=summary.season_id, match_id=summary.match_id) }}">Ball by ball</a>
     {% endif %}
   </div>
 </div>
