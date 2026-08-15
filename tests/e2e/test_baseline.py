@@ -52,7 +52,7 @@ def test_login_manager_redirects_to_team(page, base_url, login):
     assert "/manager" in page.url
     body = page.locator("body").inner_text()
     assert "Thunder" in body
-    assert "Current Lot" in body
+    assert "current lot" in body.lower()
 
 
 def test_login_player_redirects_to_account(page, base_url, login):
@@ -71,7 +71,7 @@ def test_signup_creates_unlinked_account(page, base_url):
     page.click('button[type="submit"]')
     page.wait_for_load_state("networkidle")
     assert "/account" in page.url
-    assert "not linked to a player yet" in page.locator("body").inner_text()
+    assert "isn't linked to a player yet" in page.locator("body").inner_text()
 
 
 def test_logout(page, base_url, login):

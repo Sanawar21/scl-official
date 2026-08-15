@@ -3,102 +3,131 @@
 {% block content %}
 <div class="page-head">
   <h1>Central Bank</h1>
-  <p class="muted">{{ current_user.username }}{% if current_user.global_player_id %} · linked{% else %} · <b>not linked to a player yet</b>{% endif %}</p>
+  <p class="page-sub">{{ current_user.username }}{% if current_user.global_player_id %} · linked{% endif %}</p>
 </div>
 
 {% if not account %}
-  <div class="card">
-    <p class="muted">Your account will appear once an admin links you to your player profile.</p>
+  <div class="banner banner-info">
+    <b>Your account isn't linked to a player yet.</b>
+    <span class="small">Ask an admin to link it to your SCL player profile — then you can wager, lock funds in the vault, and (if you manage a team) run your squad.</span>
   </div>
 {% else %}
-<div class="grid">
+  {% if my_team %}
+    <div class="banner banner-info">
+      You manage <b>{{ my_team.name }}</b> — your wallet is the team's money.
+      <span class="small">Match rewards, fines and transfers all move through it.</span>
+    </div>
+  {% endif %}
+
   <section class="card">
-    <h2>Balances</h2>
-    {% if my_team %}
-      <p class="muted small">You manage <b>{{ my_team.name }}</b> — your wallet is the team's
-        money (purse {{ account.liquid_cash }}).</p>
-    {% endif %}
-    <div class="balance-row">
-      <div class="balance-box">
-        <div class="muted small">Liquid Cash</div>
-        <div class="balance big">{{ account.liquid_cash }}</div>
+    <div class="stat-row">
+      <div class="stat-tile">
+        <div class="stat-label">Liquid cash</div>
+        <div class="stat-value">{{ account.liquid_cash }}</div>
       </div>
-      <div class="balance-box">
-        <div class="muted small">Locked (Vault)</div>
-        <div class="balance big">{{ account.locked_capital }}</div>
+      <div class="stat-tile">
+        <div class="stat-label">Locked (vault)</div>
+        <div class="stat-value">{{ account.locked_capital }}</div>
       </div>
     </div>
+
+    <div class="card-head"><h2>Deposit</h2></div>
     <form method="post" action="{{ url_for('banking.deposit') }}">
       <div class="row">
-        <input type="number" name="amount" placeholder="amount" min="1" required style="width:120px">
-        <button class="btn btn-small" type="submit">Deposit</button>
+        <input type="number" name="amount" placeholder="amount" min="1" required style="width:140px">
+        <button class="btn btn-primary" type="submit">Deposit</button>
       </div>
+      <p class="field-hint">Adds money to your liquid cash (for example, to fund a wager or a vault lock).</p>
     </form>
   </section>
 
   <section class="card">
-    <h2>Vault — lock funds</h2>
+    <div class="card-head"><h2>Vault</h2></div>
     <p class="muted small">7% yield per match. Default = compounding (auto-reinvest).
       Manual harvest pays 7% of the original principal to liquid cash each match.
       Locked capital is untouchable until the season ends (after Match 12).</p>
     <form id="vault-lock-form">
-      <select name="season_id" required>
-        <option value="">— season —</option>
-        {% for s in seasons %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
-      </select>
-      <input type="number" name="amount" placeholder="amount to lock" min="1" required style="width:120px">
-      <label class="checkbox-label"><input type="checkbox" name="reinvest" value="1" checked>
-        Compounding (reinvest)</label>
-      <button class="btn btn-small btn-primary" type="submit">Lock in vault</button>
-      <span id="vault-msg" class="error-text"></span>
+      <div class="row">
+        <select name="season_id" required style="width:auto">
+          <option value="">— season —</option>
+          {% for s in seasons %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+        </select>
+        <input type="number" name="amount" placeholder="amount to lock" min="1" required style="width:140px">
+        <label class="checkbox-label"><input type="checkbox" name="reinvest" value="1" checked>
+          Compounding (reinvest)</label>
+        <button class="btn btn-primary" type="submit">Lock in vault</button>
+        <span id="vault-msg" class="error-text"></span>
+      </div>
     </form>
+
     {% if vault_positions %}
       <h3>Vault positions</h3>
-      {% for pos in vault_positions %}
-        <div class="team-box">
-          <div class="team-stats">
-            <span>Season: {{ pos.season_id }}</span>
-            <span>Principal: {{ pos.principal }}</span>
-            <span>Locked: {{ pos.locked_capital }}</span>
-            <span>Mode: {% if pos.reinvest %}compound{% else %}manual{% endif %}</span>
-            <span>Yield: match {{ pos.last_yield_match }} of 12
-              ({{ finalized_counts.get(pos.season_id, 0) }} finalized)</span>
-            <span>{% if pos.unlocked %}<span class="tag tag-active">Unlocked</span>
-              {% else %}<span class="tag">Locked until M12</span>{% endif %}</span>
+      <div class="grid">
+        {% for pos in vault_positions %}
+          <div class="team-box">
+            <div class="team-head">
+              <b>{{ pos.season_id }}</b>
+              {% if pos.unlocked %}<span class="chip chip-success">Unlocked</span>
+              {% else %}<span class="chip">Locked until M12</span>{% endif %}
+            </div>
+            <div class="team-stats">
+              <span>Principal: <strong>{{ pos.principal }}</strong></span>
+              <span>Locked: <strong>{{ pos.locked_capital }}</strong></span>
+              <span>Mode: {{ 'compound' if pos.reinvest else 'manual' }}</span>
+              <span>Yield: match {{ pos.last_yield_match }} of 12
+                ({{ finalized_counts.get(pos.season_id, 0) }} finalized)</span>
+            </div>
+            <button class="btn btn-small js-reinvest" data-id="{{ pos.id }}"
+                    data-reinvest="{{ 0 if pos.reinvest else 1 }}">
+              {% if pos.reinvest %}Switch to manual harvest{% else %}Switch to compounding{% endif %}
+            </button>
           </div>
-          <button class="btn btn-small js-reinvest" data-id="{{ pos.id }}"
-                  data-reinvest="{{ 0 if pos.reinvest else 1 }}">
-            {% if pos.reinvest %}Switch to manual harvest{% else %}Switch to compounding{% endif %}
-          </button>
-        </div>
-      {% endfor %}
+        {% endfor %}
+      </div>
     {% endif %}
   </section>
-</div>
 
-<section class="card">
-  <h2>Transactions</h2>
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>When</th><th>Type</th><th>Amount</th><th>Balance</th><th>Comment</th></tr></thead>
-      <tbody>
-        {% for t in txns %}
-          <tr>
-            <td>{{ t.created_at[:16] }}</td>
-            <td>{{ t.type }}</td>
-            <td>{{ t.amount }}</td>
-            <td>{{ t.balance_after }}</td>
-            <td>{{ t.comment }}</td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</section>
+  <section class="card">
+    <div class="card-head">
+      <h2>Transactions</h2>
+      <div class="row">
+        <input type="search" id="txn-filter" placeholder="Filter by type or comment…" style="width:220px">
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table id="txn-table">
+        <thead><tr><th>When</th><th>Type</th><th>Amount</th><th>Balance</th><th>Comment</th></tr></thead>
+        <tbody>
+          {% for t in txns %}
+            <tr>
+              <td class="muted">{{ t.created_at[:16] }}</td>
+              <td><span class="tag">{{ t.type }}</span></td>
+              <td>{{ t.amount }}</td>
+              <td><b>{{ t.balance_after }}</b></td>
+              <td>{{ t.comment }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
 {% endif %}
 {% endblock %}
 
 {% block scripts %}
+<script>
+  (function () {
+    const filter = document.getElementById('txn-filter');
+    const table = document.getElementById('txn-table');
+    if (!filter || !table) return;
+    filter.addEventListener('input', function () {
+      const q = (filter.value || '').toLowerCase();
+      table.querySelectorAll('tbody tr').forEach(function (row) {
+        row.hidden = row.innerText.toLowerCase().indexOf(q) === -1;
+      });
+    });
+  })();
+</script>
 <script>
   window.addEventListener('load', () => {
     const lockForm = document.getElementById('vault-lock-form');

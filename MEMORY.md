@@ -115,6 +115,11 @@ Update this file whenever you learn something durable. Keep it current as the bu
   league table (zone highlighting, expandable for/against), tabbed leaderboards with podium,
   team/player profiles (stat tiles), public finances (budget cards + ledger icon feed) —
   12 new e2e tests (123 total)
+- [x] **Frontend transformation Phase 3 built** — player/manager surfaces: account page (balance
+  hero tiles, link-status banner, vault position cards, filterable transactions), wagers board
+  (market cards with pool bars + fair odds, collapsible propose flow) + detail (pool visual with
+  percents, live "you'd win X" stake preview), manager dashboard (team hub stat row, squad XI/
+  bench, bid action bar) — 11 new e2e tests (134 total)
 
 ## Increment 1 — what was built (structure)
 
@@ -314,6 +319,17 @@ Update this file whenever you learn something durable. Keep it current as the bu
 - Leaderboard tabs are pure-CSS radio inputs; tests switch tabs by clicking `label[for='lb-…']`.
 - The `.stat-label`/`.card h3`/`th` text-transform: uppercase applies in templates too — e2e
   assertions on those labels must lowercase the body (e.g. "PLAYED" not "Played").
+- **Manager dashboard was broken for real data** (pre-existing): `manager.dashboard` passed the raw
+  `_get_team` result, which has no `player_labels`/`bench_labels` — fixed in Phase 3 by resolving
+  the ENRICHED team from `state.teams` instead. The template's "Current Lot" heading is
+  lowercase "Current lot".
+- **`app.js` bid-affordability was broken by the purse removal**: `renderManagerControls` read
+  `team.purse_remaining` (gone) — `undefined < minBid` is always false, so unaffordable bids were
+  never disabled. Fixed to use `team.wallet`. If you ever touch bid UI again, grep for
+  `purse_remaining` in app.js.
+- The e2e seed's wager is **calibrated + finalized to `vetted`** (house p(No)=60% → Yes fair 2.5x,
+  No fair 1.67x) so the stake flow and "you'd win" preview are testable. Alice's seed balance is
+  4500 (5000 − 500 opening stake); the test asserting 4500 depends on that.
 - `app.config.from_object(dict)` does NOT work — dicts must go through `app.config.update()`.
 - Flask-SocketIO 5.3.6 does NOT serve a client bundle at `/socket.io/socket.io.js` (400). Live
   updates therefore use **4s polling** (`app.js` `startLive`/`startManager`); server-side

@@ -2,35 +2,44 @@
 {% block title %}{{ wager.title }}{% endblock %}
 {% block content %}
 <div class="page-head">
+  <h1>{{ wager.title }}</h1>
   <div class="row">
-    <h1 style="margin:0">{{ wager.title }}</h1>
-    <span class="tag {% if wager.status == 'resolved' %}tag-active{% elif wager.status == 'voided' %}tag-danger{% endif %}">{{ wager.status }}</span>
+    <span class="chip {% if wager.status == 'resolved' %}chip-success{% elif wager.status == 'voided' %}chip-danger{% elif wager.status == 'vetted' %}chip-info{% else %}chip-warn{% endif %}">{{ wager.status }}</span>
+    <span class="page-sub">by {{ wager.initiator_name }} · {{ wager.created_at[:16] }}{% if wager.season_id %} · {{ wager.season_id }}{% endif %}</span>
   </div>
-  <p class="muted">by {{ wager.initiator_name }} · proposed {{ wager.created_at[:16] }}
-    {% if wager.season_id %} · {{ wager.season_id }}{% endif %}</p>
 </div>
 
-{% if wager.description %}<p>{{ wager.description }}</p>{% endif %}
+{% if wager.description %}<p class="muted">{{ wager.description }}</p>{% endif %}
 
 {% set total = wager.yes_total + wager.no_total %}
 {% if total > 0 %}
   <section class="card">
-    <h2>Pools</h2>
-    <div class="team-box">
-      <div class="team-stats">
-        <span>{{ wager.side_a }} (Yes): {{ wager.yes_total }}</span>
-        <span>{{ wager.side_b }} (No): {{ wager.no_total }}</span>
-        <span>Pot: {{ wager.pot }} {% if wager.house_injected %}(incl. {{ wager.house_injected }} house){% endif %}</span>
+    <div class="card-head"><h2>Pools</h2></div>
+    <div class="pool-bar-lg" role="img" aria-label="pool split {{ wager.side_a }} vs {{ wager.side_b }}">
+      <div class="pool-yes" style="width: {{ (100 * wager.yes_total / total) if total else 0 }}%"></div>
+      <div class="pool-no" style="width: {{ (100 * wager.no_total / total) if total else 0 }}%"></div>
+    </div>
+    <div class="stat-row" style="margin-top:12px">
+      <div class="stat-tile">
+        <div class="stat-label">{{ wager.side_a }}</div>
+        <div class="stat-value">{{ wager.yes_total }}</div>
+        <div class="small muted">{{ (100 * wager.yes_total / total)|round(1) if total else 0 }}% of pot</div>
       </div>
-      <div style="display:flex; height:14px; border-radius:7px; overflow:hidden; margin-top:8px; background:var(--surface-2);">
-        <div style="width: {{ (100 * wager.yes_total / total) if total else 0 }}%; background: var(--primary);"></div>
-        <div style="width: {{ (100 * wager.no_total / total) if total else 0 }}%; background: var(--danger);"></div>
+      <div class="stat-tile">
+        <div class="stat-label">{{ wager.side_b }}</div>
+        <div class="stat-value">{{ wager.no_total }}</div>
+        <div class="small muted">{{ (100 * wager.no_total / total)|round(1) if total else 0 }}% of pot</div>
+      </div>
+      <div class="stat-tile">
+        <div class="stat-label">Pot</div>
+        <div class="stat-value">{{ wager.pot }}</div>
+        <div class="small muted">{% if wager.house_injected %}incl. {{ wager.house_injected }} house{% endif %}</div>
       </div>
     </div>
     {% if wager.house_probability %}
       <p class="muted small">
-        Fair odds: {{ wager.side_a }} {{ '%.2f'|format(100 / (100 - wager.house_probability)) }}x ·
-        {{ wager.side_b }} {{ '%.2f'|format(100 / wager.house_probability) }}x
+        Fair odds: {{ wager.side_a }} <b>{{ '%.2f'|format(100 / (100 - wager.house_probability)) }}x</b> ·
+        {{ wager.side_b }} <b>{{ '%.2f'|format(100 / wager.house_probability) }}x</b>
       </p>
     {% endif %}
   </section>
@@ -38,44 +47,43 @@
 
 {% if wager.status == 'vetted' %}
   <section class="card">
-    <h2>Place a stake</h2>
+    <div class="card-head"><h2>Place a stake</h2></div>
     {% if not user %}
       <p class="muted"><a href="{{ url_for('auth.login_page', next=request.path) }}">Log in</a> to stake.</p>
     {% elif not user.global_player_id %}
-      <p class="muted">Your account must be linked to your player profile to stake.</p>
+      <div class="banner banner-info">Your account must be linked to your player profile to stake.</div>
     {% else %}
-      <p class="muted">Your liquid cash: <b>{{ account.liquid_cash if account else 0 }}</b></p>
+      <p class="muted small">Your liquid cash: <b>{{ account.liquid_cash if account else 0 }}</b></p>
       <form method="post" action="{{ url_for('wagers.bet', wager_id=wager.id) }}">
         <div class="row">
           <label>Side
-            <select name="side">
+            <select name="side" id="stake-side" style="width:auto">
               <option value="{{ wager.side_a }}">{{ wager.side_a }}</option>
               <option value="{{ wager.side_b }}">{{ wager.side_b }}</option>
             </select>
           </label>
-          <input type="number" name="amount" placeholder="amount" min="1" required style="width:110px">
-          <button class="btn btn-small btn-primary" type="submit">Stake</button>
+          <input type="number" name="amount" id="stake-amount" placeholder="amount" min="1" required style="width:120px">
+          <button class="btn btn-primary" type="submit">Stake</button>
         </div>
+        <p class="field-hint" id="win-preview"></p>
       </form>
     {% endif %}
   </section>
 {% elif wager.status == 'frozen' %}
-  <p class="muted">Pools frozen pending news. A Phase 2 market may open with updated odds.</p>
-{% elif wager.status in ('resolved', 'voided') %}
-  {% if wager.status == 'resolved' %}
-    <p class="muted">Resolved: <b>{{ wager.winning_side }}</b> won. Winners have been paid.</p>
-  {% else %}
-    <p class="muted">Voided{% if wager.void_reason %} — {{ wager.void_reason }}{% elif wager.veto_reason %} — {{ wager.veto_reason }}{% endif %}.
-      All stakes refunded 100%.</p>
-  {% endif %}
+  <div class="banner banner-warn">Pools frozen pending news. A Phase 2 market may open with updated odds.</div>
+{% elif wager.status == 'resolved' %}
+  <div class="banner banner-success"><b>{{ wager.winning_side }}</b> won — winners have been paid.</div>
+{% elif wager.status == 'voided' %}
+  <div class="banner banner-danger">Voided{% if wager.void_reason %} — {{ wager.void_reason }}{% elif wager.veto_reason %} — {{ wager.veto_reason }}{% endif %}.
+    All stakes refunded 100%.</div>
 {% else %}
-  <p class="muted">Awaiting admin calibration{% if wager.house_probability %}
-    (consensus {{ '%.2f'|format(wager.house_probability) }}% for {{ wager.side_b }}){% endif %}.</p>
+  <div class="banner banner-info">Awaiting admin calibration{% if wager.house_probability %}
+    (consensus {{ '%.2f'|format(wager.house_probability) }}% for {{ wager.side_b }}){% endif %}.</div>
 {% endif %}
 
 {% if wager.bets %}
   <section class="card">
-    <h2>Bets</h2>
+    <div class="card-head"><h2>Bets</h2></div>
     <div class="table-wrap">
       <table>
         <thead><tr><th>User</th><th>Side</th><th>Amount</th><th>Status</th><th>Payout</th><th>When</th></tr></thead>
@@ -85,9 +93,9 @@
               <td>{{ b.username }}</td>
               <td>{{ b.side }}</td>
               <td>{{ b.amount }}</td>
-              <td>{{ b.status }}</td>
+              <td><span class="tag">{{ b.status }}</span></td>
               <td>{{ b.payout if b.payout is not none else '—' }}</td>
-              <td>{{ b.created_at[:16] }}</td>
+              <td class="muted">{{ b.created_at[:16] }}</td>
             </tr>
           {% endfor %}
         </tbody>
@@ -98,12 +106,36 @@
 
 {% if wager.history %}
   <section class="card">
-    <h3>History</h3>
-    <ul class="muted small">
+    <div class="card-head"><h2>History</h2></div>
+    <ul class="feed small">
       {% for h in wager.history %}
-        <li>{{ h.at[:16] }} — {{ h.action }} by {{ h.actor }}{% if h.note %}: {{ h.note }}{% endif %}</li>
+        <li><span class="muted">{{ h.at[:16] }}</span> — <b>{{ h.action }}</b> by {{ h.actor }}{% if h.note %}: {{ h.note }}{% endif %}</li>
       {% endfor %}
     </ul>
   </section>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if wager.status == 'vetted' and user and user.global_player_id %}
+<script>
+  (function () {
+    const side = document.getElementById('stake-side');
+    const amount = document.getElementById('stake-amount');
+    const preview = document.getElementById('win-preview');
+    if (!side || !amount || !preview) return;
+    const fairA = {{ '%.2f'|format(100 / (100 - wager.house_probability)) if wager.house_probability else 0 }};
+    const fairB = {{ '%.2f'|format(100 / wager.house_probability) if wager.house_probability else 0 }};
+    const sideAVal = "{{ wager.side_a }}";
+    function update() {
+      const odds = side.value === sideAVal ? fairA : fairB;
+      const amt = parseInt(amount.value, 10);
+      if (!amt || amt <= 0 || !odds) { preview.textContent = ''; return; }
+      preview.textContent = "You'd win " + Math.round(amt * odds) + " (stake " + amt + " at " + odds + "x)";
+    }
+    side.addEventListener('change', update);
+    amount.addEventListener('input', update);
+  })();
+</script>
 {% endif %}
 {% endblock %}

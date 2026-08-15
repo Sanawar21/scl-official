@@ -51,14 +51,18 @@ def _seed(app):
     auth.assign_manager(dave["id"], teams[0]["id"])
     users["dave"] = dave
 
-    wager = wager.create_wager(users["alice"], "Will Thunder win Match 1?",
-                               "Seeded e2e market", "Yes", "No", "Yes", 500,
-                               season_id=sid)
+    market = wager.create_wager(users["alice"], "Will Thunder win Match 1?",
+                                "Seeded e2e market", "Yes", "No", "Yes", 500,
+                                season_id=sid)
+    # push the market to vetted so the stake flow + fair odds are usable in tests
+    wager.calibrate(market["id"], "admin", 60.0)         # house p(No) = 60%
+    wager.finalize_calibration(market["id"], "admin")
+    market = wager.get_wager(market["id"])
 
     _seed_match(app, season, players, teams)
     auction.publish(sid, "Test Season")  # published snapshot page
     return {"season": season, "players": players, "teams": teams,
-            "users": users, "wager": wager}
+            "users": users, "wager": market}
 
 
 def _seed_match(app, season, players, teams):

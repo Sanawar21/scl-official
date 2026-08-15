@@ -211,7 +211,8 @@
       minBid = Math.max(p.base_price, (p.current_bid || 0) + ruleset.bid_increment);
     }
     const inc = ruleset.bid_increment;
-    const cantAfford = team.purse_remaining < minBid;
+    const wallet = team.wallet != null ? team.wallet : 0;  // purse == wallet since the drop
+    const cantAfford = wallet < minBid;
 
     function btn(label, amount, cls) {
       const b = document.createElement("button");
@@ -249,7 +250,7 @@
     if (cantAfford) {
       const note = document.createElement("p");
       note.className = "muted small";
-      note.textContent = "Your purse cannot cover the minimum bid.";
+      note.textContent = "Your wallet cannot cover the minimum bid.";
       box.appendChild(note);
     }
   }

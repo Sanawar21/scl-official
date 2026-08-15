@@ -3,101 +3,92 @@
 {% block content %}
 <div class="page-head">
   <h1>Wager Markets</h1>
-  <p class="muted">Pooled Yes/No markets. Winners split the pot; the House guarantees fair odds.</p>
+  <p class="page-sub">Pooled Yes/No markets. Winners split the pot; the House guarantees fair odds.</p>
 </div>
 
 {% if user %}
   <section class="card">
-    <h2>Propose a market</h2>
     {% if not user.global_player_id %}
-      <p class="muted">Your account must be linked to your player profile before you can stake.
-        Ask an admin to link it.</p>
+      <div class="banner banner-info">
+        Your account must be linked to your player profile before you can stake.
+        <span class="small">Ask an admin to link it.</span>
+      </div>
     {% else %}
-      <p class="muted">Your liquid cash: <b>{{ account.liquid_cash if account else 0 }}</b></p>
-      <form method="post" action="{{ url_for('wagers.create') }}">
-        <div class="row">
-          <input type="text" name="title" placeholder="Condition (e.g. Royales win Match 5)" required style="min-width:220px">
-        </div>
-        <div class="row">
-          <input type="text" name="description" placeholder="Optional details" style="min-width:220px">
-        </div>
-        <div class="row">
-          <select name="season_id">
-            <option value="">— season (optional) —</option>
-            {% for s in seasons %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
-          </select>
-        </div>
-        <div class="row">
-          <label>Side A <input type="text" name="side_a" value="Yes" style="width:80px"></label>
-          <label>Side B <input type="text" name="side_b" value="No" style="width:80px"></label>
-          <label>Opening stake on
-            <select name="side" id="open-side">
-              <option value="Yes">Yes</option>
-              <option value="No">No</option>
+      <details id="propose-details">
+        <summary>Propose a market</summary>
+        <p class="muted small">Your liquid cash: <b>{{ account.liquid_cash if account else 0 }}</b></p>
+        <form method="post" action="{{ url_for('wagers.create') }}">
+          <div class="row">
+            <input type="text" name="title" placeholder="Condition (e.g. Royales win Match 5)" required style="min-width:240px">
+          </div>
+          <div class="row">
+            <input type="text" name="description" placeholder="Optional details" style="min-width:240px">
+          </div>
+          <div class="row">
+            <select name="season_id" style="width:auto">
+              <option value="">— season (optional) —</option>
+              {% for s in seasons %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
             </select>
-          </label>
-          <input type="number" name="amount" placeholder="amount" min="1" required style="width:100px">
-          <button class="btn btn-small btn-primary" type="submit">Propose + stake</button>
-        </div>
-      </form>
+          </div>
+          <div class="row">
+            <label>Side A <input type="text" name="side_a" value="Yes" style="width:80px"></label>
+            <label>Side B <input type="text" name="side_b" value="No" style="width:80px"></label>
+            <label>Opening stake on
+              <select name="side" id="open-side" style="width:auto">
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+              </select>
+            </label>
+            <input type="number" name="amount" placeholder="amount" min="1" required style="width:100px">
+            <button class="btn btn-primary btn-small" type="submit">Propose + stake</button>
+          </div>
+        </form>
+      </details>
     {% endif %}
   </section>
 {% endif %}
 
 {% for w in wagers %}
   <section class="card">
-    <div class="row">
-      <h2 style="margin:0"><a href="{{ url_for('wagers.detail', wager_id=w.id) }}">{{ w.title }}</a></h2>
-      <span class="tag {% if w.status == 'resolved' %}tag-active{% elif w.status == 'voided' %}tag-danger{% endif %}">{{ w.status }}</span>
+    <div class="card-head">
+      <h2><a href="{{ url_for('wagers.detail', wager_id=w.id) }}">{{ w.title }}</a></h2>
+      <span class="chip {% if w.status == 'resolved' %}chip-success{% elif w.status == 'voided' %}chip-danger{% elif w.status == 'vetted' %}chip-info{% else %}chip-warn{% endif %}">{{ w.status }}</span>
     </div>
-    {% if w.description %}<p class="muted">{{ w.description }}</p>{% endif %}
-    <div class="row muted small">
-      <span>by {{ w.initiator_name }}</span>
-      <span>pot {{ w.pot }}</span>
-      <span>{{ w.side_a }} {{ w.yes_total }} · {{ w.side_b }} {{ w.no_total }}</span>
-      <span>{{ w.bet_count }} bet(s)</span>
-      {% if w.season_id %}<span>{{ w.season_id }}</span>{% endif %}
-    </div>
-    {% if w.house_probability %}
-      <div class="row small muted">
-        <span>{{ w.side_a }} fair {{ '%.2f'|format(100 / (100 - w.house_probability)) }}x</span>
-        <span>{{ w.side_b }} fair {{ '%.2f'|format(100 / w.house_probability) }}x</span>
-        {% if w.house_injected %}<span>house injected {{ w.house_injected }}</span>{% endif %}
+    {% if w.description %}<p class="muted small">{{ w.description }}</p>{% endif %}
+
+    {% set total = w.yes_total + w.no_total %}
+    {% if total > 0 %}
+      <div class="pool-bar" aria-label="pool split">
+        <div class="pool-yes" style="width: {{ (100 * w.yes_total / total) if total else 0 }}%"></div>
+        <div class="pool-no" style="width: {{ (100 * w.no_total / total) if total else 0 }}%"></div>
       </div>
     {% endif %}
+
+    <div class="team-stats">
+      <span>{{ w.side_a }} <b>{{ w.yes_total }}</b></span>
+      <span>{{ w.side_b }} <b>{{ w.no_total }}</b></span>
+      <span>Pot: <b>{{ w.pot }}</b>{% if w.house_injected %} (+{{ w.house_injected }} house){% endif %}</span>
+      {% if w.house_probability %}
+        <span>{{ w.side_a }} fair <b>{{ '%.2f'|format(100 / (100 - w.house_probability)) }}x</b></span>
+        <span>{{ w.side_b }} fair <b>{{ '%.2f'|format(100 / w.house_probability) }}x</b></span>
+      {% endif %}
+      <span class="muted">{{ w.bet_count }} bet(s)</span>
+      {% if w.season_id %}<span class="muted">{{ w.season_id }}</span>{% endif %}
+      <span class="muted">by {{ w.initiator_name }}</span>
+    </div>
+
     {% if w.status == 'frozen' %}<p class="muted small">Pools frozen — a Phase 2 market may open with updated odds.</p>{% endif %}
     {% if w.void_reason %}<p class="muted small">Vetoed: {{ w.void_reason }}</p>{% endif %}
     {% if w.void_reason is none and w.veto_reason %}<p class="muted small">Vetoed: {{ w.veto_reason }}</p>{% endif %}
   </section>
 {% else %}
-  <div class="card"><p class="muted">No markets yet. Propose the first one above.</p></div>
+  <div class="empty"><div class="empty-title">No markets yet</div>
+    <p class="small">{% if user %}Propose the first one above.{% else %}Log in to propose a market.{% endif %}</p></div>
 {% endfor %}
-
-{% block scripts %}
-<script>
-  const sideA = document.querySelector('input[name="side_a"]');
-  const sideB = document.querySelector('input[name="side_b"]');
-  const openSide = document.getElementById('open-side');
-  if (sideA && sideB && openSide) {
-    const sync = () => {
-      openSide.innerHTML = '';
-      [[sideA.value || 'Yes', sideA.value || 'Yes'], [sideB.value || 'No', sideB.value || 'No']]
-        .forEach(([val, label]) => {
-          const opt = document.createElement('option');
-          opt.value = val; opt.textContent = label;
-          openSide.appendChild(opt);
-        });
-    };
-    sideA.addEventListener('input', sync);
-    sideB.addEventListener('input', sync);
-    sync();
-  }
-</script>
-{% endblock %}
 
 {% if my_bets %}
   <section class="card">
-    <h2>My bets</h2>
+    <div class="card-head"><h2>My bets</h2></div>
     <div class="table-wrap">
       <table>
         <thead><tr><th>Market</th><th>Side</th><th>Amount</th><th>Status</th><th>Payout</th></tr></thead>
@@ -107,7 +98,7 @@
               <td><a href="{{ url_for('wagers.detail', wager_id=b.wager_id) }}">{{ b.title }}</a></td>
               <td>{{ b.side }}</td>
               <td>{{ b.amount }}</td>
-              <td>{{ b.status }}</td>
+              <td><span class="tag">{{ b.status }}</span></td>
               <td>{{ b.payout if b.payout is not none else '—' }}</td>
             </tr>
           {% endfor %}
@@ -116,4 +107,28 @@
     </div>
   </section>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (function () {
+    const sideA = document.querySelector('input[name="side_a"]');
+    const sideB = document.querySelector('input[name="side_b"]');
+    const openSide = document.getElementById('open-side');
+    if (sideA && sideB && openSide) {
+      const sync = () => {
+        openSide.innerHTML = '';
+        [[sideA.value || 'Yes', sideA.value || 'Yes'], [sideB.value || 'No', sideB.value || 'No']]
+          .forEach(([val, label]) => {
+            const opt = document.createElement('option');
+            opt.value = val; opt.textContent = label;
+            openSide.appendChild(opt);
+          });
+      };
+      sideA.addEventListener('input', sync);
+      sideB.addEventListener('input', sync);
+      sync();
+    }
+  })();
+</script>
 {% endblock %}

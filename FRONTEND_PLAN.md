@@ -238,8 +238,14 @@ the site point to it.
    leaderboards (pure-CSS tabs + top-3 podium), team/player profiles (stat tiles), public
    finances (budget cards + ledger icon feed). `match_summary` now derives Fall of Wickets from
    `delivery_log`. 12 new e2e tests (123 total).
-4. **Phase 3 — Player/manager surfaces**: banking/vault, wagers board/detail, manager
-   dashboard.
+4. ✅ **Phase 3 — Player/manager surfaces** (DONE 2026-08-15): account (balance hero tiles,
+   link-status banner, vault position cards with reinvest toggle, filterable transactions),
+   wagers board (market cards with pool bars + fair odds + collapsible propose flow) and detail
+   (pool visual with percents, stake flow with live "you'd win X" preview, results/void
+   banners), manager dashboard (team hub stat row, squad XI/bench cards, bid action bar,
+   trades panel). Fixed two pre-existing bugs: manager dashboard 500 (raw team without labels)
+   and `renderManagerControls` reading the dropped `purse_remaining`. 11 new e2e tests
+   (134 total).
 5. **Phase 4 — Admin polish** (overview cards, form consistency) + final pass.
 6. **Phase 5 — Full Playwright suite green + docs (MEMORY/RESUME/PLAN) + commit.**
 

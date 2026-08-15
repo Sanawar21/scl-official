@@ -3,7 +3,8 @@
 {% block content %}
 
 {% if error %}
-  <div class="card"><p class="muted">{{ error }}</p></div>
+  <div class="empty"><div class="empty-title">No team to manage</div>
+    <p class="small">{{ error }}</p></div>
 {% elif state %}
 <div id="manager-root" data-season="{{ state.season.id }}">
   {% if my_team.control_status == 'admin_takeover' %}
@@ -12,62 +13,81 @@
 
   <div class="page-head">
     <h1>{{ my_team.name }}</h1>
-    <div class="team-stats">
-      <span>Purse: <strong>{{ my_team.wallet }}</strong></span>
-      <span>Credits: <strong>{{ my_team.credits_remaining }}</strong></span>
-      <span>Phase: <span class="tag tag-active">{{ state.phase }}</span></span>
-    </div>
+    <span class="tag tag-active">{{ state.phase }}</span>
   </div>
+
+  <section class="card">
+    <div class="stat-row">
+      <div class="stat-tile">
+        <div class="stat-label">Wallet (purse)</div>
+        <div class="stat-value">{{ my_team.wallet }}</div>
+      </div>
+      <div class="stat-tile">
+        <div class="stat-label">Credits left</div>
+        <div class="stat-value">{{ my_team.credits_remaining }}</div>
+      </div>
+      <div class="stat-tile">
+        <div class="stat-label">Spent</div>
+        <div class="stat-value">{{ my_team.spent }}</div>
+      </div>
+    </div>
+  </section>
 
   <div class="grid">
     <section class="card" id="lot-card">
-      <h2>Current Lot</h2>
+      <div class="card-head"><h2>Current lot</h2></div>
       <div id="current-lot"><p class="muted">Loading…</p></div>
       <div id="bid-controls" class="bid-controls"></div>
       <p id="bid-error" class="error-text"></p>
     </section>
 
     <section class="card">
-      <h2>My Squad</h2>
-      <div class="chips">
-        {% for label in my_team.player_labels %}<span class="chip">{{ label }}</span>{% endfor %}
-        {% for label in my_team.bench_labels %}<span class="chip chip-bench">{{ label }}</span>{% endfor %}
-      </div>
-      <h3>Budget</h3>
-      <div class="team-stats">
-        <span>Purse: <strong>{{ my_team.wallet }}</strong></span>
-        <span>Spent: <strong>{{ my_team.spent }}</strong></span>
-        <span>Credits: <strong>{{ my_team.credits_remaining }}</strong></span>
-      </div>
+      <div class="card-head"><h2>My squad</h2></div>
+      <h3>XI</h3>
+      {% if my_team.player_labels %}
+        <div class="row">
+          {% for label in my_team.player_labels %}<span class="chip">{{ label }}</span>{% endfor %}
+        </div>
+      {% else %}
+        <p class="muted small">No players bought yet.</p>
+      {% endif %}
+      {% if my_team.bench_labels %}
+        <h3>Bench</h3>
+        <div class="row">
+          {% for label in my_team.bench_labels %}<span class="chip chip-bench">{{ label }}</span>{% endfor %}
+        </div>
+      {% endif %}
     </section>
   </div>
 
   <section class="card" id="trade-section">
-    <h2>Trades (during break)</h2>
+    <div class="card-head"><h2>Trades (during break)</h2></div>
     <div id="trade-requests"></div>
     <details>
       <summary>Request a trade</summary>
       <form id="trade-form">
-        <select name="to_team_id" required>
-          <option value="">— with team —</option>
-          {% for t in state.teams if t.id != my_team.id %}
-            <option value="{{ t.id }}">{{ t.name }}</option>
-          {% endfor %}
-        </select>
-        <select name="offered_player_id" required>
-          <option value="">— offer —</option>
-          {% for pid in my_team.players %}<option value="{{ pid }}">{{ my_team.player_labels[loop.index0] }}</option>{% endfor %}
-          {% for pid in my_team.bench %}<option value="{{ pid }}">{{ my_team.bench_labels[loop.index0] }}</option>{% endfor %}
-        </select>
-        <select name="requested_player_id">
-          <option value="">— request (optional) —</option>
-          {% for t in state.teams if t.id != my_team.id %}
-            {% for pid in t.players %}<option value="{{ pid }}">{{ t.player_labels[loop.index0] }}</option>{% endfor %}
-          {% endfor %}
-        </select>
-        <input type="number" name="cash_from_initiator" placeholder="cash I pay" value="0" style="width:110px">
-        <input type="number" name="cash_from_target" placeholder="cash they pay" value="0" style="width:110px">
-        <button class="btn btn-small btn-primary" type="submit">Request trade</button>
+        <div class="row">
+          <select name="to_team_id" required style="width:auto">
+            <option value="">— with team —</option>
+            {% for t in state.teams if t.id != my_team.id %}
+              <option value="{{ t.id }}">{{ t.name }}</option>
+            {% endfor %}
+          </select>
+          <select name="offered_player_id" required style="width:auto">
+            <option value="">— offer —</option>
+            {% for pid in my_team.players %}<option value="{{ pid }}">{{ my_team.player_labels[loop.index0] }}</option>{% endfor %}
+            {% for pid in my_team.bench %}<option value="{{ pid }}">{{ my_team.bench_labels[loop.index0] }}</option>{% endfor %}
+          </select>
+          <select name="requested_player_id" style="width:auto">
+            <option value="">— request (optional) —</option>
+            {% for t in state.teams if t.id != my_team.id %}
+              {% for pid in t.players %}<option value="{{ pid }}">{{ t.player_labels[loop.index0] }}</option>{% endfor %}
+            {% endfor %}
+          </select>
+          <input type="number" name="cash_from_initiator" placeholder="cash I pay" value="0" style="width:100px">
+          <input type="number" name="cash_from_target" placeholder="cash they pay" value="0" style="width:100px">
+          <button class="btn btn-primary btn-small" type="submit">Request trade</button>
+        </div>
       </form>
     </details>
   </section>

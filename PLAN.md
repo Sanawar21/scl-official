@@ -182,7 +182,10 @@ verified before the next):
   season with filterable players, matches result cards + scorecard with FOW, league table with
   zones, tabbed leaderboards with podium, team/player profiles, public finances with ledger
   feed) — 12 new e2e tests (123 total)
-- [ ] Phase 3 — Player/manager surfaces (banking/vault, wagers, manager dashboard)
+- [x] **Phase 3 — Player/manager surfaces** (account balance hero + vault cards + txn filter,
+  wagers market cards with pool bars + "you'd win" stake preview, manager team hub) — 11 new
+  e2e tests (134 total); fixed a pre-existing manager-dashboard bug + the bid-affordability
+  purse_remaining bug in app.js
 - [ ] Phase 4 — Admin polish + final pass
 - [ ] Phase 5 — Full suite green + docs
 
