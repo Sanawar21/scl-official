@@ -497,6 +497,11 @@ class AuctionService:
             gt["in_season"] = st is not None
             gt["season_team_id"] = st["id"] if st else None
 
+        # Resolve manager names on the per-season team rows for the UI.
+        gp_names = {gp["id"]: gp["name"] for gp in gps}
+        for st in season_teams:
+            st["manager_name"] = gp_names.get(st.get("manager_player_id"), "—")
+
         return {
             "season": row_to_dict(season),
             "players": gps,

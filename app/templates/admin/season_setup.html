@@ -53,32 +53,6 @@
       </table>
     </div>
 
-    {% if season_teams %}
-      <h3 style="margin:14px 0 6px">Teams in this season</h3>
-      <div class="row" style="flex-wrap:wrap;gap:8px">
-        {% for t in season_teams %}
-          <div class="team-box">
-            <div class="team-head"><strong>{{ t.name }}</strong></div>
-            <form method="post" action="{{ url_for('admin.season_team_manager', season_id=season_id, team_id=t.id) }}"
-                  class="row" style="gap:6px;margin-top:6px">
-              <select name="manager_player_id" style="width:auto">
-                {% for p in players %}
-                  <option value="{{ p.id }}" {% if p.id == t.manager_player_id %}selected{% endif %}>
-                    {{ p.name }}{% if p.is_manager and p.id != t.manager_player_id %} (already manages) {% endif %}
-                  </option>
-                {% endfor %}
-              </select>
-              <button class="btn btn-small" type="submit">Change manager</button>
-            </form>
-            <form method="post" action="{{ url_for('admin.team_delete', season_id=season_id, team_id=t.id) }}"
-                  style="margin-top:6px"
-                  onsubmit="return confirm('Remove {{ t.name }} from this season?')">
-              <button class="btn btn-small btn-danger" type="submit">Remove from season</button>
-            </form>
-          </div>
-        {% endfor %}
-      </div>
-    {% endif %}
   </section>
 
   <section class="card">
@@ -121,4 +95,34 @@
     <a class="btn" href="{{ url_for('admin.auction', season=season_id) }}">Go to auction room →</a>
   </div>
 </form>
+
+{% if season_teams %}
+<section class="card">
+  <h2>Teams in this season</h2>
+  <div class="row" style="flex-wrap:wrap;gap:8px">
+    {% for t in season_teams %}
+      <div class="team-box">
+        <div class="team-head"><strong>{{ t.name }}</strong>
+          <span class="muted small">mgr: {{ t.manager_name }}</span></div>
+        <form method="post" action="{{ url_for('admin.season_team_manager', season_id=season_id, team_id=t.id) }}"
+              class="row" style="gap:6px;margin-top:6px">
+          <select name="manager_player_id" style="width:auto">
+            {% for p in players %}
+              <option value="{{ p.id }}" {% if p.id == t.manager_player_id %}selected{% endif %}>
+                {{ p.name }}{% if p.is_manager and p.id != t.manager_player_id %} (already manages) {% endif %}
+              </option>
+            {% endfor %}
+          </select>
+          <button class="btn btn-small" type="submit">Change manager</button>
+        </form>
+        <form method="post" action="{{ url_for('admin.team_delete', season_id=season_id, team_id=t.id) }}"
+              style="margin-top:6px"
+              onsubmit="return confirm('Remove {{ t.name }} from this season?')">
+          <button class="btn btn-small btn-danger" type="submit">Remove from season</button>
+        </form>
+      </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
 {% endblock %}
