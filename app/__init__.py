@@ -1,6 +1,7 @@
 from flask import Flask, session
 from flask_socketio import SocketIO
 
+from .authz import current_user
 from .config import Config
 from .db import Database
 from .services.auction_service import AuctionService
@@ -74,7 +75,7 @@ def create_app(config_object=None):
 
     @app.context_processor
     def inject_globals():
-        return {"current_user": session.get("user")}
+        return {"current_user": current_user()}
 
     socketio.init_app(app)
     return app

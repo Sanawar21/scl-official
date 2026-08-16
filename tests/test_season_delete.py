@@ -108,20 +108,26 @@ def test_delete_keeps_global_players_and_teams(app, auction):
         assert gt["manager_player_id"] == t["manager_player_id"]
 
 
-def test_delete_unassigns_manager_users(app, auction):
+def test_delete_keeps_manager_link_via_global_team(app, auction):
+    """Manager status is derived (global_teams), so deleting a season never
+    strips it — nothing is stored on the user row to reset."""
     season, players, teams = _setup(app, n_teams=1)
     sid = season["id"]
     auth = app.extensions["auth_service"]
     u = auth.signup("mgr1", "password1", "Manager One")
     u = auth.link_user_to_player(u["id"], teams[0]["manager_player_id"])
-    auth.assign_manager(u["id"], teams[0]["id"])
-    assert auth.get_user(u["id"])["role"] == "manager"
+    # Derived: linked to a player who manages a team -> manager, no assign step.
+    view = auth.user_view(auth.get_user(u["id"]))
+    assert view["role"] == "manager"
+    assert view["team_id"] == teams[0]["id"]
 
     auction.delete_season(sid)
 
-    after = auth.get_user(u["id"])
-    assert after["role"] == "player"
-    assert after["team_id"] is None
+    view = auth.user_view(auth.get_user(u["id"]))
+    # Still a manager (the global team persists), just no season participation.
+    assert view["role"] == "manager"
+    assert view["team_id"] is None
+    assert view["season_id"] is None
 
 
 def test_delete_unknown_season_raises(app, auction):

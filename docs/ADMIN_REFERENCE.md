@@ -227,9 +227,12 @@ New signups are **unlinked** until an admin links them to a global player:
 - **Link**: pick an unlinked user → pick the global player (which grants the
   player role and a bank account).
 - **Unlink**: revoke the link.
-- Managers are linked the same way, then **assigned as manager of a team** (via
-  `auth.assign_manager` — the manager role + team_id). The link page lists
-  unlinked signups with a proper empty state when there are none.
+- **Manager status is derived, not stored**: the moment an account is linked to
+  a player who manages a team (`global_teams.manager_player_id` / per-season
+  `teams.manager_player_id`), the account becomes a manager — no separate
+  assignment step exists. `users.role` only distinguishes admin from player;
+  `users.team_id` is legacy and ignored. The link page lists unlinked signups
+  with a proper empty state when there are none.
 
 ---
 
@@ -249,7 +252,7 @@ New signups are **unlinked** until an admin links them to a global player:
 **Run an auction**
 1. `/admin` → create season → configure ruleset.
 2. Add players, create teams (funds wallets).
-3. Link + assign manager accounts.
+3. Link manager accounts to their players (manager status follows the player→team link).
 4. `/admin/auction` → Set phase `phase_a_platinum` → Nominate next → managers bid
    on `/manager` → Close lot → advance phases → Complete draft → Publish.
 
@@ -273,4 +276,5 @@ New signups are **unlinked** until an admin links them to a global player:
 1. They sign up on `/auth/signup` (role pending).
 2. `/auth/admin/link` → link them to a global player → they can log in as a
    player, get an account, stake, use the vault.
-3. If they manage a team: assign manager + team (auction setup).
+3. If they manage a team: nothing extra — manager status is derived from the
+   player→team link automatically.

@@ -22,10 +22,15 @@ def login():
     nxt = request.form.get("next") or ""
     if nxt.startswith("/") and not nxt.startswith("//"):
         return redirect(nxt)
-    if user["role"] == R.ROLE_ADMIN:
+    view = current_app.extensions["auth_service"].user_view(user)
+    if view["role"] == R.ROLE_ADMIN:
         return redirect(url_for("admin.dashboard"))
-    return redirect(url_for("manager.dashboard") if user["role"] == R.ROLE_MANAGER
-                    else url_for("banking.account"))
+    # Managers with a team in a season go to their team hub; everyone else
+    # (players, and managers whose team isn't in a season yet) lands on the
+    # account page where team profiles live.
+    if view["role"] == R.ROLE_MANAGER and view.get("season_id"):
+        return redirect(url_for("manager.dashboard"))
+    return redirect(url_for("banking.account"))
 
 
 @auth_bp.get("/logout")
@@ -73,6 +78,10 @@ def link_page():
             "WHERE u.role != 'admin' ORDER BY u.username"
         ).fetchall()
         linked = [dict(r) for r in rows]
+    for row in linked:
+        view = auth_service.user_view({"id": row["user_id"], "role": row["role"],
+                                       "global_player_id": row["global_player_id"]})
+        row["role"] = view["role"] if view else row["role"]
     return render_template("admin/link.html", unlinked=unlinked,
                            global_players=global_players, linked=linked)
 
@@ -98,16 +107,4 @@ def unlink_user(user_id):
     return redirect(url_for("auth.link_page"))
 
 
-@auth_bp.post("/admin/assign-manager")
-@login_required(role=R.ROLE_ADMIN)
-def assign_manager():
-    auth_service = current_app.extensions["auth_service"]
-    try:
-        user = auth_service.assign_manager(
-            request.form.get("user_id", ""),
-            request.form.get("team_id", ""),
-        )
-        flash(f"{user['username']} is now the manager of their team.", "success")
-    except ValueError as exc:
-        flash(str(exc), "error")
-    return redirect(url_for("admin.dashboard"))
+

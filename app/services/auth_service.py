@@ -86,24 +86,52 @@ class AuthService:
         with self.db.write() as conn:
             conn.execute("UPDATE users SET global_player_id = NULL WHERE id = ?", (user_id,))
 
-    def assign_manager(self, user_id: str, team_id: str) -> dict:
-        """Promote a linked player account to manager for a team."""
-        with self.db.write() as conn:
-            user = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
-            if not user:
-                raise ValueError("User not found")
-            if not user["global_player_id"]:
-                raise ValueError("User must be linked to a player first")
-            team = conn.execute("SELECT id, manager_player_id FROM teams WHERE id = ?", (team_id,)).fetchone()
-            if not team:
-                raise ValueError("Team not found")
-            if team["manager_player_id"] != user["global_player_id"]:
-                raise ValueError("User's player is not this team's manager")
-            conn.execute(
-                "UPDATE users SET role = ?, team_id = ? WHERE id = ?",
-                (R.ROLE_MANAGER, team_id, user_id),
-            )
-            return self.get_by_username(user["username"], conn=conn)
+    def user_view(self, user: dict) -> dict:
+        """Enrich a raw users row with DERIVED role + team state.
+
+        Manager status is never stored on the user row — it is derived from the
+        player→team links, which are the single source of truth:
+          - persistent team: ``global_teams.manager_player_id = global_player_id``
+          - per-season team: ``teams.manager_player_id = global_player_id``
+        ``users.role`` only distinguishes admin from player; ``users.team_id``
+        is legacy and ignored. Always re-fetches by id so a link made after
+        login is picked up immediately."""
+        if not user:
+            return None
+        fresh = self.get_user(user.get("id")) or dict(user)
+        view = dict(fresh)
+        view["is_manager"] = False
+        view["team_id"] = None
+        view["team_name"] = None
+        view["season_id"] = None
+        if view.get("role") == R.ROLE_ADMIN:
+            return view
+        gp_id = view.get("global_player_id")
+        if gp_id:
+            with self.db.read() as conn:
+                # Latest season the player's team participates in.
+                row = conn.execute(
+                    "SELECT t.id AS team_id, t.name AS team_name, t.season_id "
+                    "FROM teams t JOIN seasons s ON s.id = t.season_id "
+                    "WHERE t.manager_player_id = ? "
+                    "ORDER BY s.created_at DESC LIMIT 1",
+                    (gp_id,),
+                ).fetchone()
+                if row:
+                    view["is_manager"] = True
+                    view["team_id"] = row["team_id"]
+                    view["team_name"] = row["team_name"]
+                    view["season_id"] = row["season_id"]
+                else:
+                    # Persistent manager even when the team isn't in a season.
+                    gt = conn.execute(
+                        "SELECT id, name FROM global_teams "
+                        "WHERE manager_player_id = ? LIMIT 1", (gp_id,)).fetchone()
+                    if gt:
+                        view["is_manager"] = True
+                        view["team_name"] = gt["name"]
+        view["role"] = R.ROLE_MANAGER if view["is_manager"] else R.ROLE_PLAYER
+        return view
 
     # --- queries ------------------------------------------------------------
     def get_by_username(self, username: str, conn=None) -> dict:
@@ -129,19 +157,20 @@ class AuthService:
             return rows_to_dicts(rows)
 
     def list_managers(self, season_id: str = None) -> list:
+        """Accounts whose player manages a team (derived, not stored)."""
         with self.db.read() as conn:
             if season_id:
                 rows = conn.execute(
                     "SELECT u.*, t.name AS team_name FROM users u "
-                    "JOIN teams t ON t.id = u.team_id "
-                    "WHERE u.role = ? AND t.season_id = ? ORDER BY u.username",
-                    (R.ROLE_MANAGER, season_id),
+                    "JOIN teams t ON t.manager_player_id = u.global_player_id "
+                    "WHERE u.role != ? AND t.season_id = ? ORDER BY u.username",
+                    (R.ROLE_ADMIN, season_id),
                 ).fetchall()
             else:
                 rows = conn.execute(
-                    "SELECT u.*, t.name AS team_name FROM users u "
-                    "LEFT JOIN teams t ON t.id = u.team_id "
-                    "WHERE u.role = ? ORDER BY u.username",
-                    (R.ROLE_MANAGER,),
+                    "SELECT u.*, gt.name AS team_name FROM users u "
+                    "JOIN global_teams gt ON gt.manager_player_id = u.global_player_id "
+                    "WHERE u.role != ? ORDER BY u.username",
+                    (R.ROLE_ADMIN,),
                 ).fetchall()
             return rows_to_dicts(rows)

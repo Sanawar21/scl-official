@@ -95,8 +95,6 @@ def seed_demo(db_path: str) -> None:
         acc = bank.get_or_create_account("player", users[uname]["global_player_id"])
         bank.set_auto(acc["id"], False)
     bank.fund_all_players(10000)
-    for uname, team in [("ayaan", teams[0]), ("bilal", teams[1])]:
-        auth.assign_manager(users[uname]["id"], team["id"])
 
     # Manager players are roster slots, not auction lots (like S1): mark them
     # sold to their own team so nominate_next skips them.

@@ -159,10 +159,9 @@ class AuctionService:
         Removes the per-season rows (players, teams, bids, trades, transfers,
         action log, auction meta, snapshots, ruleset, wagers + bets, match
         data, finance entries). Vault positions for the season are released
-        back to liquid cash first — money is never destroyed. Users assigned
-        as managers of this season's teams are unassigned (role back to
-        player, team cleared). Global players/teams are untouched: they
-        persist across seasons."""
+        back to liquid cash first — money is never destroyed. Global
+        players/teams are untouched: they persist across seasons, and manager
+        status is derived from them (never stored on the user row)."""
         with self.db.write() as conn:
             season = conn.execute("SELECT * FROM seasons WHERE id = ?", (season_id,)).fetchone()
             if not season:
@@ -193,19 +192,12 @@ class AuctionService:
             conn.execute("DELETE FROM transfers WHERE season_id = ?", (season_id,))
             conn.execute("DELETE FROM trade_requests WHERE season_id = ?", (season_id,))
             conn.execute("DELETE FROM bids WHERE season_id = ?", (season_id,))
-            team_ids = [r["id"] for r in conn.execute(
-                "SELECT id FROM teams WHERE season_id = ?", (season_id,)).fetchall()]
             conn.execute("DELETE FROM teams WHERE season_id = ?", (season_id,))
             conn.execute("DELETE FROM players WHERE season_id = ?", (season_id,))
             conn.execute("DELETE FROM auction_action_log WHERE season_id = ?", (season_id,))
             conn.execute("DELETE FROM auction_meta WHERE season_id = ?", (season_id,))
             conn.execute("DELETE FROM season_snapshots WHERE season_id = ?", (season_id,))
             conn.execute("DELETE FROM rulesets WHERE season_id = ?", (season_id,))
-            if team_ids:
-                conn.execute(
-                    f"UPDATE users SET team_id = NULL, role = ? "
-                    f"WHERE team_id IN ({','.join('?' * len(team_ids))})",
-                    (R.ROLE_PLAYER, *team_ids))
             conn.execute("DELETE FROM seasons WHERE id = ?", (season_id,))
         return {"ok": True, "season_id": season_id, "name": season_name}
 

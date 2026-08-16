@@ -314,29 +314,6 @@
 </section>
 
 <section class="card">
-  <h2>Manager assignment</h2>
-  {% if assignable_users %}
-    <form method="post" action="{{ url_for('auth.assign_manager') }}">
-      <select name="user_id" required>
-        <option value="">— linked user —</option>
-        {% for u in assignable_users %}
-          <option value="{{ u.id }}">{{ u.username }} ({{ u.player_name }})</option>
-        {% endfor %}
-      </select>
-      <select name="team_id" required>
-        <option value="">— their team —</option>
-        {% for u in assignable_users if u.team_id %}
-          <option value="{{ u.team_id }}">{{ u.team_name }}</option>
-        {% endfor %}
-      </select>
-      <button class="btn btn-small" type="submit">Assign as manager</button>
-    </form>
-  {% else %}
-    <p class="muted small">No linked players waiting for a team assignment.</p>
-  {% endif %}
-</section>
-
-<section class="card">
   <h2>Action log &amp; undo</h2>
   <form method="post" action="{{ url_for('admin.undo', season_id=season_id) }}">
     <button class="btn btn-danger" type="submit">↩ Undo last action</button>

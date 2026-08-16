@@ -7,34 +7,39 @@ from ..authz import login_required
 manager_bp = Blueprint("manager", __name__, url_prefix="/manager")
 
 
+def _my_view():
+    """Derived view of the session user: role, team_id, team_name, season_id.
+
+    Manager status comes from the player→team links (global_teams + per-season
+    teams rows), never from stored users.role/users.team_id."""
+    user = session.get("user") or {}
+    return current_app.extensions["auth_service"].user_view(user)
+
+
 def _my_team(season_id):
     auction_service = current_app.extensions["auction_service"]
-    user = session.get("user") or {}
-    if not user.get("team_id"):
+    view = _my_view()
+    if not view or not view.get("team_id"):
         return None
-    team = auction_service._get_team(season_id, user["team_id"])
-    return team
+    return auction_service._get_team(season_id, view["team_id"])
 
 
 def _user_season_id():
-    user = session.get("user") or {}
-    with current_app.extensions["db"].read() as conn:
-        row = conn.execute(
-            "SELECT t.season_id FROM teams t WHERE t.id = ?", (user.get("team_id"),)
-        ).fetchone()
-        return row["season_id"] if row else None
+    view = _my_view()
+    return view.get("season_id") if view else None
 
 
 @manager_bp.get("")
 @login_required(role=R.ROLE_MANAGER)
 def dashboard():
-    season_id = _user_season_id()
-    if not season_id:
+    view = _my_view()
+    season_id = view.get("season_id") if view else None
+    if not view or not view.get("is_manager") or not season_id:
         return render_template("manager/dashboard.html", state=None, my_team=None,
                                trade_requests=None, error="No team assigned yet")
     auction_service = current_app.extensions["auction_service"]
     branding = current_app.extensions["branding_service"]
-    team = auction_service._get_team(season_id, session["user"]["team_id"])
+    team = auction_service._get_team(season_id, view["team_id"])
     state = auction_service.get_state(season_id)
     # Use the enriched team from state (has player_labels/bench_labels/wallet);
     # _get_team alone lacks the label lists the template renders.
@@ -50,11 +55,12 @@ def dashboard():
 @manager_bp.get("/state")
 @login_required(role=R.ROLE_MANAGER)
 def state_json():
-    season_id = _user_season_id()
-    if not season_id:
+    view = _my_view()
+    season_id = view.get("season_id") if view else None
+    if not season_id or not view.get("team_id"):
         return jsonify({"ok": False, "error": "No team assigned"}), 400
     auction_service = current_app.extensions["auction_service"]
-    team = auction_service._get_team(season_id, session["user"]["team_id"])
+    team = auction_service._get_team(season_id, view["team_id"])
     state = auction_service.get_state(season_id)
     state["my_team"] = team
     state["trade_requests"] = auction_service.get_trade_requests_for_team(season_id, team["id"])
@@ -95,13 +101,13 @@ def trade_respond():
 
 
 def _manager_action(kind, payload):
-    season_id = _user_season_id()
-    if not season_id:
+    view = _my_view()
+    season_id = view.get("season_id") if view else None
+    if not season_id or not view.get("team_id"):
         return jsonify({"ok": False, "error": "No team assigned"}), 400
     auction_service = current_app.extensions["auction_service"]
-    team = auction_service._get_team(season_id, session["user"]["team_id"])
-    user = session.get("user") or {}
-    actor = user.get("role") or "manager"
+    team = auction_service._get_team(season_id, view["team_id"])
+    actor = view.get("role") or "manager"
     try:
         if kind == "bid":
             result = auction_service.place_bid(season_id, team["id"], int(payload.get("amount") or 0), actor=actor)

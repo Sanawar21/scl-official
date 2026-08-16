@@ -369,7 +369,8 @@ Update this file whenever you learn something durable. Keep it current as the bu
     `page.request.get(...)` and assert content-disposition/type instead.
   - e2e server: `socketio.run(..., allow_unsafe_werkzeug=True)` is REQUIRED (Flask-SocketIO
     5.3.6 raises without it); boot in a daemon thread on a free port, poll `/` for readiness.
-  - The e2e seed reuses service calls, not HTTP: `auction.create_team` → `auth.assign_manager`
+  - The e2e seed reuses service calls, not HTTP: `auction.create_team` → link user
+    (manager status is derived from the player→team link; no assign step)
     requires the user's player to BE the team's manager — pick manager users accordingly.
   - The open mobile drawer **covers the right side of the viewport** — clicking the backdrop's
     center hits the drawer (pointer-events). Click at the visible left edge:
@@ -689,6 +690,30 @@ Plan: `ECONOMY_PLAN.md` (locked decisions D1-D4). Inc 1 shipped:
 - Tests updated to the new economy: `tests/conftest._setup` funds each manager
   10k (`tx_type="funding"`) instead of relying on tier purses; e2e seed funds
   the manager too; `seed_demo.py` funds 10k per user.
+
+## Derived manager status (no users.role/team_id) — DONE (2026-08-16, +6 unit → 259)
+
+**Bug**: `users.role='manager'` + `users.team_id` were stored snapshots of the
+player→team link. They drifted (Sanawar: linked + Chandia CC's global_teams says
+he's manager, but row said role=player/team_id=NULL) → nav hid My Team, `/manager`
+bounced, season resolution broke.
+
+**Fix — manager status is derived, never stored**:
+- `auth.user_view(user)` re-fetches the row and derives `role` ('admin' |
+  'manager' | 'player') from `global_teams.manager_player_id` / per-season
+  `teams.manager_player_id`, plus `team_id`/`team_name`/`season_id` (latest
+  season the team participates in). Always re-fetches by id so a link made
+  after login is picked up.
+- `authz.login_required` + `current_user()` (context processor) use the derived
+  view; `base.html` nav and login redirect follow. Login redirect: manager WITH
+  a season → `/manager`; players + season-less managers → `/account`.
+- Removed `auth.assign_manager` + the "Manager assignment" card on the auction
+  page + `_assignable_users`; `list_managers` is a derived join now.
+- `delete_season`/`teams_delete` no longer reset `users.team_id/role` (nothing
+  stored to reset); deleting a season/team never strips manager status.
+- `users.role` only distinguishes admin; `users.team_id` column stays (legacy,
+  ignored). Tests: `tests/test_derived_manager.py` (6) + updated seeds/e2e
+  (drop assign_manager; linking alone makes a manager).
 
 ## Season delete + Season 2 reset — DONE (2026-08-16, +5 unit → 253 tests)
 

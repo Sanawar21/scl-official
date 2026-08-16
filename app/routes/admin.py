@@ -35,7 +35,7 @@ def _build_context(season_id=None):
     seasons = auction_service.list_seasons()
     if not seasons:
         return {"seasons": [], "season": None, "state": None, "action_log": [],
-                "transfers": [], "global_players": [], "assignable_users": [],
+                "transfers": [], "global_players": [],
                 "teams_by_id": {}}
 
     if not season_id or season_id not in {s["id"] for s in seasons}:
@@ -45,7 +45,6 @@ def _build_context(season_id=None):
     action_log = auction_service.action_log(season_id, limit=50)
     transfers = auction_service.list_transfers(season_id)
     global_players = auction_service.list_global_players()
-    assignable_users = _assignable_users()
 
     branding = current_app.extensions["branding_service"]
     for team in state["teams"]:
@@ -71,26 +70,13 @@ def _build_context(season_id=None):
         "transfers": transfers,
         "global_players": global_players,
         "available_manager_players": available_manager_players,
-        "assignable_users": assignable_users,
         "teams_by_id": teams_by_id,
         "players_by_id": players_by_id,
         "user_by_gp": user_by_gp,
     }
 
 
-def _assignable_users():
-    """Linked player accounts that can be assigned as manager of their team."""
-    with current_app.extensions["db"].read() as conn:
-        rows = conn.execute(
-            "SELECT u.id, u.username, u.global_player_id, u.role, g.name AS player_name, "
-            "t.id AS team_id, t.name AS team_name, t.season_id "
-            "FROM users u "
-            "JOIN global_players g ON g.id = u.global_player_id "
-            "LEFT JOIN teams t ON t.manager_player_id = u.global_player_id "
-            "WHERE u.role != 'admin' AND u.team_id IS NULL "
-            "ORDER BY u.username"
-        ).fetchall()
-        return [dict(r) for r in rows]
+
 
 
 @admin_bp.get("/changelog")
@@ -650,14 +636,8 @@ def teams_delete(team_id):
         if not row:
             flash("Team not found.", "error")
             return redirect(url_for("admin.teams_page"))
-        deleted_ids = [r["id"] for r in conn.execute(
-            "SELECT id FROM teams WHERE global_team_id = ?", (team_id,)).fetchall()]
         conn.execute("DELETE FROM global_teams WHERE id = ?", (team_id,))
         conn.execute("DELETE FROM teams WHERE global_team_id = ?", (team_id,))
-        if deleted_ids:
-            placeholders = ",".join("?" for _ in deleted_ids)
-            conn.execute(f"UPDATE users SET team_id = NULL, role = 'player' "
-                         f"WHERE team_id IN ({placeholders})", deleted_ids)
     flash(f"Team '{row['name']}' removed (wallet untouched).", "success")
     return redirect(url_for("admin.teams_page"))
 

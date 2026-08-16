@@ -48,12 +48,12 @@ def _seed_auction(app):
             conn.execute(
                 "UPDATE players SET status = 'sold', sold_to_team_id = ? "
                 "WHERE global_player_id = ?", (t["id"], t["manager_player_id"]))
-    # Manager users: redmgr -> Red, bluemgr -> Blue.
+    # Manager users: redmgr -> Red, bluemgr -> Blue. Manager status is
+    # derived from the player→team link, so linking alone is enough.
     users = {}
     for uname, mgr, pw in [("redmgr", mgr_one, "redpw"), ("bluemgr", mgr_two, "bluepw")]:
         u = auth.signup(uname, pw, uname.title())
         u = auth.link_user_to_player(u["id"], mgr["global_player_id"])
-        auth.assign_manager(u["id"], teams[0 if mgr is mgr_one else 1]["id"])
         users[uname] = u
     return {"season": season, "players": lots, "teams": teams, "users": users}
 
