@@ -162,6 +162,11 @@ class FinanceService:
         return max(numbers) if numbers else 0
 
     def _apply_match_reward(self, season_id: str, match_id: str, actor: str) -> bool:
+        """Credit EVERY player wallet with the per-match reward (S2 economy).
+
+        One `season_finance_entries` marker row (team_id NULL) guards the whole
+        batch, so re-runs are no-ops and the admin 'pending' count still works.
+        Auto-vault accounts get the money routed straight to the vault."""
         season_id = (season_id or "").strip().lower()
         match_id = (match_id or "").strip()
         if not season_id or not match_id:
@@ -173,24 +178,24 @@ class FinanceService:
                 (season_id, match_id)).fetchone()
             if already:
                 return False
-            teams = self._resolve_match_teams(conn, season_id, match_id)
-            if not teams:
-                return False
             ruleset = self.auction._get_ruleset(conn, season_id)
             reward = ruleset.match_reward_amount
-            for team in teams:
-                account = self.bank.get_or_create_account("player", team["manager_player_id"],
-                                                          conn=conn)
-                before = int(account["liquid_cash"])
-                self.bank.adjust(account["id"], reward, f"Match reward ({match_id})",
-                                 tx_type="match_reward", conn=conn)
-                conn.execute(
-                    "INSERT INTO season_finance_entries (id, season_id, match_id, team_id, "
-                    "team_name, type, operation, amount, comment, created_by, before_wallet, "
-                    "after_wallet, created_at) VALUES (?, ?, ?, ?, ?, 'match_reward', NULL, ?, "
-                    "?, ?, ?, ?, ?)",
-                    (secrets.token_hex(8), season_id, match_id, team["id"], team["name"],
-                     reward, f"Match reward ({match_id})", actor, before, before + reward, _now()))
+            accounts = conn.execute(
+                "SELECT * FROM bank_accounts WHERE owner_type = 'player'").fetchall()
+            if not accounts:
+                return False
+            count = 0
+            for acct in accounts:
+                self.bank.credit(acct["id"], reward, f"Match reward ({match_id})",
+                                 tx_type="match_reward", season_id=season_id, conn=conn)
+                count += 1
+            conn.execute(
+                "INSERT INTO season_finance_entries (id, season_id, match_id, team_id, "
+                "team_name, type, operation, amount, comment, created_by, before_wallet, "
+                "after_wallet, created_at) VALUES (?, ?, ?, NULL, 'all players', "
+                "'match_reward', NULL, ?, ?, ?, NULL, NULL, ?)",
+                (secrets.token_hex(8), season_id, match_id, reward,
+                 f"Match reward ({match_id}) — {count} players", actor, _now()))
         return True
 
     def _apply_yield_catchup(self, season_id: str) -> int:
@@ -350,9 +355,23 @@ class FinanceService:
                 self.bank.adjust(to_account["id"], -amount, "Undo transfer",
                                  tx_type="match_finance", conn=conn)
             elif ttype == "match_reward":
-                team, account = wallet_of(entry["team_id"])
-                self.bank.adjust(account["id"], -amount, "Undo match reward",
-                                 tx_type="match_reward", conn=conn)
+                if entry.get("team_id"):
+                    # Legacy per-team reward: reverse that manager's wallet.
+                    team, account = wallet_of(entry["team_id"])
+                    self.bank.adjust(account["id"], -amount, "Undo match reward",
+                                     tx_type="match_reward", conn=conn)
+                else:
+                    # Universal credit: reverse every player account
+                    # (auto-vault accounts give the money back from the vault).
+                    accounts = conn.execute(
+                        "SELECT * FROM bank_accounts WHERE owner_type = 'player'").fetchall()
+                    for acct in accounts:
+                        if acct["auto_vault"]:
+                            self.bank.unlock_amount(acct["id"], season_id, amount,
+                                                    conn=conn, comment="Undo match reward")
+                        else:
+                            self.bank.adjust(acct["id"], -amount, "Undo match reward",
+                                             tx_type="match_reward", conn=conn)
             else:
                 raise ValueError(f"Cannot undo entry type '{ttype}'")
             conn.execute(

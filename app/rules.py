@@ -22,7 +22,7 @@ REQUIRED_PLAYERS = 3  # bought players beyond the manager
 ROSTER_SIZE = 4  # manager + 3
 BREAK_MINUTES = 5
 
-MATCH_REWARD_AMOUNT = 200  # fixed reward paid to each playing team per finalized match
+MATCH_REWARD_AMOUNT = 250  # S2: fixed credit to EVERY player wallet per finalized match
 
 # Phases
 PHASE_SETUP = "setup"

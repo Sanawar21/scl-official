@@ -78,6 +78,7 @@ class Database:
     _MIGRATIONS = (
         # (table, column, ddl)
         ("teams", "global_team_id", "ALTER TABLE teams ADD COLUMN global_team_id TEXT"),
+        ("bank_accounts", "auto_vault", "ALTER TABLE bank_accounts ADD COLUMN auto_vault INTEGER NOT NULL DEFAULT 0"),
         ("vault_positions", "unlocked", "ALTER TABLE vault_positions ADD COLUMN unlocked INTEGER NOT NULL DEFAULT 0"),
         ("vault_positions", "unlocked_at", "ALTER TABLE vault_positions ADD COLUMN unlocked_at TEXT"),
         ("rulesets", "match_reward_amount", "ALTER TABLE rulesets ADD COLUMN match_reward_amount INTEGER NOT NULL DEFAULT 200"),

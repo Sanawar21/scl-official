@@ -12,6 +12,14 @@ def _my_account(bank_service, user):
     return bank_service.get_or_create_account("player", user["global_player_id"])
 
 
+def _latest_season_id():
+    auction_service = current_app.extensions["auction_service"]
+    seasons = auction_service.list_seasons()  # newest first
+    if not seasons:
+        return None
+    return seasons[0]["id"]
+
+
 @banking_bp.get("")
 @login_required()
 def account():
@@ -43,9 +51,15 @@ def account():
                         "SELECT season_id, name FROM teams "
                         "WHERE global_team_id = ? ORDER BY season_id", (my_team["id"],)).fetchall()
                 ]
+    match_reward_amount = 0
+    if seasons:
+        with db.read() as conn:
+            ruleset = current_app.extensions["auction_service"]._get_ruleset(conn, seasons[0]["id"])
+            match_reward_amount = ruleset.match_reward_amount
     return render_template("banking/account.html", account=account,
                            vault_positions=vault_positions, seasons=seasons, txns=txns,
-                           finalized_counts=finalized_counts, my_team=my_team)
+                           finalized_counts=finalized_counts, my_team=my_team,
+                           match_reward_amount=match_reward_amount)
 
 
 @banking_bp.post("/team/create")
@@ -129,8 +143,26 @@ def deposit():
         amount = int(request.form.get("amount") or 0)
         if amount <= 0:
             raise ValueError("Amount must be positive")
-        account = bank_service.adjust(account["id"], amount, request.form.get("comment", ""),
-                                      tx_type="deposit")
+        # Auto mode: deposits go straight into the vault of the latest season.
+        season_id = request.form.get("season_id") or _latest_season_id()
+        account = bank_service.credit(account["id"], amount,
+                                      request.form.get("comment", ""),
+                                      tx_type="deposit", season_id=season_id)
+        return jsonify({"ok": True, "account": account})
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@banking_bp.post("/auto")
+@login_required()
+def auto_toggle():
+    bank_service = current_app.extensions["bank_service"]
+    user = session.get("user") or {}
+    account = _my_account(bank_service, user)
+    if not account:
+        return jsonify({"ok": False, "error": "Account not linked to a player"}), 400
+    try:
+        account = bank_service.set_auto(account["id"], request.form.get("auto", "1") != "0")
         return jsonify({"ok": True, "account": account})
     except ValueError as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400

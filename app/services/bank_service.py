@@ -98,10 +98,11 @@ class BankService:
     def fund_all_players(self, amount: int = 10000, comment: str = "") -> dict:
         """Credit every global player's wallet once (S2 universal funding).
 
-        Wallets are auto-created — players who never signed up get one too (in
-        auto mode later, it routes straight to the vault). Idempotent: an
-        account that already received `season_funding` is skipped on re-runs.
-        Returns {"funded": n, "skipped": n}.
+        Wallets are auto-created — players who never signed up get one too, and
+        it runs on **auto mode** (auto_vault on; the 10k lands in the vault of
+        the latest season). Accounts the owner already manages keep their own
+        mode. Idempotent: an account that already received `season_funding` is
+        skipped on re-runs. Returns {"funded": n, "skipped": n}.
         """
         amount = int(amount)
         if amount <= 0:
@@ -110,9 +111,15 @@ class BankService:
         with self.db.read() as conn:
             pids = [r["id"] for r in conn.execute(
                 "SELECT id FROM global_players ORDER BY name").fetchall()]
+            latest = conn.execute(
+                "SELECT id FROM seasons ORDER BY rowid DESC LIMIT 1").fetchone()
+        season_id = latest["id"] if latest else None
         funded = skipped = 0
         with self.db.write() as conn:
             for pid in pids:
+                existed = conn.execute(
+                    "SELECT 1 FROM bank_accounts WHERE owner_type = 'player' AND owner_id = ?",
+                    (pid,)).fetchone()
                 acct = self.get_or_create_account("player", pid, conn=conn)
                 already = conn.execute(
                     "SELECT 1 FROM bank_transactions WHERE account_id = ? "
@@ -120,9 +127,45 @@ class BankService:
                 if already:
                     skipped += 1
                     continue
-                self.adjust(acct["id"], amount, comment, tx_type="season_funding", conn=conn)
+                # A wallet created right here (player never signed up) runs on
+                # auto by default; pre-existing wallets keep the owner's mode.
+                if not existed and not acct["auto_vault"]:
+                    conn.execute(
+                        "UPDATE bank_accounts SET auto_vault = 1 WHERE id = ?",
+                        (acct["id"],))
+                self.credit(acct["id"], amount, comment, tx_type="season_funding",
+                            season_id=season_id, conn=conn)
                 funded += 1
         return {"funded": funded, "skipped": skipped}
+
+    def _lock_internal(self, conn, account, season_id: str, amount: int, reinvest: bool = True) -> None:
+        """Move `amount` liquid into the vault position (caller's write txn)."""
+        account_id = account["id"]
+        position = conn.execute(
+            "SELECT * FROM vault_positions WHERE account_id = ? AND season_id = ?",
+            (account_id, season_id),
+        ).fetchone()
+        new_liquid = int(account["liquid_cash"]) - amount
+        if position:
+            new_principal = int(position["principal"]) + amount
+            new_locked = int(position["locked_capital"]) + amount
+            conn.execute(
+                "UPDATE vault_positions SET principal = ?, locked_capital = ?, reinvest = ? "
+                "WHERE id = ?",
+                (new_principal, new_locked, 1 if reinvest else 0, position["id"]),
+            )
+        else:
+            position_id = secrets.token_hex(8)
+            conn.execute(
+                "INSERT INTO vault_positions (id, account_id, season_id, principal, locked_capital, "
+                "reinvest, last_yield_match, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?)",
+                (position_id, account_id, season_id, amount, amount, 1 if reinvest else 0, _now()),
+            )
+        conn.execute(
+            "UPDATE bank_accounts SET liquid_cash = ?, locked_capital = ? WHERE id = ?",
+            (new_liquid, int(account["locked_capital"]) + amount, account_id),
+        )
+        self._log(conn, account_id, "vault_lock", -amount, new_liquid, f"Locked {amount} in vault")
 
     def lock_to_vault(self, account_id: str, season_id: str, amount: int, reinvest: bool = True) -> dict:
         amount = int(amount)
@@ -134,32 +177,93 @@ class BankService:
                 raise ValueError("Account not found")
             if int(account["liquid_cash"]) < amount:
                 raise ValueError("Insufficient liquid cash")
-            position = conn.execute(
+            self._lock_internal(conn, account, season_id, amount, reinvest=reinvest)
+        return self.get_account(account_id)
+
+    def set_auto(self, account_id: str, on: bool) -> dict:
+        """Toggle auto mode: all incoming money routes straight to the vault."""
+        with self.db.write() as conn:
+            conn.execute(
+                "UPDATE bank_accounts SET auto_vault = ? WHERE id = ?",
+                (1 if on else 0, account_id),
+            )
+        return self.get_account(account_id)
+
+    def unlock_amount(self, account_id: str, season_id: str, amount: int, conn=None,
+                      comment: str = "") -> int:
+        """Release locked vault capital back to liquid, capped at what's locked.
+
+        Used to reverse auto-vaulted credits (undoing a match reward). The
+        position's principal is left untouched — only locked capital moves.
+        Returns the amount actually released."""
+        amount = int(amount)
+
+        def _impl(c):
+            position = c.execute(
                 "SELECT * FROM vault_positions WHERE account_id = ? AND season_id = ?",
                 (account_id, season_id),
             ).fetchone()
-            new_liquid = int(account["liquid_cash"]) - amount
-            if position:
-                new_principal = int(position["principal"]) + amount
-                new_locked = int(position["locked_capital"]) + amount
-                conn.execute(
-                    "UPDATE vault_positions SET principal = ?, locked_capital = ?, reinvest = ? "
-                    "WHERE id = ?",
-                    (new_principal, new_locked, 1 if reinvest else 0, position["id"]),
-                )
-            else:
-                position_id = secrets.token_hex(8)
-                conn.execute(
-                    "INSERT INTO vault_positions (id, account_id, season_id, principal, locked_capital, "
-                    "reinvest, last_yield_match, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?)",
-                    (position_id, account_id, season_id, amount, amount, 1 if reinvest else 0, _now()),
-                )
-            conn.execute(
-                "UPDATE bank_accounts SET liquid_cash = ?, locked_capital = ? WHERE id = ?",
-                (new_liquid, int(account["locked_capital"]) + amount, account_id),
+            if not position:
+                return 0
+            release = min(amount, int(position["locked_capital"]))
+            if release <= 0:
+                return 0
+            new_locked = int(position["locked_capital"]) - release
+            c.execute(
+                "UPDATE vault_positions SET locked_capital = ? WHERE id = ?",
+                (new_locked, position["id"]),
             )
-            self._log(conn, account_id, "vault_lock", -amount, new_liquid, f"Locked {amount} in vault")
-        return self.get_account(account_id)
+            account = c.execute(
+                "SELECT * FROM bank_accounts WHERE id = ?", (account_id,)).fetchone()
+            new_liquid = int(account["liquid_cash"]) + release
+            c.execute(
+                "UPDATE bank_accounts SET liquid_cash = ?, locked_capital = ? WHERE id = ?",
+                (new_liquid, int(account["locked_capital"]) - release, account_id),
+            )
+            self._log(c, account_id, "vault_unlock", release, new_liquid,
+                      comment or f"Unlocked {release} from vault")
+            return release
+
+        if conn is not None:
+            return _impl(conn)
+        with self.db.write() as c:
+            return _impl(c)
+
+    def credit(self, account_id: str, amount: int, comment: str, tx_type: str = "adjust",
+               season_id: str = None, conn=None) -> dict:
+        """Credit an account; auto-vault accounts route straight to the vault.
+
+        Auto accounts: money lands in liquid and is immediately locked into the
+        season's vault position (compounding) — net liquid unchanged. Manual
+        accounts: plain liquid credit. Pass `conn` to run inside a caller's
+        write transaction (atomic with the caller's work)."""
+        amount = int(amount)
+        if amount <= 0:
+            raise ValueError("Amount must be positive")
+
+        def _impl(c):
+            account = c.execute("SELECT * FROM bank_accounts WHERE id = ?", (account_id,)).fetchone()
+            if not account:
+                raise ValueError("Account not found")
+            if account["auto_vault"] and season_id:
+                new_liquid = int(account["liquid_cash"]) + amount
+                c.execute(
+                    "UPDATE bank_accounts SET liquid_cash = ? WHERE id = ?",
+                    (new_liquid, account_id),
+                )
+                self._log(c, account_id, tx_type, amount, new_liquid, comment)
+                fresh = c.execute(
+                    "SELECT * FROM bank_accounts WHERE id = ?", (account_id,)).fetchone()
+                self._lock_internal(c, fresh, season_id, amount, reinvest=True)
+            else:
+                self.adjust(account_id, amount, comment, tx_type=tx_type, conn=c)
+            return row_to_dict(c.execute(
+                "SELECT * FROM bank_accounts WHERE id = ?", (account_id,)).fetchone())
+
+        if conn is not None:
+            return _impl(conn)
+        with self.db.write() as c:
+            return _impl(c)
 
     def set_reinvest(self, position_id: str, reinvest: bool) -> dict:
         with self.db.write() as conn:

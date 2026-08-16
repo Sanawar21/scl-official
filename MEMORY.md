@@ -425,6 +425,23 @@ Key mechanics:
   credits are per-tier (a platinum manager team starts with 5 credits — 3 spent on a
   platinum buy leaves 2, so later platinum bids fail).
 
+## S2 economy — Increment 3 (universal credit + auto mode) DONE (2026-08-16)
+
+- **Universal match credit**: `_apply_match_reward` credits EVERY player wallet
+  (`match_reward_amount`, default 250) via `bank.credit()`. One marker ledger
+  row (team_id NULL, team_name 'all players') guards the batch — the admin
+  'pending fin.' count still works. Undo reverses all wallets (auto accounts
+  give it back from the vault via `bank.unlock_amount`); legacy per-team
+  entries (S1) still undo individually.
+- **Auto mode**: `bank_accounts.auto_vault` (default 0). `bank.credit()` =
+  liquid for manual, straight-to-vault (compounding, via `_lock_internal`) for
+  auto. Toggle: `POST /account/auto`, card on `/account`. `fund_all_players`
+  sets auto on NEWLY created wallets only (checks `existed` before
+  `get_or_create_account`) — pre-existing wallets keep the owner's mode.
+- **Gotcha**: the auto card's 'Switch to manual' text is a substring of the
+  vault card's 'Switch to manual harvest' — e2e asserts must use the
+  unambiguous 'Turn on auto mode'.
+
 ## S2 economy — Increment 2 (economy rules) DONE (2026-08-16)
 
 - **No tier purse**: `DEFAULT_TIER_PURSES` = zeros; purse inputs removed from the

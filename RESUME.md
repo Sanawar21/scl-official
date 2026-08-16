@@ -1,7 +1,20 @@
 # SCL Rebuild — Session Resume Handoff
 
 Read this first in a new session, then `MEMORY.md` (living context + gotchas) and `PLAN.md`
-(feature plan). Last updated 2026-08-16 (S2 economy Increment 2 done; 172 tests).
+(feature plan). Last updated 2026-08-16 (S2 economy Increment 3 done; 177 tests).
+
+## S2 economy — Increment 3 (universal credit + auto mode) DONE (2026-08-16)
+
+- **250/match to EVERY player wallet** — `finance._apply_match_reward` now
+  credits all player accounts via `bank.credit()` (one marker ledger entry;
+  undo reverses the whole batch; legacy per-team entries still undoable).
+  `MATCH_REWARD_AMOUNT` default 250.
+- **Auto mode** — `bank_accounts.auto_vault` (default off; wallets auto-created
+  by funding default ON). `bank.credit()` routes deposits/grants/funding/match
+  credits to the vault (compounding) when auto. Toggle on `/account`
+  (`POST /account/auto`). `bank.unlock_amount()` reverses vaulted credits.
+- `fund_all_players` pre-existing wallets keep their mode; new wallets run auto.
+  Demo seed pre-creates the bidding/staking users' wallets as manual.
 
 ## S2 economy — Increment 2 (economy rules) DONE (2026-08-16)
 

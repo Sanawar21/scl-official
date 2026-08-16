@@ -79,6 +79,36 @@ def test_vault_position_card_and_reinvest(page, base_url, login, seed):
     assert page.locator(".js-reinvest").count() >= 1
 
 
+def test_auto_mode_toggle_and_deposit_routing(page, base_url, login, seed):
+    """Auto mode routes deposits to the vault; the toggle flips it back."""
+    login("alice", "alicepw")
+    body = page.locator("body").inner_text().lower()
+    assert "auto mode" in body
+    assert "off" in body  # alice is manual by default
+    # Turn auto ON.
+    page.click("#auto-form button[type='submit']")
+    page.wait_for_function(
+        "document.querySelector('#auto-form input[name=\"auto\"]')?.value === '0'",
+        timeout=10000)
+    # Deposit now routes to the vault (liquid unchanged, locked grows).
+    page.fill('form[action*="/deposit"] input[name="amount"]', "500")
+    page.click('form[action*="/deposit"] button[type="submit"]')
+    # The deposit form navigates to the JSON response; return to the account.
+    page.wait_for_load_state("networkidle")
+    page.goto(base_url + "/account")
+    body = page.locator("body").inner_text().lower()
+    assert "auto mode" in body and "on" in body
+    assert "locked until m12" in body  # vault position created by the deposit
+    # Turn auto OFF again (the button label flips back to 'Turn on auto mode';
+    # note 'switch to manual harvest' on the vault card is a different thing).
+    page.click("#auto-form button[type='submit']")
+    page.wait_for_function(
+        "document.querySelector('#auto-form input[name=\"auto\"]')?.value === '1'",
+        timeout=10000)
+    body = page.locator("body").inner_text().lower()
+    assert "turn on auto mode" in body
+
+
 def test_transactions_filter(page, base_url, login):
     login("alice", "alicepw")
     page.fill("#txn-filter", "opening stake")

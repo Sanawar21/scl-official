@@ -68,7 +68,7 @@ Mirrors the existing `global_players` → `players` pattern:
 
 1. ✅ **Team identity — DONE (2026-08-16)** — `global_teams` schema + backfill; `create_team` (no purse) / `delete_team` (no clawback); "My team" card on the account page (create team, edit logo/about); `team_profile` reads global data. 169 tests green.
 2. ✅ **S2 economy rules — DONE (2026-08-16)** — tier purse gone from ruleset UI + defaults (zeros); idempotent **10k funding** (`bank.fund_all_players`, admin "Fund all players" button on Finances, `scripts/fund_players.py`); admin grants kept. 172 tests green.
-3. **Universal credit + auto mode** — 250 to every player wallet per match; `auto_vault` flag + deposit routing + toggle on the account dashboard. Tests.
+3. ✅ **Universal credit + auto mode — DONE (2026-08-16)** — 250/match to EVERY player wallet (one marker ledger entry; undo reverses all); `auto_vault` flag (new wallets default auto, owners toggle on the account dashboard); `bank.credit()` routes deposits/grants/funding/match credits to the vault when auto. 177 tests green.
 4. **Squad-cost levy + balance board** — levy after draft; three-section board on public + admin. Tests.
 5. **Admin flows + docs** — fund-all button, create/link anytime, finance ledger updates; docs + full suite.
 

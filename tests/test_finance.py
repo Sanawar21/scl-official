@@ -206,6 +206,73 @@ def test_delete_team_keeps_wallet(app, svc):
 
 
 # ---------------------------------------------------------------------------
+# 3a. auto mode (auto_vault routing)
+# ---------------------------------------------------------------------------
+def test_credit_routes_to_vault_when_auto(app, svc):
+    season, players, _ = _setup(app, n_teams=2)
+    sid = season["id"]
+    bank = app.extensions["bank_service"]
+    acct = bank.get_or_create_account("player", players[2]["global_player_id"])
+    bank.set_auto(acct["id"], True)
+    acct = bank.credit(acct["id"], 1000, "auto credit", tx_type="deposit", season_id=sid)
+    assert acct["auto_vault"] == 1
+    assert acct["liquid_cash"] == 0          # went straight to the vault
+    assert acct["locked_capital"] == 1000
+    positions = bank.vault_positions(acct["id"])
+    assert len(positions) == 1 and positions[0]["locked_capital"] == 1000
+    assert positions[0]["reinvest"] == 1
+
+
+def test_credit_stays_liquid_when_manual(app, svc):
+    season, players, _ = _setup(app, n_teams=2)
+    sid = season["id"]
+    bank = app.extensions["bank_service"]
+    acct = bank.get_or_create_account("player", players[2]["global_player_id"])
+    assert acct["auto_vault"] == 0
+    acct = bank.credit(acct["id"], 1000, "manual credit", tx_type="deposit", season_id=sid)
+    assert acct["liquid_cash"] == 1000
+    assert acct["locked_capital"] == 0
+    # Auto toggle flips behavior.
+    acct = bank.set_auto(acct["id"], True)
+    acct = bank.credit(acct["id"], 500, "now auto", season_id=sid)
+    assert acct["liquid_cash"] == 1000
+    assert acct["locked_capital"] == 500
+
+
+def test_unlock_amount_releases_vault_capital(app, svc):
+    season, players, _ = _setup(app, n_teams=2)
+    sid = season["id"]
+    bank = app.extensions["bank_service"]
+    acct = bank.get_or_create_account("player", players[2]["global_player_id"])
+    bank.set_auto(acct["id"], True)
+    bank.credit(acct["id"], 1000, "funding", season_id=sid)
+    released = bank.unlock_amount(acct["id"], sid, 600, comment="undo")
+    assert released == 600
+    acct = bank.get_account(acct["id"])
+    assert acct["liquid_cash"] == 600 and acct["locked_capital"] == 400
+    # Capped at the locked capital.
+    released = bank.unlock_amount(acct["id"], sid, 9999)
+    assert released == 400
+    assert bank.get_account(acct["id"])["locked_capital"] == 0
+
+
+def test_auto_account_match_credit_goes_to_vault(app, svc, scorer, finance, bank):
+    season, players, teams = _setup(app, n_teams=2)
+    sid = season["id"]
+    a, b = teams[0], teams[1]
+    # Put an unrelated player in auto mode.
+    auto_acct = bank.get_or_create_account("player", players[2]["global_player_id"])
+    bank.set_auto(auto_acct["id"], True)
+    _register_finalized(app, scorer, sid, "M1", "Match 1", a["id"], b["id"])
+    finance.on_match_finalized(sid, "M1")
+    acct = bank.get_account(auto_acct["id"])
+    assert acct["liquid_cash"] == 0
+    # The 250 match credit was vaulted, then match-1 yield compounded on it
+    # (250 * 1.07 = 267.5 -> 268).
+    assert acct["locked_capital"] == 268
+
+
+# ---------------------------------------------------------------------------
 # 3b. universal funding (fund_all_players)
 # ---------------------------------------------------------------------------
 def test_fund_all_players_creates_wallets_and_is_idempotent(app, svc):
@@ -224,14 +291,19 @@ def test_fund_all_players_creates_wallets_and_is_idempotent(app, svc):
     result = bank.fund_all_players(10000)
     assert result["funded"] == n_players
     assert result["skipped"] == 0
-    # Every player now has a wallet; managers have 10000 (funded) + 10000.
     with app.extensions["db"].read() as conn:
         rows = conn.execute(
-            "SELECT a.liquid_cash FROM bank_accounts a "
+            "SELECT a.* FROM bank_accounts a "
             "JOIN global_players g ON g.id = a.owner_id "
             "WHERE a.owner_type='player'").fetchall()
         assert len(rows) == n_players
-        assert all(int(r[0]) in (10000, 20000) for r in rows)
+        auto = [r for r in rows if r["auto_vault"]]
+        manual = [r for r in rows if not r["auto_vault"]]
+        # The 4 manager wallets existed before (manual) -> liquid 20000.
+        assert len(manual) == 4 and all(int(r["liquid_cash"]) == 20000 for r in manual)
+        # Newly created wallets run on auto: the 10k went to the vault.
+        assert len(auto) == n_players - 4
+        assert all(int(r["liquid_cash"]) == 0 and int(r["locked_capital"]) == 10000 for r in auto)
 
     # Idempotent: a second run funds nobody.
     again = bank.fund_all_players(10000)
@@ -246,9 +318,14 @@ def test_fund_all_players_custom_amount(app, svc):
     assert result["funded"] >= 10  # the two managers already had wallets
     with app.extensions["db"].read() as conn:
         rows = conn.execute(
-            "SELECT liquid_cash FROM bank_accounts WHERE owner_type='player'").fetchall()
-    # Managers got 10000 (from _setup) + 500; everyone else exactly 500.
-    assert all(int(r[0]) in (10500, 500) for r in rows)
+            "SELECT * FROM bank_accounts WHERE owner_type='player'").fetchall()
+    # Managers (manual) got 10000 (from _setup) + 500 liquid; auto accounts
+    # have 500 locked in the vault.
+    for r in rows:
+        if r["auto_vault"]:
+            assert int(r["liquid_cash"]) == 0 and int(r["locked_capital"]) == 500
+        else:
+            assert int(r["liquid_cash"]) == 10500
 
 
 # ---------------------------------------------------------------------------
@@ -266,7 +343,7 @@ def _register_finalized(app, scorer, season_id, match_id, match_number, team_a, 
             (f"{season_id}:{match_id.lower()}", season_id, match_id, "Team A won"))
 
 
-def test_on_match_finalized_rewards_both_teams_and_applies_yield(app, svc, scorer, finance, bank):
+def test_on_match_finalized_credits_every_wallet_and_applies_yield(app, svc, scorer, finance, bank):
     season, _, teams = _setup(app, n_teams=2)
     sid = season["id"]
     a, b = teams[0], teams[1]
@@ -276,25 +353,32 @@ def test_on_match_finalized_rewards_both_teams_and_applies_yield(app, svc, score
     vault_acct = bank.get_or_create_account("player", "fin-owner")
     bank.adjust(vault_acct["id"], 10000, "funds")
     bank.lock_to_vault(vault_acct["id"], sid, 2000, reinvest=True)
+    with app.extensions["db"].read() as conn:
+        n_wallets = conn.execute(
+            "SELECT COUNT(*) FROM bank_accounts WHERE owner_type='player'").fetchone()[0]
 
     _register_finalized(app, scorer, sid, "M1", "Match 1", a["id"], b["id"])
     result = finance.on_match_finalized(sid, "M1")
     assert result["finalized"] is True and result["rewarded"] is True
-    # Both teams got the default 200 reward.
-    assert _wallet(bank, svc._get_team(sid, a["id"])) == a_wallet_before + 200
-    assert _wallet(bank, svc._get_team(sid, b["id"])) == b_wallet_before + 200
+    # EVERY player wallet got the default 250 credit (managers included).
+    assert _wallet(bank, svc._get_team(sid, a["id"])) == a_wallet_before + 250
+    assert _wallet(bank, svc._get_team(sid, b["id"])) == b_wallet_before + 250
+    # The unrelated vault owner's wallet was credited too (liquid 10000 - 2000
+    # locked + 250 credit).
+    assert bank.get_account(vault_acct["id"])["liquid_cash"] == 10000 - 2000 + 250
     # Yield compounded once (match 1) -> 2000 -> 2140.
     assert bank.get_account(vault_acct["id"])["locked_capital"] == 2140
-    # Ledger rows exist.
+    # One marker entry in the ledger (team_id NULL = universal credit).
     entries = finance.list_finance_entries(sid)
     rewards = [e for e in entries if e["type"] == "match_reward"]
-    assert len(rewards) == 2
+    assert len(rewards) == 1 and rewards[0]["team_id"] is None
 
-    # Idempotent on re-run: no double reward, no extra yield.
+    # Idempotent on re-run: no double credit, no extra yield.
     result2 = finance.on_match_finalized(sid, "M1")
     assert result2["rewarded"] is False
-    assert _wallet(bank, svc._get_team(sid, a["id"])) == a_wallet_before + 200
+    assert _wallet(bank, svc._get_team(sid, a["id"])) == a_wallet_before + 250
     assert bank.get_account(vault_acct["id"])["locked_capital"] == 2140
+    assert n_wallets == 3  # sanity: 2 managers + fin-owner
 
 
 def test_on_match_finalized_not_finalized_match_noop(app, finance):
@@ -316,8 +400,8 @@ def test_process_pending_backfills_rewards(app, svc, scorer, finance, bank):
     results = finance.process_pending(sid)
     assert len(results) == 2
     assert all(r["rewarded"] for r in results)
-    # Two matches -> both teams got 2 x 200.
-    assert _wallet(bank, svc._get_team(sid, a["id"])) == a_wallet_before + 400
+    # Two matches -> every wallet got 2 x 250.
+    assert _wallet(bank, svc._get_team(sid, a["id"])) == a_wallet_before + 500
     # Running again finds nothing pending.
     assert finance.process_pending(sid) == []
 
@@ -395,7 +479,7 @@ def test_undo_adjust_and_transfer(app, svc, finance, bank):
         finance.undo_last_finance_entry(sid)
 
 
-def test_undo_match_reward(app, svc, scorer, finance, bank):
+def test_undo_match_reward_reverses_all_wallets(app, svc, scorer, finance, bank):
     season, _, teams = _setup(app, n_teams=2)
     sid = season["id"]
     a, b = teams[0], teams[1]
@@ -403,11 +487,12 @@ def test_undo_match_reward(app, svc, scorer, finance, bank):
     finance.on_match_finalized(sid, "M1")
     a_wallet = _wallet(bank, svc._get_team(sid, a["id"]))
     b_wallet = _wallet(bank, svc._get_team(sid, b["id"]))
-    finance.undo_last_finance_entry(sid)  # undoes one of the two rewards
-    # Exactly one of the two teams was debited back by the reward amount.
+    finance.undo_last_finance_entry(sid)  # undoes the universal credit
+    # Both managers were debited back by the reward amount (250).
     a_after = _wallet(bank, svc._get_team(sid, a["id"]))
     b_after = _wallet(bank, svc._get_team(sid, b["id"]))
-    assert (a_after, b_after) in ((a_wallet - 200, b_wallet), (a_wallet, b_wallet - 200))
+    assert a_after == a_wallet - 250
+    assert b_after == b_wallet - 250
 
 
 def test_undo_transfer_overdraft_guard(app, finance):

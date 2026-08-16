@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS rulesets (
   required_players INTEGER NOT NULL DEFAULT 3,
   roster_size INTEGER NOT NULL DEFAULT 4,
   break_minutes INTEGER NOT NULL DEFAULT 5,
-  match_reward_amount INTEGER NOT NULL DEFAULT 200
+  match_reward_amount INTEGER NOT NULL DEFAULT 250
 );
 
 CREATE TABLE IF NOT EXISTS players (
@@ -168,6 +168,7 @@ CREATE TABLE IF NOT EXISTS bank_accounts (
   owner_id TEXT NOT NULL,
   liquid_cash INTEGER NOT NULL DEFAULT 0,
   locked_capital INTEGER NOT NULL DEFAULT 0,
+  auto_vault INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL
 );
 
