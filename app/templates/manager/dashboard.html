@@ -12,8 +12,14 @@
   {% endif %}
 
   <div class="page-head">
-    <h1>{{ my_team.name }}</h1>
-    <span class="tag tag-active">{{ state.phase }}</span>
+    <div class="row" style="gap:12px">
+      <img src="{{ my_team.logo_url }}" alt="{{ my_team.name }} logo" class="team-logo"
+           style="max-height:52px;max-width:84px">
+      <div>
+        <h1 style="margin:0">{{ my_team.name }}</h1>
+        <span class="tag tag-active">{{ state.phase }}</span>
+      </div>
+    </div>
   </div>
 
   <section class="card">

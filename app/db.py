@@ -84,6 +84,7 @@ class Database:
         ("rulesets", "match_reward_amount", "ALTER TABLE rulesets ADD COLUMN match_reward_amount INTEGER NOT NULL DEFAULT 200"),
         ("match_stats", "delivery_log", "ALTER TABLE match_stats ADD COLUMN delivery_log TEXT"),
         ("match_player_stats", "batter_order", "ALTER TABLE match_player_stats ADD COLUMN batter_order INTEGER"),
+        ("global_teams", "banner", "ALTER TABLE global_teams ADD COLUMN banner TEXT"),
     )
     # Column drops for existing DBs (schema.py already omits them).
     _DROP_MIGRATIONS = (

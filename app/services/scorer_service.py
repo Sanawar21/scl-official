@@ -1507,6 +1507,7 @@ class ScorerService:
         profile = next((gt for gt in global_teams if gt["id"] == gid), None)
         name = (profile or {}).get("name") or target["name"]
         logo = (profile or {}).get("logo") or ""
+        banner = (profile or {}).get("banner") or ""
         about = (profile or {}).get("about") or ""
         manager_player_id = (profile or {}).get("manager_player_id") or target.get("manager_player_id")
 
@@ -1571,6 +1572,7 @@ class ScorerService:
             "team_name": name,
             "team_slug": team_profile_slug(gid, name),
             "logo": logo,
+            "banner": banner,
             "about": about,
             "manager_player_id": manager_player_id,
             "global_stats": totals,

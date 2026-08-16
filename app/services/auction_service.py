@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from .. import rules as R
 from ..db import json_dumps, json_loads, row_to_dict, rows_to_dicts
 from ..ruleset import Ruleset
+from .branding_service import BrandingService
 
 
 def _now() -> str:
@@ -330,7 +331,7 @@ class AuctionService:
         return self.get_global_team(team_id)
 
     def update_team_profile(self, team_id: str, name: str = None, logo: str = None,
-                            about: str = None) -> dict:
+                            banner: str = None, about: str = None) -> dict:
         with self.db.write() as conn:
             gt = conn.execute("SELECT * FROM global_teams WHERE id = ?", (team_id,)).fetchone()
             if not gt:
@@ -343,9 +344,14 @@ class AuctionService:
                 (new_name, team_id)).fetchone()
             if dup:
                 raise ValueError("A team with this name already exists")
+            # Only overwrite fields the caller actually passed; None keeps the
+            # stored value (so a name/about edit never wipes uploaded assets).
+            new_logo = (logo if logo is not None else gt["logo"] or "").strip()
+            new_banner = (banner if banner is not None else gt["banner"] or "").strip()
+            new_about = (about if about is not None else gt["about"] or "").strip()
             conn.execute(
-                "UPDATE global_teams SET name = ?, logo = ?, about = ? WHERE id = ?",
-                (new_name, (logo or "").strip(), (about or "").strip(), team_id),
+                "UPDATE global_teams SET name = ?, logo = ?, banner = ?, about = ? WHERE id = ?",
+                (new_name, new_logo, new_banner, new_about, team_id),
             )
         return self.get_global_team(team_id)
 
@@ -1212,6 +1218,7 @@ class AuctionService:
             teams_by_id = {t["id"]: t for t in teams}
             gp_rows = conn.execute("SELECT * FROM global_players").fetchall()
             global_by_id = {g["id"]: row_to_dict(g) for g in gp_rows}
+            gt_rows = {g["id"]: row_to_dict(g) for g in conn.execute("SELECT * FROM global_teams").fetchall()}
 
             all_bids = rows_to_dicts(conn.execute(
                 "SELECT * FROM bids WHERE season_id = ? ORDER BY ts DESC, rowid DESC", (season_id,)).fetchall())
@@ -1255,6 +1262,7 @@ class AuctionService:
                 acct_row = conn.execute(
                     "SELECT liquid_cash FROM bank_accounts WHERE owner_type = 'player' "
                     "AND owner_id = ?", (team["manager_player_id"],)).fetchone()
+                gt = gt_rows.get((team["global_team_id"] or "").strip() or team["id"]) or {}
                 enriched_teams.append({
                     **team,
                     "players": json_loads(team["players"], []),
@@ -1263,6 +1271,8 @@ class AuctionService:
                     "wallet": int(acct_row["liquid_cash"]) if acct_row else 0,
                     "player_labels": player_labels,
                     "bench_labels": bench_labels,
+                    "logo": gt.get("logo") or "",
+                    "banner": gt.get("banner") or "",
                 })
 
             unsold_count = sum(1 for p in players if p["status"] == "unsold")
@@ -1304,6 +1314,7 @@ class AuctionService:
                         "credits_remaining": t["credits_remaining"],
                         "active_count": len(t["players"]),
                         "bench_count": len(t["bench"]),
+                        "logo_url": BrandingService.team_logo({"logo": t["logo"], "banner": t["banner"]}),
                     }
                     for t in enriched_teams
                 ],

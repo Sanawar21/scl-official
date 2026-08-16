@@ -1,9 +1,10 @@
 {% extends "base.html" %}
 {% block title %}Change Log — SCL{% endblock %}
 {% block content %}
-<div class="page-head">
+<div class="brand-band">
+  <img class="band-mark" src="{{ url_for('viewer.branding_asset', relpath='scl/logo-only-dark-bg-square.JPG') }}" alt="SCL">
   <h1>Change Log</h1>
-  <p class="page-sub">Every rule and platform change, tracked so nothing slips by.
+  <p class="band-sub">Every rule and platform change, tracked so nothing slips by.
     Newest first.</p>
 </div>
 

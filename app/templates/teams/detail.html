@@ -1,10 +1,20 @@
 {% extends "base.html" %}
 {% block title %}{{ profile.team_name }}{% endblock %}
 {% block content %}
+{% if profile.banner %}
+  <img src="{{ profile.banner_url }}" alt="{{ profile.team_name }} banner" class="team-banner"
+       style="width:100%;max-height:170px;margin-bottom:14px">
+{% endif %}
+
 <div class="page-head">
-  <h1>{{ profile.team_name }}</h1>
-  {% if profile.logo %}<img src="{{ profile.logo }}" alt="{{ profile.team_name }} logo" style="max-height:72px" class="team-logo">{% endif %}
-  {% if profile.about %}<p class="page-sub">{{ profile.about }}</p>{% endif %}
+  <div class="row" style="gap:12px">
+    <img src="{{ profile.logo_url }}" alt="{{ profile.team_name }} logo" class="team-logo"
+         style="max-height:72px;max-width:110px">
+    <div>
+      <h1 style="margin:0">{{ profile.team_name }}</h1>
+      {% if profile.about %}<p class="page-sub" style="margin:4px 0 0">{{ profile.about }}</p>{% endif %}
+    </div>
+  </div>
   <div class="row">
     <a class="btn btn-small" href="{{ url_for('matches.teams_index') }}">← All teams</a>
   </div>

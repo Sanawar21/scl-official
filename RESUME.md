@@ -1,8 +1,8 @@
 # SCL Rebuild — Session Resume Handoff
 
 Read this first in a new session, then `MEMORY.md` (living context + gotchas) and `PLAN.md`
-(feature plan). Last updated 2026-08-16 — **S2 economy COMPLETE** + **participant PDFs +
-website docs + changelog** shipped (206 tests).
+(feature plan). Last updated 2026-08-16 — **SCL branding + team branding assets** shipped
+(226 tests).
 
 ## S2 economy — COMPLETE (2026-08-16, 5 increments)
 
@@ -11,6 +11,17 @@ website docs + changelog** shipped (206 tests).
 3. 250/match credit to every wallet + auto-mode vault toggle on /account
 4. Squad-cost levy on draft complete + three-section balance board
 5. Admin flows polish + reference docs updated for the S2 economy
+
+## SCL branding + team branding — DONE (2026-08-16)
+
+- SCL brand across the platform: navy/volt palette, navy navbar with the SCL logo
+  mark, `.brand-band` hero on home/docs/changelog, branded PDFs (navy + volt).
+- Team branding: managers upload logo/banner from `/account`; admins control
+  everything from the new **`/admin/teams`** panel (create/edit/upload/remove/
+  delete — delete never touches the wallet). Missing assets fall back to the SCL
+  brand. Logos render on teams, table, finances, live board, manager + admin.
+- New `app/services/branding_service.py` + `GET /branding/<path>` serving from
+  `data/brandings/` (SCL assets + uploaded team files). See MEMORY for details.
 
 ## Participant PDFs + website docs + changelog — DONE (2026-08-16)
 

@@ -3,27 +3,28 @@
 {% block content %}
 {% set role = current_user.role if current_user else 'anon' %}
 
-<div class="hero">
+<div class="brand-band">
+  <img class="band-mark" src="{{ url_for('viewer.branding_asset', relpath='scl/logo-only-dark-bg-square.JPG') }}" alt="SCL">
   <h1>Section-C Cricket League</h1>
-  <p class="hero-sub">Auction, matches, banking and wagers — all in one place.</p>
+  <p class="band-sub">Auction, matches, banking and wagers — all in one place.</p>
   {% if current_season %}
-    <p class="muted small">Current season:
-      <span class="tag {% if current_season.status == 'active' %}tag-success{% else %}tag-info{% endif %}">
+    <p class="small" style="margin:0 0 12px;color:rgba(255,255,255,0.7)">Current season:
+      <span class="tag tag-volt" style="background:var(--scl-volt);border-color:var(--scl-volt);color:var(--scl-navy)">
         {{ current_season.name }} · {{ current_season.status }}</span>
     </p>
   {% endif %}
-  <div class="hero-actions">
+  <div class="band-actions">
     <a class="btn btn-primary" href="{{ url_for('viewer.live') }}">Live Auction Board</a>
     {% if role == 'admin' %}
-      <a class="btn btn-secondary" href="{{ url_for('admin.dashboard') }}">Admin Overview</a>
+      <a class="btn" href="{{ url_for('admin.dashboard') }}">Admin Overview</a>
     {% elif role == 'manager' %}
-      <a class="btn btn-secondary" href="{{ url_for('manager.dashboard') }}">My Team</a>
+      <a class="btn" href="{{ url_for('manager.dashboard') }}">My Team</a>
       <a class="btn" href="{{ url_for('banking.account') }}">Account</a>
     {% elif role == 'player' %}
-      <a class="btn btn-secondary" href="{{ url_for('banking.account') }}">My Account</a>
+      <a class="btn" href="{{ url_for('banking.account') }}">My Account</a>
       <a class="btn" href="{{ url_for('wagers.board') }}">Wagers</a>
     {% else %}
-      <a class="btn btn-secondary" href="{{ url_for('auth.signup_page') }}">Create Account</a>
+      <a class="btn" href="{{ url_for('auth.signup_page') }}">Create Account</a>
       <a class="btn" href="{{ url_for('auth.login_page') }}">Login</a>
     {% endif %}
   </div>

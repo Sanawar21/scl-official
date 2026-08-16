@@ -1,9 +1,10 @@
 {% extends "base.html" %}
 {% block title %}Documents — SCL{% endblock %}
 {% block content %}
-<div class="page-head">
+<div class="brand-band">
+  <img class="band-mark" src="{{ url_for('viewer.branding_asset', relpath='scl/logo-only-dark-bg-square.JPG') }}" alt="SCL">
   <h1>Official Documents</h1>
-  <p class="page-sub">The rule book and operational guides every player and manager should read.
+  <p class="band-sub">The rule book and operational guides every player and manager should read.
     View them here or download the PDF.</p>
 </div>
 

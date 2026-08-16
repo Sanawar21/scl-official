@@ -52,6 +52,8 @@ $VENV scripts/generate_docs.py rulebook       # just one (rulebook|vault|wagers|
 SCL_DB_PATH=data/demo.db $VENV run.py
 #   -> http://localhost:10001
 #   /docs + /docs/<slug> + /docs/<slug>/pdf, /changelog (public), /admin/changelog
+#   /admin/teams — the team branding control panel (logo/banner uploads)
+#   /branding/... — SCL + team brand assets are served read-only from data/brandings/
 ```
 
 ### Demo logins (all password `demo123`)

@@ -54,7 +54,10 @@
 
 <nav class="navbar">
   <div class="nav-inner">
-    <a class="brand" href="{{ url_for('viewer.home') }}">SCL</a>
+    <a class="brand" href="{{ url_for('viewer.home') }}">
+      <img class="brand-mark" src="{{ url_for('viewer.branding_asset', relpath='scl/logo-only-dark-bg-square.JPG') }}" alt="SCL">
+      <span class="brand-word">SCL <span class="brand-volt">Section-C</span></span>
+    </a>
     <div class="nav-links">
       {{ nav_links() }}
       {% if current_user %}
@@ -72,7 +75,10 @@
 <aside class="drawer" id="drawer" aria-label="Navigation menu">
   <div class="drawer-inner">
     <div class="drawer-head">
-      <span class="brand">SCL</span>
+      <span class="brand" style="color:var(--text)">
+        <img class="brand-mark" src="{{ url_for('viewer.branding_asset', relpath='scl/logo-only-light-bg-square.JPG') }}" alt="SCL">
+        <span class="brand-word">SCL <span style="color:var(--primary)">Section-C</span></span>
+      </span>
       <button class="drawer-close" id="drawer-close" aria-label="Close menu">✕</button>
     </div>
     {{ nav_links() }}

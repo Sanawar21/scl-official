@@ -139,9 +139,11 @@ def match_balls(season_id, match_id):
 @matches_bp.get("/finances")
 def finances_index():
     finance = _finance_service()
+    branding = current_app.extensions["branding_service"]
     season_id, match_seasons = _pick_season(_season_id())
     board = finance.list_season_finances(season_id) if season_id else []
     entries = finance.list_finance_entries(season_id) if season_id else []
+    _attach_team_logos(board, branding)
     return render_template("matches/finances.html", season_id=season_id,
                            match_seasons=match_seasons, board=board, entries=entries)
 
@@ -153,8 +155,10 @@ def finances_season(season_id):
         flash("Season not found.", "error")
         return redirect(url_for("matches.finances_index"))
     finance = _finance_service()
+    branding = current_app.extensions["branding_service"]
     board = finance.list_season_finances(season_id)
     entries = finance.list_finance_entries(season_id)
+    _attach_team_logos(board, branding)
     match_seasons = _scorer_service().list_match_seasons()
     return render_template("matches/finances.html", season_id=season_id,
                            match_seasons=match_seasons, board=board, entries=entries)
@@ -163,12 +167,33 @@ def finances_season(season_id):
 @matches_bp.get("/table")
 def league_table():
     svc = _scorer_service()
+    branding = current_app.extensions["branding_service"]
     season_id, match_seasons = _pick_season(_season_id())
     standings = svc.league_table(season_id) if season_id else []
     scenarios = _scenario_service().scenarios(season_id) if season_id else None
+    _attach_team_logos(standings, branding)
     return render_template("matches/table.html", season_id=season_id,
                            match_seasons=match_seasons, standings=standings,
                            scenarios=scenarios)
+
+
+def _attach_team_logos(rows, branding):
+    """Attach a resolved logo_url to team rows (standings, budget board, etc.).
+
+    Team rows may reference the global team id OR the per-season id; both are
+    resolved against global_teams (falling back to the SCL mark)."""
+    if not rows:
+        return
+    with current_app.extensions["db"].read() as conn:
+        globals_by_id = {r["id"]: dict(r) for r in conn.execute("SELECT * FROM global_teams").fetchall()}
+        season_map = {}
+        for r in conn.execute("SELECT id, global_team_id FROM teams").fetchall():
+            season_map[r["id"]] = (r["global_team_id"] or "").strip() or r["id"]
+    for row in rows:
+        tid = row.get("team_id") or row.get("id") or ""
+        gid = season_map.get(tid) or tid
+        gt = globals_by_id.get(gid)
+        row["logo_url"] = branding.team_logo(gt) if gt else branding.scl_url("logo")
 
 
 @matches_bp.get("/table/scenarios/calc")
@@ -200,6 +225,7 @@ def leaderboards():
 @matches_bp.get("/teams")
 def teams_index():
     svc = _scorer_service()
+    branding = current_app.extensions["branding_service"]
     # Persistent team identities first, then any per-season rows not covered.
     seen = set()
     teams = []
@@ -212,6 +238,7 @@ def teams_index():
                 "name": gt["name"],
                 "season_id": None,
                 "slug": team_profile_slug(gid, gt["name"]),
+                "logo_url": branding.team_logo(dict(gt)),
             })
         for t in conn.execute("SELECT * FROM teams ORDER BY season_id, name").fetchall():
             gid = (t["global_team_id"] or "").strip() or t["id"]
@@ -223,6 +250,7 @@ def teams_index():
                 "name": t["name"],
                 "season_id": t["season_id"],
                 "slug": team_profile_slug(gid, t["name"]),
+                "logo_url": branding.scl_url("logo"),
             })
     return render_template("teams/index.html", teams=teams)
 
@@ -230,10 +258,13 @@ def teams_index():
 @matches_bp.get("/teams/<slug>")
 def team_detail(slug):
     svc = _scorer_service()
+    branding = current_app.extensions["branding_service"]
     profile = svc.team_profile(slug)
     if not profile:
         flash("Team not found.", "error")
         return redirect(url_for("matches.teams_index"))
+    profile["logo_url"] = branding.team_logo(profile)
+    profile["banner_url"] = branding.team_banner(profile)
     return render_template("teams/detail.html", profile=profile)
 
 

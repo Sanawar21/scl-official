@@ -22,7 +22,8 @@ from reportlab.platypus import (
     Table, TableStyle,
 )
 
-C_ACCENT = HexColor("#18857C")
+C_ACCENT = HexColor("#0B1E38")  # SCL navy
+C_VOLT = HexColor("#A3FF00")    # SCL volt accent
 C_WHITE = colors.white
 C_BLACK = colors.black
 C_GREY_LIGHT = HexColor("#F5F5F5")
@@ -150,6 +151,8 @@ def md_to_pdf(md: str, title: str, subtitle: str = "") -> bytes:
         w, h = A4
         canvas.setFillColor(C_ACCENT)
         canvas.rect(0, h - 22 * mm, w, 22 * mm, fill=1, stroke=0)
+        canvas.setFillColor(C_VOLT)
+        canvas.rect(0, h - 3 * mm, w, 3 * mm, fill=1, stroke=0)  # volt underline
         canvas.setFont("Helvetica-Bold", 15)
         canvas.setFillColor(C_WHITE)
         canvas.drawString(MARGIN, h - 12 * mm, "SCL — SECTION-C CRICKET LEAGUE")

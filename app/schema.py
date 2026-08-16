@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS global_teams (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   logo TEXT,
+  banner TEXT,
   about TEXT,
   manager_player_id TEXT REFERENCES global_players(id),
   created_at TEXT NOT NULL

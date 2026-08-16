@@ -12,11 +12,15 @@
 {% else %}
   <div class="grid">
     {% for t in teams %}
-      <a class="stat-tile" style="text-decoration:none; display:flex; flex-direction:column; gap:6px"
+      <a class="stat-tile" style="text-decoration:none; display:flex; align-items:center; gap:10px"
          href="{{ url_for('matches.team_detail', slug=t.slug) }}">
-        <span class="stat-value" style="font-size:18px">{{ t.name }}</span>
-        <span class="tag" style="align-self:flex-start">{{ t.season_id }}</span>
-        <span class="small muted">View record →</span>
+        <img class="team-logo" src="{{ t.logo_url }}" alt="{{ t.name }} logo"
+             style="max-height:44px;max-width:64px">
+        <span style="flex:1;min-width:0">
+          <span class="stat-value" style="font-size:17px;display:block">{{ t.name }}</span>
+          <span class="small muted">View record →</span>
+        </span>
+        {% if t.season_id %}<span class="tag" style="align-self:flex-start">{{ t.season_id }}</span>{% endif %}
       </a>
     {% endfor %}
   </div>

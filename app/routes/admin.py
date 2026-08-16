@@ -47,6 +47,10 @@ def _build_context(season_id=None):
     global_players = auction_service.list_global_players()
     assignable_users = _assignable_users()
 
+    branding = current_app.extensions["branding_service"]
+    for team in state["teams"]:
+        team["logo_url"] = branding.team_logo(team)
+        team["banner_url"] = branding.team_banner(team)
     teams_by_id = {t["id"]: t for t in state["teams"]}
     players_by_id = {p["id"]: p for p in state["players"]}
     manager_ids = {t["manager_player_id"] for t in state["teams"] if t["manager_player_id"]}
@@ -437,6 +441,136 @@ def publish(season_id):
     return redirect(url_for("admin.auction", season=season_id))
 
 
+# ---------------------------------------------------------------------------
+# Admin teams control panel (persistent team branding, manager, profile)
+# ---------------------------------------------------------------------------
+def _teams_context():
+    auction = current_app.extensions["auction_service"]
+    branding = current_app.extensions["branding_service"]
+    global_players = auction.list_global_players()
+    with current_app.extensions["db"].read() as conn:
+        rows = conn.execute(
+            "SELECT gt.*, g.name AS manager_name, g.tier AS manager_tier, "
+            "(SELECT COUNT(*) FROM teams t WHERE t.global_team_id = gt.id) AS season_count "
+            "FROM global_teams gt LEFT JOIN global_players g ON g.id = gt.manager_player_id "
+            "ORDER BY gt.name").fetchall()
+        teams = []
+        for r in rows:
+            team = dict(r)
+            acct = conn.execute(
+                "SELECT liquid_cash FROM bank_accounts WHERE owner_type = 'player' "
+                "AND owner_id = ?", (team["manager_player_id"],)).fetchone() if team["manager_player_id"] else None
+            team["wallet"] = int(acct["liquid_cash"]) if acct else 0
+            team["assets"] = branding.team_assets(team)
+            teams.append(team)
+        seasons = conn.execute("SELECT id, name FROM seasons ORDER BY created_at DESC").fetchall()
+        season_names = {s["id"]: s["name"] for s in seasons}
+        season_rows = conn.execute("SELECT global_team_id, season_id FROM teams").fetchall()
+    team_seasons = {}
+    for r in season_rows:
+        gid = (r["global_team_id"] or "").strip()
+        if gid:
+            team_seasons.setdefault(gid, []).append(season_names.get(r["season_id"], r["season_id"]))
+    manager_ids = {t["manager_player_id"] for t in teams if t["manager_player_id"]}
+    available_managers = [gp for gp in global_players if gp["id"] not in manager_ids]
+    return {"teams": teams, "team_seasons": team_seasons,
+            "available_managers": available_managers,
+            "active_admin_tab": "teams"}
+
+
+@admin_bp.get("/teams")
+@login_required(role=R.ROLE_ADMIN)
+def teams_page():
+    return render_template("admin/teams.html", **_teams_context())
+
+
+@admin_bp.post("/teams/create")
+@login_required(role=R.ROLE_ADMIN)
+def teams_create():
+    auction = current_app.extensions["auction_service"]
+    try:
+        team = auction.create_team_account(
+            (request.form.get("manager_player_id") or "").strip(),
+            request.form.get("name", ""),
+        )
+        flash(f"Team '{team['name']}' created.", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("admin.teams_page"))
+
+
+@admin_bp.post("/teams/<team_id>/update")
+@login_required(role=R.ROLE_ADMIN)
+def teams_update(team_id):
+    auction = current_app.extensions["auction_service"]
+    try:
+        team = auction.update_team_profile(
+            team_id,
+            name=request.form.get("name"),
+            about=request.form.get("about"),
+        )
+        flash(f"Team '{team['name']}' updated.", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("admin.teams_page"))
+
+
+@admin_bp.post("/teams/<team_id>/branding")
+@login_required(role=R.ROLE_ADMIN)
+def teams_branding(team_id):
+    auction = current_app.extensions["auction_service"]
+    branding = current_app.extensions["branding_service"]
+    try:
+        updates = {}
+        for kind in ("logo", "banner"):
+            file = request.files.get(kind)
+            if file and file.filename:
+                updates[kind] = branding.save_team_asset(team_id, kind, file)
+        if not updates:
+            raise ValueError("Choose a logo or banner image to upload.")
+        team = auction.update_team_profile(team_id, **updates)
+        flash(f"Branding updated for {team['name']}.", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("admin.teams_page"))
+
+
+@admin_bp.post("/teams/<team_id>/branding/remove")
+@login_required(role=R.ROLE_ADMIN)
+def teams_branding_remove(team_id):
+    auction = current_app.extensions["auction_service"]
+    branding = current_app.extensions["branding_service"]
+    kind = (request.form.get("kind") or "").strip()
+    try:
+        branding.remove_team_asset(team_id, kind)
+        auction.update_team_profile(team_id, **{kind: ""})
+        flash("Asset removed — SCL branding is used by default.", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("admin.teams_page"))
+
+
+@admin_bp.post("/teams/<team_id>/delete")
+@login_required(role=R.ROLE_ADMIN)
+def teams_delete(team_id):
+    """Remove the team profile. The manager's wallet is never touched."""
+    with current_app.extensions["db"].write() as conn:
+        row = conn.execute("SELECT name FROM global_teams WHERE id = ?", (team_id,)).fetchone()
+        if not row:
+            flash("Team not found.", "error")
+            return redirect(url_for("admin.teams_page"))
+        deleted_ids = [r["id"] for r in conn.execute(
+            "SELECT id FROM teams WHERE global_team_id = ?", (team_id,)).fetchall()]
+        conn.execute("DELETE FROM global_teams WHERE id = ?", (team_id,))
+        conn.execute("DELETE FROM teams WHERE global_team_id = ?", (team_id,))
+        if deleted_ids:
+            placeholders = ",".join("?" for _ in deleted_ids)
+            conn.execute(f"UPDATE users SET team_id = NULL, role = 'player' "
+                         f"WHERE team_id IN ({placeholders})", deleted_ids)
+    flash(f"Team '{row['name']}' removed (wallet untouched).", "success")
+    return redirect(url_for("admin.teams_page"))
+
+
 @admin_bp.post("/bank/adjust")
 @login_required(role=R.ROLE_ADMIN)
 def bank_adjust():
@@ -501,6 +635,9 @@ def _overview_context(season_id=None):
     context["season_id"] = season_id
 
     state = auction.get_state(season_id)
+    branding = current_app.extensions["branding_service"]
+    for team in state["teams"]:
+        team["logo_url"] = branding.team_logo(team)
     context["state"] = state
     context["phase"] = state["phase"]
     context["teams_count"] = len(state["teams"])

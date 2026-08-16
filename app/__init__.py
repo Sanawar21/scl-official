@@ -6,6 +6,7 @@ from .db import Database
 from .services.auction_service import AuctionService
 from .services.auth_service import AuthService
 from .services.bank_service import BankService
+from .services.branding_service import BrandingService
 from .services.changelog_service import ChangelogService
 from .services.finance_service import FinanceService
 from .services.scorer_service import ScorerService
@@ -38,6 +39,7 @@ def create_app(config_object=None):
     scorecard_service = ScorecardService()
     scenario_service = ScenarioService(db, scorer_service)
     changelog_service = ChangelogService(db)
+    branding_service = BrandingService()
 
     auth_service.seed_admin_if_missing(app.config.get("ADMIN_USERNAME"),
                                        app.config.get("ADMIN_PASSWORD"))
@@ -52,6 +54,7 @@ def create_app(config_object=None):
     app.extensions["scorecard_service"] = scorecard_service
     app.extensions["scenario_service"] = scenario_service
     app.extensions["changelog_service"] = changelog_service
+    app.extensions["branding_service"] = branding_service
 
     from .routes.admin import admin_bp
     from .routes.auth import auth_bp

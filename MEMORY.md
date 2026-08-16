@@ -476,6 +476,39 @@ Key mechanics:
   credits are per-tier (a platinum manager team starts with 5 credits — 3 spent on a
   platinum buy leaves 2, so later platinum bids fail).
 
+## SCL branding + team branding assets — DONE (2026-08-16, +11 unit +9 e2e → 226 tests)
+
+- **BrandingService** (`app/services/branding_service.py`): SCL asset registry
+  (`data/brandings/scl/*`), `team_logo/team_banner` resolution with **SCL
+  fallback** when a team has no asset, and upload/remove helpers that store
+  files under `data/brandings/teams/<team_id>/`. Stored value is a relative key
+  (`teams/<id>/logo.png`) or an external URL; `_resolve_value` turns both into
+  servable `/branding/...` URLs.
+- **Serving**: `GET /branding/<path>` (viewer blueprint) serves read-only from
+  `data/brandings/`, path-traversal safe (404 on `..`/absolute).
+- **Schema**: `global_teams.banner` added (migration in `db.py`);
+  `update_team_profile` now takes `banner` and only overwrites fields passed
+  (None keeps stored value — a name/about edit never wipes uploaded assets).
+- **Upload flows**: manager `/account/team/branding` + `/account/team/branding/remove`
+  (own team only, 403 otherwise); admin `/admin/teams/<gid>/branding` +
+  `.../remove`. Allowed JPG/PNG/WEBP/GIF ≤5MB.
+- **Admin Teams panel** (`/admin/teams`, tab **Teams**): list every persistent
+  team w/ manager, wallet, seasons + brand assets; create team (name + manager
+  player), edit name/about, upload/remove logo+banner, delete team (removes
+  profile + season rows + unassigns users; **wallet untouched**).
+- **Palette**: CSS `:root` now the SCL brand — navy `#0B1E38` primary,
+  `#131822` dark, volt `#A3FF00` accent, `#F7F7F2` bg, slate `#8C939E` muted.
+  Navbar is navy with the SCL logo mark; home hero + docs/changelog use a
+  `.brand-band`; `.btn-volt`, `.brand-band`, `.team-logo(-sm)`, `.team-banner`
+  classes added. PDF accents (doc_service + scorecard_service) → navy + volt
+  underline; `scripts/generate_docs.py` re-run.
+- **Surfaces with logos**: navbar, auth cards, teams index/detail, league table,
+  public finances board, live budget board (JS `public_budget_board.logo_url`),
+  manager dashboard, admin auction team boxes, admin overview, admin teams panel.
+- **E2E gotcha**: Playwright `set_input_files` needs a dict `{name, mimeType,
+  buffer}`, NOT a BytesIO.
+- Backlog: nothing branding-related outstanding.
+
 ## S2 economy — COMPLETE (2026-08-16, 5 increments, 183 tests)
 
 All five increments shipped: persistent teams, no purse + 10k funding, universal

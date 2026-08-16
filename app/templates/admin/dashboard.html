@@ -139,6 +139,7 @@
     {% for team in state.teams %}
       <div class="team-box {% if team.control_status == 'admin_takeover' %}team-takeover{% endif %}">
         <div class="team-head">
+          {% if team.logo_url %}<img class="team-logo-sm" src="{{ team.logo_url }}" alt="">{% endif %}
           <strong>{{ team.name }}</strong>
           <span class="muted">Mgr: {{ team.manager_name }} ({{ team.manager_tier }})</span>
           {% if team.control_status == 'admin_takeover' %}

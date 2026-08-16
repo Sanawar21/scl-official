@@ -94,6 +94,21 @@
       <div class="stat-tile"><div class="stat-label">Linked</div><div class="stat-value">{{ linked_count }}</div></div>
     </div>
   </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Team branding</h2>
+      <a class="btn btn-small btn-secondary" href="{{ url_for('admin.teams_page') }}">Teams panel</a>
+    </div>
+    <p class="small muted" style="margin:0 0 8px">Logos, banners, managers and team profiles —
+      all controllable from the admin Teams panel. Missing assets fall back to the SCL brand.</p>
+    {% if state and state.teams %}
+      <div class="row" style="flex-wrap:wrap">
+        {% for team in state.teams %}
+          <span class="chip">{% if team.logo_url %}<img class="team-logo-sm" src="{{ team.logo_url }}" alt="">{% endif %}{{ team.name }}</span>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </section>
 </div>
 
 <section class="card">

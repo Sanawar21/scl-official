@@ -204,12 +204,32 @@ def seed_demo(db_path: str) -> None:
     app.extensions["finance_service"].on_match_finalized(sid, "M1", actor="demo")
 
     # ------------------------------------------------------------------
-    # 6. Publish a snapshot (public /season/<slug> page)
+    # 6. Team branding — Lions + Tigers get real uploaded assets (the SCL
+    #    mark copied into their team folders), Eagles/Falcons fall back to
+    #    the SCL brand automatically.
+    # ------------------------------------------------------------------
+    from shutil import copyfile
+    from app.services.branding_service import TEAMS_DIR, SCL_DIR
+    for idx, team in enumerate((teams[0], teams[1])):
+        team_dir = TEAMS_DIR / team["global_team_id"]
+        team_dir.mkdir(parents=True, exist_ok=True)
+        copyfile(SCL_DIR / "logo-only-light-bg-square.JPG", team_dir / "logo.jpg")
+        copyfile(SCL_DIR / "wide-banner.JPG", team_dir / "banner.jpg")
+        auction.update_team_profile(
+            team["global_team_id"],
+            logo=f"teams/{team['global_team_id']}/logo.jpg",
+            banner=f"teams/{team['global_team_id']}/banner.jpg",
+            about=(f"{team['name']} — demo squad managed by "
+                   f"{users['ayaan' if idx == 0 else 'bilal']['display_name']}."),
+        )
+
+    # ------------------------------------------------------------------
+    # 7. Publish a snapshot (public /season/<slug> page)
     # ------------------------------------------------------------------
     auction.publish(sid, "Demo Season", actor="demo")
 
     # ------------------------------------------------------------------
-    # 7. Change log entries (public /changelog audit trail)
+    # 8. Change log entries (public /changelog audit trail)
     # ------------------------------------------------------------------
     changelog = app.extensions["changelog_service"]
     for title, body, date in [
@@ -224,6 +244,9 @@ def seed_demo(db_path: str) -> None:
          "2026-08-16"),
         ("Admin can remove single bets",
          "Admins can now remove an individual open bet from a wager (**Remove bet** on the wager admin page); the stake is refunded to the bettor and pools recompute.",
+         "2026-08-16"),
+        ("SCL branding + team logos",
+         "The platform now runs on the **SCL brand** (navy + volt palette, logo mark in the navbar, branded docs/PDFs). Teams can **upload their own logo + banner** from /account or the new **admin Teams panel** (`/admin/teams`); missing assets fall back to the SCL brand automatically.",
          "2026-08-16"),
     ]:
         changelog.add_entry(title, body, date, "admin")

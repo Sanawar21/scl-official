@@ -3,8 +3,21 @@ from flask import Blueprint, abort, current_app, jsonify, render_template, reque
 from ..db import json_loads
 from ..services.doc_service import DOCS, DOCS_ROOT, md_to_html, read_doc
 from ..services import doc_service
+from ..services.branding_service import BrandingService
 
 viewer_bp = Blueprint("viewer", __name__)
+
+
+@viewer_bp.get("/branding/<path:relpath>")
+def branding_asset(relpath):
+    """Serve SCL + team brand assets from data/brandings/ (read-only)."""
+    try:
+        response = current_app.extensions["branding_service"].serve(relpath)
+    except ValueError:
+        abort(404)
+    if response is None:
+        abort(404)
+    return response
 
 
 @viewer_bp.get("/changelog")

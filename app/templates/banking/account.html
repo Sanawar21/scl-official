@@ -21,16 +21,51 @@
       <p class="muted small">Your wallet is the team's money — rewards, grants and transfers all move through it.
         {% if my_team.seasons %}Playing seasons: {% for s in my_team.seasons %}<b>{{ s.season_id }}</b>{% if not loop.last %}, {% endif %}{% endfor %}.{% else %}
         This team isn't registered for a season yet — the admin adds it when it's time to play.{% endif %}</p>
-      <form id="team-update-form" class="row" style="gap:10px;align-items:flex-start">
-        <input type="hidden" name="team_id" value="{{ my_team.id }}">
-        <div class="col" style="gap:8px">
-          <input type="text" name="name" value="{{ my_team.name }}" required style="width:220px">
-          <input type="text" name="logo" value="{{ my_team.logo or '' }}" placeholder="logo URL (optional)" style="width:220px">
-          <textarea name="about" rows="3" placeholder="About the team…" style="width:220px">{{ my_team.about or '' }}</textarea>
+      <div class="row" style="gap:14px;align-items:flex-start;margin-bottom:12px">
+        <div style="flex:none">
+          <img src="{{ team_logo_url }}" alt="{{ my_team.name }} logo" class="team-logo"
+               style="max-height:64px;max-width:120px;border-radius:8px">
+          {% if my_team.banner %}
+            <img src="{{ team_banner_url }}" alt="{{ my_team.name }} banner" class="team-banner"
+                 style="display:block;max-height:54px;max-width:240px;object-fit:cover;border-radius:6px;margin-top:6px">
+          {% endif %}
         </div>
-        <button class="btn btn-primary" type="submit">Save team</button>
-        <span id="team-msg" class="error-text"></span>
-      </form>
+        <form id="team-update-form" class="row" style="gap:10px;align-items:flex-start">
+          <input type="hidden" name="team_id" value="{{ my_team.id }}">
+          <div class="col" style="gap:8px">
+            <input type="text" name="name" value="{{ my_team.name }}" required style="width:220px">
+            <input type="text" name="logo" value="{{ my_team.logo or '' }}" placeholder="logo URL (optional)" style="width:220px">
+            <input type="text" name="banner" value="{{ my_team.banner or '' }}" placeholder="banner URL (optional)" style="width:220px">
+            <textarea name="about" rows="3" placeholder="About the team…" style="width:220px">{{ my_team.about or '' }}</textarea>
+          </div>
+          <button class="btn btn-primary" type="submit">Save team</button>
+          <span id="team-msg" class="error-text"></span>
+        </form>
+      </div>
+      <div class="team-box" style="background:var(--surface)">
+        <h3>Upload branding</h3>
+        <p class="muted small" style="margin:0 0 8px">Upload your logo and wide banner (JPG/PNG).
+          If you don't upload one, the SCL brand is used by default.</p>
+        <form id="team-branding-form" class="row" enctype="multipart/form-data">
+          <input type="hidden" name="team_id" value="{{ my_team.id }}">
+          <label class="field"><span class="small">Logo</span>
+            <input type="file" name="logo" accept="image/*"></label>
+          <label class="field"><span class="small">Banner</span>
+            <input type="file" name="banner" accept="image/*"></label>
+          <button class="btn btn-small btn-primary" type="submit">Upload</button>
+          <span id="branding-msg" class="error-text"></span>
+        </form>
+        <div class="row" style="margin-top:8px">
+          <form id="team-branding-remove" class="row" style="margin:0">
+            <input type="hidden" name="team_id" value="{{ my_team.id }}">
+            <select name="kind" style="width:auto">
+              <option value="logo">logo</option>
+              <option value="banner">banner</option>
+            </select>
+            <button class="btn btn-small btn-ghost" type="submit">Remove asset</button>
+          </form>
+        </div>
+      </div>
     </section>
   {% else %}
     <section class="card">
@@ -200,6 +235,28 @@
       const data = await res.json();
       if (data.ok) { location.reload(); }
       else { document.getElementById('team-msg').textContent = data.error || 'Error'; }
+    });
+    const teamBranding = document.getElementById('team-branding-form');
+    if (teamBranding) teamBranding.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const res = await fetch("{{ url_for('banking.team_branding') }}", {
+        method: 'POST',
+        body: new FormData(teamBranding),
+      });
+      const data = await res.json();
+      if (data.ok) { location.reload(); }
+      else { document.getElementById('branding-msg').textContent = data.error || 'Error'; }
+    });
+    const teamBrandingRemove = document.getElementById('team-branding-remove');
+    if (teamBrandingRemove) teamBrandingRemove.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const res = await fetch("{{ url_for('banking.team_branding_remove') }}", {
+        method: 'POST',
+        body: new FormData(teamBrandingRemove),
+      });
+      const data = await res.json();
+      if (data.ok) { location.reload(); }
+      else { document.getElementById('branding-msg').textContent = data.error || 'Error'; }
     });
     const lockForm = document.getElementById('vault-lock-form');
     if (lockForm) lockForm.addEventListener('submit', async (e) => {

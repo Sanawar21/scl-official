@@ -31,7 +31,10 @@
         <div class="grid">
           {% for b in group %}
             <div class="stat-tile">
-              <div class="stat-label">{{ b.name }}</div>
+              <div class="stat-label">
+                {% if b.kind == 'team' %}<img class="team-logo-sm" src="{{ b.logo_url }}" alt="">{% endif %}
+                {{ b.name }}
+              </div>
               <div class="stat-value">{{ b.wallet }}</div>
               <div class="small muted">{% if b.locked %}locked {{ b.locked }}{% else %}no vault{% endif %}
                 {% if b.credits_remaining is not none %} · {{ b.credits_remaining }} credits ·

@@ -48,10 +48,13 @@ def account():
         with db.read() as conn:
             ruleset = current_app.extensions["auction_service"]._get_ruleset(conn, seasons[0]["id"])
             match_reward_amount = ruleset.match_reward_amount
+    branding = current_app.extensions["branding_service"]
     return render_template("banking/account.html", account=account,
                            vault_positions=vault_positions, seasons=seasons, txns=txns,
                            finalized_counts=finalized_counts, my_team=my_team,
-                           match_reward_amount=match_reward_amount)
+                           match_reward_amount=match_reward_amount,
+                           team_logo_url=branding.team_logo(my_team) if my_team else "",
+                           team_banner_url=branding.team_banner(my_team) if my_team else "")
 
 
 @banking_bp.post("/team/create")
@@ -85,8 +88,58 @@ def team_update():
             team_id,
             name=request.form.get("name"),
             logo=request.form.get("logo"),
+            banner=request.form.get("banner"),
             about=request.form.get("about"),
         )
+        return jsonify({"ok": True, "team": team})
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@banking_bp.post("/team/branding")
+@login_required()
+def team_branding():
+    """Upload a logo/banner file for your own team (multipart)."""
+    auction_service = current_app.extensions["auction_service"]
+    branding = current_app.extensions["branding_service"]
+    user = session.get("user") or {}
+    if not user.get("global_player_id"):
+        return jsonify({"ok": False, "error": "Account not linked to a player"}), 400
+    team_id = (request.form.get("team_id") or "").strip()
+    team = auction_service.get_global_team(team_id)
+    if not team or team.get("manager_player_id") != user["global_player_id"]:
+        return jsonify({"ok": False, "error": "You don't manage this team"}), 403
+    try:
+        updates = {}
+        for kind in ("logo", "banner"):
+            file = request.files.get(kind)
+            if file and file.filename:
+                updates[kind] = branding.save_team_asset(team_id, kind, file)
+        if not updates:
+            return jsonify({"ok": False, "error": "Choose a logo or banner image to upload."}), 400
+        team = auction_service.update_team_profile(team_id, **updates)
+        return jsonify({"ok": True, "team": team})
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@banking_bp.post("/team/branding/remove")
+@login_required()
+def team_branding_remove():
+    """Remove a logo/banner asset (falls back to SCL branding)."""
+    auction_service = current_app.extensions["auction_service"]
+    branding = current_app.extensions["branding_service"]
+    user = session.get("user") or {}
+    if not user.get("global_player_id"):
+        return jsonify({"ok": False, "error": "Account not linked to a player"}), 400
+    team_id = (request.form.get("team_id") or "").strip()
+    kind = (request.form.get("kind") or "").strip()
+    team = auction_service.get_global_team(team_id)
+    if not team or team.get("manager_player_id") != user["global_player_id"]:
+        return jsonify({"ok": False, "error": "You don't manage this team"}), 403
+    try:
+        branding.remove_team_asset(team_id, kind)
+        team = auction_service.update_team_profile(team_id, **{kind: ""})
         return jsonify({"ok": True, "team": team})
     except ValueError as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400

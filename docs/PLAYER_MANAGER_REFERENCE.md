@@ -51,6 +51,11 @@ real `data/scl.db` is never touched). Demo logins: `ayaan`/`bilal` (managers),
   team exists even if it's not playing this season. Its money is your wallet.
 - **My team**: edit the team's name, logo, and about section; see which seasons
   it played. The admin registers it for a season when it's time to play.
+- **Upload branding** (`/account` card): upload your **logo** and **wide banner**
+  (JPG/PNG/WEBP/GIF, ≤5 MB). They appear across the platform — team page, league
+  table, budget board, live board, your manager dashboard. If you haven't
+  uploaded an asset, the **SCL brand is used by default** (you can remove your
+  logo/banner any time to fall back to it).
 
 ### 2.4 Vault
 - **Lock** (`/account/vault/lock`): move liquid cash → locked capital for a

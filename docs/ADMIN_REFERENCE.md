@@ -63,6 +63,14 @@ add players → create teams → run phases → complete draft (auto squad levy)
   never touched**.
 - **Gift / take** (`…/team/<tid>/gift`): amount + `Gift +`/`Take −` + comment —
   this is the **grants/fines/bonuses tool** (e.g. "credit saved" adjustments).
+- **Teams panel** (`/admin/teams`, tab **Teams**): the full control room for
+  **persistent team identities** — create a team (name + manager player), edit
+  the name/about, **upload or remove logo + banner** (JPG/PNG/WEBP/GIF, ≤5 MB),
+  and delete a team. Deleting removes the profile + season registrations but
+  **never touches the manager's wallet**. Teams missing an asset automatically
+  fall back to the **SCL brand** (logo mark / wide banner) across the platform.
+- Managers can also upload their own logo/banner from `/account` ("Upload
+  branding" card) — admin uploads override/replace them.
 - **Takeover / restore** (`…/team/<tid>/takeover` + `restore`): admin takes control
   of a fumbling manager's team (blocks their bids) and gives it back.
 

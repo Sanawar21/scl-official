@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Admin · Teams{% endblock %}
+{% block content %}
+{% from "admin/_tabs.html" import tabs %}
+<div class="page-head">
+  <h1>Admin · Teams</h1>
+  <p class="page-sub">Persistent team identities, branding and managers. A team's money is always
+    the manager's wallet — deleting a team never touches it.</p>
+</div>
+{{ tabs('teams') }}
+
+<section class="card">
+  <h2>Create a team</h2>
+  <form method="post" action="{{ url_for('admin.teams_create') }}" class="row">
+    <input type="text" name="name" placeholder="Team name" required style="width:200px">
+    <select name="manager_player_id" required style="width:auto">
+      <option value="">— manager player —</option>
+      {% for gp in available_managers %}
+        <option value="{{ gp.id }}">{{ gp.name }} ({{ gp.tier }})</option>
+      {% endfor %}
+    </select>
+    <button class="btn btn-primary btn-small" type="submit">Create team</button>
+  </form>
+  {% if not available_managers %}
+    <p class="muted small">All players already manage a team. The admin can still create teams during
+      the auction (per season) on the <a href="{{ url_for('admin.auction') }}">Auction</a> tab.</p>
+  {% endif %}
+</section>
+
+{% for t in teams %}
+<section class="card">
+  <div class="team-head" style="margin-bottom:10px">
+    {% if t.assets.logo %}<img src="{{ t.assets.logo }}" alt="{{ t.name }} logo"
+      class="team-logo" style="max-height:52px;max-width:96px">{% endif %}
+    <div>
+      <b style="font-size:17px">{{ t.name }}</b>
+      {% if t.manager_name %}<span class="tag tag-active">Mgr: {{ t.manager_name }} ({{ t.manager_tier }})</span>{% else %}
+        <span class="tag tag-warn">No manager</span>{% endif %}
+      <span class="chip">Wallet {{ t.wallet }}</span>
+      {% if team_seasons.get(t.id) %}
+        <span class="chip chip-info">Seasons: {{ team_seasons[t.id] | join(', ') }}</span>
+      {% else %}
+        <span class="chip chip-bench">No season registrations</span>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if t.banner %}<img src="{{ t.assets.banner }}" alt="{{ t.name }} banner" class="team-banner"
+    style="max-height:110px;width:100%;object-fit:cover;border-radius:8px;margin-bottom:10px">{% endif %}
+
+  <div class="grid">
+    <div>
+      <h3>Profile</h3>
+      <form method="post" action="{{ url_for('admin.teams_update', team_id=t.id) }}">
+        <label>Name <input type="text" name="name" value="{{ t.name }}" required></label>
+        <label>About <textarea name="about" rows="2">{{ t.about or '' }}</textarea></label>
+        <button class="btn btn-small" type="submit">Save profile</button>
+      </form>
+    </div>
+    <div>
+      <h3>Branding assets</h3>
+      <form method="post" action="{{ url_for('admin.teams_branding', team_id=t.id) }}"
+            enctype="multipart/form-data" class="row">
+        <label class="field"><span class="small">Logo (JPG/PNG)</span>
+          <input type="file" name="logo" accept="image/*"></label>
+        <label class="field"><span class="small">Banner (wide)</span>
+          <input type="file" name="banner" accept="image/*"></label>
+        <button class="btn btn-small btn-primary" type="submit">Upload</button>
+      </form>
+      <div class="row">
+        <form method="post" action="{{ url_for('admin.teams_branding_remove', team_id=t.id) }}">
+          <input type="hidden" name="kind" value="logo">
+          <button class="btn btn-small btn-ghost" type="submit">Remove logo</button>
+        </form>
+        <form method="post" action="{{ url_for('admin.teams_branding_remove', team_id=t.id) }}">
+          <input type="hidden" name="kind" value="banner">
+          <button class="btn btn-small btn-ghost" type="submit">Remove banner</button>
+        </form>
+      </div>
+      <p class="muted small">Missing assets fall back to the SCL brand automatically.</p>
+    </div>
+  </div>
+
+  <form method="post" action="{{ url_for('admin.teams_delete', team_id=t.id) }}"
+        onsubmit="return confirm('Delete {{ t.name }}? Its wallet (the manager\'s account) is untouched.')"
+        style="margin-top:10px">
+    <button class="btn btn-small btn-danger" type="submit">Delete team</button>
+  </form>
+</section>
+{% else %}
+<div class="empty"><div class="empty-title">No teams yet</div>
+  <p class="small">Create your first team above, or on the Auction tab during setup.</p></div>
+{% endfor %}
+{% endblock %}

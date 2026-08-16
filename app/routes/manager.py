@@ -33,11 +33,15 @@ def dashboard():
         return render_template("manager/dashboard.html", state=None, my_team=None,
                                trade_requests=None, error="No team assigned yet")
     auction_service = current_app.extensions["auction_service"]
+    branding = current_app.extensions["branding_service"]
     team = auction_service._get_team(season_id, session["user"]["team_id"])
     state = auction_service.get_state(season_id)
     # Use the enriched team from state (has player_labels/bench_labels/wallet);
     # _get_team alone lacks the label lists the template renders.
     my_team = next((t for t in state["teams"] if t["id"] == team["id"]), team) if team else None
+    if my_team:
+        my_team["logo_url"] = branding.team_logo(my_team)
+        my_team["banner_url"] = branding.team_banner(my_team)
     trade_requests = auction_service.get_trade_requests_for_team(season_id, team["id"])
     return render_template("manager/dashboard.html", state=state, my_team=my_team,
                            trade_requests=trade_requests, error=None)

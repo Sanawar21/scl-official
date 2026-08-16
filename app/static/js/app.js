@@ -55,10 +55,13 @@
       return t.control_status === "admin_takeover"
         ? ' <span class="chip chip-danger">admin</span>' : "";
     };
+    const logo = function (t) {
+      return t.logo_url ? '<img class="team-logo-sm" src="' + esc(t.logo_url) + '" alt="">' : "";
+    };
     if (cards) {
       cards.innerHTML = state.public_budget_board.map(function (t) {
         return '<div class="stat-tile">' +
-          '<div class="stat-label">' + esc(t.team_name) + takeover(t) + "</div>" +
+          '<div class="stat-label">' + logo(t) + esc(t.team_name) + takeover(t) + "</div>" +
           '<div class="stat-value">' + esc(t.purse_remaining) + "</div>" +
           '<div class="small muted">' + esc(t.credits_remaining) + " credits · " +
           esc(t.active_count) + " XI / " + esc(t.bench_count) + " bench</div>" +
@@ -68,7 +71,7 @@
     if (tbody) {
       tbody.innerHTML = state.public_budget_board.map(function (t) {
         return "<tr>" +
-          "<td>" + esc(t.team_name) + takeover(t) + "</td>" +
+          "<td>" + logo(t) + esc(t.team_name) + takeover(t) + "</td>" +
           "<td>" + esc(t.purse_remaining) + "</td>" +
           "<td>" + esc(t.credits_remaining) + "</td>" +
           "<td>" + esc(t.active_count) + "</td>" +
