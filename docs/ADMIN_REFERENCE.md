@@ -203,6 +203,12 @@ it adjusts as stakes land on either side.
   with house funds (lowers the automatic guarantee); the guarantee itself is
   automatic either way.
 - **Void** (`/wagers/admin/<id>/void`): cancel a market entirely (stakes returned).
+- **Remove a single bet** (`/wagers/admin/<id>/bets/<bet_id>/remove`): each live market
+  shows a **Bets table** with every stake (user, side, amount, status); an
+  **Remove bet** button on any **open** bet (pre-resolution only) refunds that
+  one bettor's stake 100% and marks the bet `refunded` — the bet stays in the
+  list as an audit trail, pools + house coverage recompute instantly, and the
+  rest of the market is untouched.
 
 ---
 

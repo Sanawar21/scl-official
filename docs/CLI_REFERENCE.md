@@ -30,7 +30,7 @@ python -m venv .venv
 ./.venv/Scripts/python -m playwright install chromium
 ```
 
-Verify setup: `$VENV -m pytest tests/ -q` — expect **164 passing** (99 unit + 65 e2e).
+Verify setup: `$VENV -m pytest tests/ -q` — expect **226 passing** (137 unit + 89 e2e).
 
 ---
 
@@ -61,22 +61,25 @@ SCL_DB_PATH=data/demo.db $VENV run.py
 | Role     | Username          | Linked to            |
 |----------|-------------------|----------------------|
 | Admin    | `admin`           | —                    |
-| Manager  | `ayaan`           | Lions                |
-| Manager  | `bilal`           | Tigers               |
-| Player   | `cyrus`           | (unlinked player)    |
-| Player   | `dania`           | (unlinked player)    |
-| Player   | `farah`            | (on the live lot)    |
-| Player   | `gul`             | (unlinked player)    |
+| Manager  | `ayaan`           | Lions (Ayaan)        |
+| Manager  | `bilal`           | Tigers (Bilal)       |
+| Player   | `cyrus`           | Cyrus (gold)         |
+| Player   | `dania`           | Dania (gold)         |
+| Player   | `farah`           | Farah (silver — the live lot) |
+| Player   | `gul`             | Gul (silver)         |
 
 ### What's in the demo
-- Season + 4 teams + 17 players
-- Partial auction mid-draft: **live silver lot with a real bid** — try the admin
-  auction control (close lot, nominate next, set phase), then log in as a
-  manager and bid/pass
+- Season + 4 teams + 12 players
+- Partial auction mid-draft: **live silver lot with a real bid** (Farah) — try
+  the admin auction control (close lot, nominate next, set phase), then log in
+  as a manager and bid/pass
 - Wagers in flight, bank accounts + vaults funded, published season snapshot
+- **Branding**: Lions + Tigers have uploaded logos/banners (see `/admin/teams`);
+  Eagles/Falcons fall back to the SCL brand
 
 ### Try these URLs
-- **Admin:** `/admin` (auction control, scorer, finances, wager admin, link accounts)
+- **Admin:** `/admin` (overview, auction control, scorer, finances, wager admin,
+  link accounts, changelog) and `/admin/teams` (team branding control panel)
 - **Manager:** `/manager` (bid/pass on the live lot, propose trades)
 - **Player:** `/account` (vault lock/reinvest, auto mode), `/wagers` (propose a market, stake)
 - **Public:** `/`, `/live`, `/matches`, `/table`, `/leaderboards`, `/teams`, `/players`, `/finances`, `/wagers`
@@ -105,7 +108,7 @@ temp DB — **you don't need to start the server first**, and `data/scl.db` is
 never touched.
 
 ```bash
-# Full suite (unit + e2e): 164 tests
+# Full suite (unit + e2e): 226 tests
 $VENV -m pytest tests/ -q
 
 # Unit tests only

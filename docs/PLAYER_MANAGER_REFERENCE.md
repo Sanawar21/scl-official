@@ -177,7 +177,7 @@ The dashboard renders the current lot + a **bid action bar** (JS-driven, live vi
 
 **Get set up**
 1. Sign up → ask an admin to link you → log in.
-2. (Manager) admin creates your team → your wallet gets the purse.
+2. (Manager) admin creates your team → the universal 10k funding is your wallet (or ask the admin to grant extra before the auction).
 
 **Play the auction (manager)**
 1. `/manager` — watch the lot.
@@ -185,7 +185,7 @@ The dashboard renders the current lot + a **bid action bar** (JS-driven, live vi
 3. Build your XI; during the break, propose trades.
 
 **Make money**
-1. `/account` → deposit; lock some in the vault to earn 7%/match yield.
+1. `/account` → the admin adds balance (grants/credit saved); lock some in the vault to earn 7%/match yield.
 2. `/wagers` → stake on vetted markets (use the "you'd win" preview).
 3. (Manager) match rewards are auto-paid to your wallet each finalized match.
 

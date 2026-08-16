@@ -7,8 +7,8 @@ never touched) seeded with one season, 4 teams, users (admin / player / manager)
 a finalized match (imported through the real CSV path), a published snapshot, and
 a vetted wager.
 
-- Suite: `tests/e2e/` — **65 browser tests** across 7 files.
-- Full run (unit + e2e): `./.venv/Scripts/python.exe -m pytest tests/ -q` → **164**
+- Suite: `tests/e2e/` — **89 browser tests** across 8 files.
+- Full run (unit + e2e): `./.venv/Scripts/python.exe -m pytest tests/ -q` → **226**
 - E2E only: `./.venv/Scripts/python.exe -m pytest tests/e2e/ -q`
 
 The seed data is deterministic, so the tests assert real numbers (scores, NRR,
@@ -27,9 +27,9 @@ UI and kept green through the redesign:
 - **Login redirects per role**: admin → overview, manager → team, player → account
 - Signup creates an **unlinked** account
 - Logout
-- **Deposit flow** (adds to liquid cash)
+- **Deposit is admin-only** (no player deposit form — `test_deposit_is_admin_only` asserts the absence)
 - **Vault lock flow** (moves liquid → locked; "Locked until M12")
-- **Admin bank adjust** (labeled form works end-to-end)
+- **Admin bank adjust** (labeled form works end-to-end; positive grants route to the vault for auto accounts)
 - Wagers board shows the seeded market; wager detail renders pools
 
 ## 2. Shell, auth, home — `test_shell_auth_home.py` (13 tests)
@@ -44,7 +44,7 @@ The design-system shell:
   admin); empty-seasons state
 - Auth: login page role explainer; signup page 3-step linking explainer
 
-## 3. Public surfaces — `test_public_surfaces.py` (15 tests)
+## 3. Public surfaces — `test_public_surfaces.py` (19 tests)
 
 - **Live auction board**: phase stepper (incl. "Trade break"), budget board cards
   + card/table toggle, empty lot state
@@ -58,8 +58,34 @@ The design-system shell:
 - **Finances**: budget board cards + credits
 - **Published season**: "Season complete" hero, final squads, **live player
   filter** by name
+- **Docs + changelog**: `/docs` lists all four documents, doc detail renders
+  markdown + PDF download, `/changelog` shows seeded entries
 
-## 4. Player & manager surfaces — `test_player_manager_surfaces.py` (11 tests)
+## 3b. Auction lifecycle — `test_auction_lifecycle.py` (8 tests)
+
+Each test runs the **full draft** on its own isolated server (fresh app + temp
+DB) so auction mutations never leak into shared state:
+
+- Setup state: manager sees "No player nominated", admin sees the phase selector
+- **Full draft** across platinum/gold/silver with real bids + close
+- **Wallets + clean completion** (bid deductions on `/account`, no penalty)
+- **Custom bid + pass** (live-feed pass marker)
+- **Admin undo** (sale rolled back, wallet restored)
+- **Penalized completion** (incomplete team's wallet forfeited)
+- **Insufficient wallet** (bid buttons disabled, bank-adjust via admin form)
+- **Live board** shows the nominated lot + current bid
+
+## 3c. Branding — `test_branding.py` (9 tests)
+
+- **SCL brand on public surfaces**: navbar logo mark, home brand-band hero,
+  `/branding/...` assets served with image content type
+- **Team logo fallback**: teams index/detail, league table, and live budget
+  board all render the SCL mark when a team has no uploaded asset
+- **Admin teams panel** (`/admin/teams`): lists teams with fallback logos,
+  **upload + remove** a team logo end-to-end (uploaded logo serves from
+  `/branding/teams/`, remove restores the SCL fallback)
+
+## 4. Player & manager surfaces — `test_player_manager_surfaces.py` (14 tests)
 
 - **Account**: balance hero (liquid/locked), manager-only callout, unlinked
   banner, vault position card + reinvest toggle, transaction filter

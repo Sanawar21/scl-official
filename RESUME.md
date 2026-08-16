@@ -101,7 +101,7 @@ purses): `tests/conftest._setup` + e2e seed + `seed_demo.py` all fund 10k.
 ./.venv/Scripts/python.exe run.py          # start server (debug, port 10001)
 # or without reloader:
 ./.venv/Scripts/python.exe -c "from app import create_app, socketio; app = create_app(); socketio.run(app, host='0.0.0.0', port=10001, debug=False, use_reloader=False)"
-./.venv/Scripts/python.exe -m pytest tests/ -q   # 164 tests (99 unit + 65 e2e)
+./.venv/Scripts/python.exe -m pytest tests/ -q   # 226 tests (137 unit + 89 e2e)
 ```
 
 ## Qualification scenarios + NRR predictor — DONE (2026-08-15)
