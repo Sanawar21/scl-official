@@ -518,7 +518,10 @@ class AuctionService:
 
         Only valid during setup."""
         manager_team_names = manager_team_names or {}
-        auction_player_ids = set(auction_player_ids or [])
+        manager_ids = set(manager_team_names.keys())
+        # Managers are their own team's roster slot, never auction lots —
+        # exclude them from the auction pool even if the form sends them.
+        auction_player_ids = set(auction_player_ids or []) - manager_ids
         with self.db.read() as conn:
             season = conn.execute("SELECT status FROM seasons WHERE id = ?",
                                   (season_id,)).fetchone()

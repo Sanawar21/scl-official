@@ -58,9 +58,11 @@ def test_sync_adds_auction_players_and_team_for_manager(app, auction):
         manager_team_names={teamless["id"]: "New Squad"},
     )
     ctx2 = auction.season_setup_context(sid)
-    assert sum(1 for p in ctx2["players"] if p["in_auction"]) == 3
+    # teamless is a manager -> own roster slot, not an auction lot.
+    assert sum(1 for p in ctx2["players"] if p["in_auction"]) == 2
     mgr = next(p for p in ctx2["players"] if p["id"] == teamless["id"])
     assert mgr["is_manager"] is True
+    assert mgr["in_auction"] is False
     assert mgr["season_team_name"] == "New Squad"
     assert any(t["name"] == "New Squad" for t in ctx2["teams"] if t["in_season"])
 
@@ -108,6 +110,27 @@ def test_sync_requires_team_name_for_teamless_manager(app, auction):
     with pytest.raises(ValueError):
         auction.sync_season_setup(sid, auction_player_ids=[],
                                   manager_team_names={teamless["id"]: ""})
+
+
+def test_managers_never_enter_auction_pool(app, auction):
+    """Managers are their team's own roster slot, not auction lots — even if
+    the form sends them in both lists, they stay out of the auction pool."""
+    season, players, teams = _setup(app, n_teams=2)
+    sid = _fresh_season(auction)["id"]
+    ctx = auction.season_setup_context(sid)
+    gps = ctx["players"]
+    teamless = next(p for p in gps if not p["team"])
+    # Deliberately send the manager in BOTH lists.
+    auction.sync_season_setup(
+        sid,
+        auction_player_ids=[gps[0]["id"], teamless["id"]],
+        manager_team_names={gps[0]["id"]: "Own Squad"},
+    )
+    ctx2 = auction.season_setup_context(sid)
+    mgr = next(p for p in ctx2["players"] if p["id"] == gps[0]["id"])
+    assert mgr["is_manager"] is True
+    assert mgr["in_auction"] is False  # excluded from the auction pool
+    assert sum(1 for p in ctx2["players"] if p["in_auction"]) == 1  # only teamless
 
 
 def test_sync_locked_after_setup(app, auction):
@@ -162,7 +185,8 @@ def test_setup_route_and_save(app, auction):
     ctx = auction.season_setup_context(sid)
     gps = ctx["players"]
     teamless = next(p for p in gps if not p["team"])
-    # Save via the form (checkbox lists + team name field).
+    # Save via the form (checkbox lists + team name field). teamless is the
+    # manager, so only gps[0] enters the auction pool.
     r = c.post(f"/admin/season/{sid}/setup/save", data={
         "auction_players": [gps[0]["id"], teamless["id"]],
         "managers": [teamless["id"]],
@@ -170,7 +194,7 @@ def test_setup_route_and_save(app, auction):
     })
     assert r.status_code == 302
     ctx2 = auction.season_setup_context(sid)
-    assert sum(1 for p in ctx2["players"] if p["in_auction"]) == 2
+    assert sum(1 for p in ctx2["players"] if p["in_auction"]) == 1
     assert any(t["name"] == "Form Squad" for t in ctx2["teams"] if t["in_season"])
     # Change manager route.
     st = ctx2["season_teams"]
