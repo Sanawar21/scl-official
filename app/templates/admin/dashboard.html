@@ -255,18 +255,20 @@
     </div>
     <div>
       <h3>Current Lot</h3>
-      {% if state.current_player %}
-        <div class="lot-box">
-          <div class="lot-name">{{ state.current_player.name }} <span class="tag">{{ state.current_player.tier }}</span></div>
-          <div class="lot-bid">Current bid: <strong>{{ state.current_player.current_bid }}</strong>
-            <span class="muted">by {{ state.current_player.current_bidder_team_name }}</span></div>
-          <div class="lot-base">Base: {{ state.current_player.base_price }}</div>
-        </div>
-      {% else %}
-        <p class="muted">No player nominated.</p>
-      {% endif %}
+      <div id="admin-current-lot">
+        {% if state.current_player %}
+          <div class="lot-box">
+            <div class="lot-name">{{ state.current_player.name }} <span class="tag">{{ state.current_player.tier }}</span></div>
+            <div class="lot-bid">Current bid: <strong>{{ state.current_player.current_bid }}</strong>
+              <span class="muted">by {{ state.current_player.current_bidder_team_name }}</span></div>
+            <div class="lot-base">Base: {{ state.current_player.base_price }}</div>
+          </div>
+        {% else %}
+          <p class="muted">No player nominated.</p>
+        {% endif %}
+      </div>
       <h3>Bid feed</h3>
-      <ul class="feed">
+      <ul class="feed" id="admin-bid-feed">
         {% for b in state.bids[:15] %}
           <li><span class="chip">{{ b.team_name }}</span> {{ b.player_name }} — {{ b.amount }}
             <span class="muted">{{ b.ts_display }}</span></li>
@@ -382,43 +384,6 @@
 
 {% block scripts %}
 {% if state %}
-<script>
-/* Auto-refresh the auction page in real time: when the phase or the current
-   lot changes (admin actions, or managers closing a lot), reload in place.
-   Scroll position is preserved across the reload via app.js. */
-(function () {
-  "use strict";
-  const root = document.getElementById("admin-auction-root");
-  if (!root || typeof io === "undefined") return;
-  const seasonId = root.dataset.season;
-  const stateUrl = root.dataset.stateUrl;
-  let last = { phase: root.dataset.phase, lot: root.dataset.lot };
-  let reloading = false;
-
-  function maybeReload(state) {
-    if (reloading || !state) return;
-    const lot = state.current_player ? state.current_player.id : "";
-    if (state.phase !== last.phase || lot !== last.lot) {
-      last = { phase: state.phase, lot: lot };
-      reloading = true;
-      window.location.reload();
-    }
-  }
-
-  function check() {
-    fetch(stateUrl).then(function (r) { return r.json(); })
-      .then(maybeReload)
-      .catch(function () {});
-  }
-
-  const socket = io();
-  socket.on("state_update", function (payload) {
-    if (!payload || payload.season_id !== seasonId) return;
-    check();
-  });
-  /* Catch any change that happened between page render and socket connect. */
-  setTimeout(check, 1500);
-})();
-</script>
+<script>window.startAdminLive();</script>
 {% endif %}
 {% endblock %}

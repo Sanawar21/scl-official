@@ -177,12 +177,48 @@
   /* ---------- manager ---------- */
   function refreshManager(state, myTeamId, urls) {
     renderLot(state);
+    renderLotBids(state);
     renderBudget(state);
     renderManagerControls(state, myTeamId, urls);
     renderTradeRequests(state, myTeamId, urls);
     renderSquad(state, myTeamId);
+    renderOpponents(state, myTeamId);
     const badge = el("phase-badge");
     if (badge && badge.textContent !== state.phase) badge.textContent = state.phase;
+  }
+
+  /* Other teams' squads (XI/bench), live-updated from state.teams which
+     already carries player_labels / bench_labels per team. */
+  function renderOpponents(state, myTeamId) {
+    const box = el("opponents-box");
+    if (!box) return;
+    const others = state.teams.filter(function (t) {
+      return t.id !== myTeamId && t.is_active;
+    });
+    if (!others.length) {
+      box.innerHTML = '<p class="muted small">No other teams in this season.</p>';
+      return;
+    }
+    box.innerHTML = others.map(function (t) {
+      let html = "<div style='padding:10px 0;border-bottom:1px solid var(--border)'>" +
+        "<div class='row' style='align-items:center;gap:8px;margin-bottom:6px'>" +
+        "<span class='chip'>" + esc(t.name) + "</span>" +
+        "<span class='muted small'>" + esc(t.wallet) + " purse · " +
+        esc(t.credits_remaining) + " credits</span></div>";
+      if (t.player_labels && t.player_labels.length) {
+        html += "<div class='row'>" + t.player_labels.map(function (l) {
+          return '<span class="chip">' + esc(l) + "</span>";
+        }).join("") + "</div>";
+      } else {
+        html += '<p class="muted small">No players bought yet.</p>';
+      }
+      if (t.bench_labels && t.bench_labels.length) {
+        html += "<div class='row' style='margin-top:6px'>" + t.bench_labels.map(function (l) {
+          return '<span class="chip chip-bench">' + esc(l) + "</span>";
+        }).join("") + "</div>";
+      }
+      return html + "</div>";
+    }).join("");
   }
 
   /* Re-render the manager's squad (XI/bench) + wallet/credits/spent tiles when
@@ -417,8 +453,76 @@
     } catch (err) { /* polling fallback covers it */ }
   }
 
+  /* Admin auction page: re-render the current-lot box + bid feed live on
+     every state push (no reload), and only full-reload when the phase or the
+     current player actually changed (scroll preserved by the app). */
+  function startAdminLive() {
+    const root = el("admin-auction-root");
+    if (!root || typeof io === "undefined") return;
+    const seasonId = root.dataset.season;
+    const stateUrl = root.dataset.stateUrl;
+    let last = { phase: root.dataset.phase, lot: root.dataset.lot };
+    let reloading = false;
+
+    function renderAdminLive(state) {
+      const lotBox = el("admin-current-lot");
+      if (lotBox) {
+        const p = state.current_player;
+        if (p) {
+          const bidder = p.current_bidder_team_name && p.current_bidder_team_name !== "-"
+            ? ' <span class="muted">by ' + esc(p.current_bidder_team_name) + "</span>" : "";
+          lotBox.innerHTML =
+            '<div class="lot-box">' +
+            '<div class="lot-name">' + esc(p.name) + " <span class='tag'>" + esc(p.tier) + "</span></div>" +
+            '<div class="lot-bid">Current bid: <strong>' + esc(p.current_bid) + "</strong>" + bidder + "</div>" +
+            '<div class="lot-base">Base: ' + esc(p.base_price) + "</div>" +
+            "</div>";
+        } else {
+          lotBox.innerHTML = '<p class="muted">No player nominated.</p>';
+        }
+      }
+      const feed = el("admin-bid-feed");
+      if (feed) {
+        feed.innerHTML = (state.bids || []).slice(0, 15).map(function (b) {
+          const label = b.kind === "pass" ? "pass" : b.amount;
+          return "<li><span class='chip'>" + esc(b.team_name) + "</span> " +
+            esc(b.player_name) + " — " + esc(label) +
+            ' <span class="muted">' + esc(b.ts_display) + "</span></li>";
+        }).join("") || '<li class="muted">No bids yet.</li>';
+      }
+    }
+
+    function maybeReload(state) {
+      if (reloading || !state) return;
+      const lot = state.current_player ? state.current_player.id : "";
+      if (state.phase !== last.phase || lot !== last.lot) {
+        last = { phase: state.phase, lot: lot };
+        reloading = true;
+        window.location.reload();
+      }
+    }
+
+    function check() {
+      fetch(stateUrl).then(function (r) { return r.json(); })
+        .then(function (state) {
+          renderAdminLive(state);
+          maybeReload(state);
+        })
+        .catch(function () {});
+    }
+
+    const socket = io();
+    socket.on("state_update", function (payload) {
+      if (!payload || payload.season_id !== seasonId) return;
+      check();
+    });
+    /* Catch anything that changed between page render and socket connect. */
+    setTimeout(check, 1500);
+  }
+
   window.startLive = startLive;
   window.startManager = startManager;
+  window.startAdminLive = startAdminLive;
 
   document.addEventListener("DOMContentLoaded", function () {
     initToasts();

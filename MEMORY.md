@@ -731,6 +731,19 @@ bounced, season resolution broke.
 - Tests: `tests/test_season_delete.py` (5 tests) — cascade coverage, vault release,
   global identity preserved, manager unassign, unknown-season error.
 
+## Live bids + opponents' squads everywhere — DONE (2026-08-16)
+
+- **Manager dashboard**: added `#lot-bids` (live bids on the current lot,
+`renderLotBids`) under the lot card, and an "Opponents' squads" card
+(`renderOpponents` from `state.teams` — XI/bench + purse/credits per active
+team), both socket-driven via `refreshManager`.
+- **Admin auction page**: `startAdminLive()` in app.js now re-renders the
+current-lot box (`#admin-current-lot`) + bid feed (`#admin-bid-feed`) in place
+on every state push — incoming bids appear live with NO refresh. Full reload
+only when phase/current player changes (as before).
+- E2E `test_squad_updates_live_after_lot_close` extended: manager sees live
+bid + Blaze's squad, admin sees the incoming bid without refreshing.
+
 ## Manager squad updates live — DONE (2026-08-16)
 
 Fixed: the manager's "My squad" (XI/bench) was server-rendered and never

@@ -134,9 +134,10 @@ def _isolated_server(tmp_path_factory):
 
 
 def test_squad_updates_live_after_lot_close(tmp_path_factory, page):
-    """The exact reported bug: after the admin closes a lot and the player is
-    sold to the manager's team, the manager's "My squad" + wallet/spent tiles
-    update automatically (socket) — no manual refresh."""
+    """Auction-live visibility on the manager + admin pages, all socket-driven:
+    1. the manager sees live bids on the lot and opponents' squads,
+    2. the admin sees incoming bids without refreshing,
+    3. after the lot closes, the manager's squad + wallet/spent update alone."""
     base, seed = _isolated_server(tmp_path_factory)
     sid = seed["season"]["id"]
 
@@ -171,16 +172,35 @@ def test_squad_updates_live_after_lot_close(tmp_path_factory, page):
         expect(squad).to_contain_text("No players bought yet")
         expect(mgr.locator("#stat-spent")).to_have_text("0")
         expect(mgr.locator("#stat-wallet")).to_have_text("10000")
+        # opponents' squads section lists the other team
+        expect(mgr.locator("#opponents-box")).to_contain_text("Blaze")
 
         # place the minimum bid
         bid_btn = mgr.locator("#bid-controls button.btn-primary")
         expect(bid_btn).to_be_visible()
         bid_btn.click()
-        # bid registers on the lot
+        # the manager sees the live bid on the lot (socket push, no refresh)
         expect(mgr.locator("#current-lot")).to_contain_text("Current bid:")
+        deadline = time.time() + 10
+        while time.time() < deadline:
+            if "Thunder" in mgr.locator("#lot-bids").inner_text():
+                break
+            time.sleep(0.5)
+        assert "Thunder" in mgr.locator("#lot-bids").inner_text(), (
+            "Manager does not see the live bid in the lot feed")
+
+        # --- admin sees the incoming bid WITHOUT refreshing ---
+        # (phase/lot unchanged, so no reload happened — just the live feed)
+        page.bring_to_front()
+        deadline = time.time() + 10
+        while time.time() < deadline:
+            if "Thunder" in page.locator("#admin-bid-feed").inner_text():
+                break
+            time.sleep(0.5)
+        assert "Thunder" in page.locator("#admin-bid-feed").inner_text(), (
+            "Admin does not see the incoming bid without a refresh")
 
         # --- admin closes the lot → sold to Thunder ---
-        page.bring_to_front()
         page.click('button[type="submit"]:has-text("Close lot")')
         page.wait_for_load_state("networkidle")
 
@@ -199,5 +219,7 @@ def test_squad_updates_live_after_lot_close(tmp_path_factory, page):
         assert spent > 0, "Spent tile should reflect the sale"
         wallet = int(mgr.locator("#stat-wallet").inner_text())
         assert wallet < 10000, "Wallet tile should reflect the deduction"
+        # opponents' section stays live (Blaze still empty)
+        expect(mgr.locator("#opponents-box")).to_contain_text("Blaze")
     finally:
         ctx.close()

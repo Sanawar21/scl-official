@@ -48,6 +48,8 @@
       <div id="current-lot"><p class="muted">Loading…</p></div>
       <div id="bid-controls" class="bid-controls"></div>
       <p id="bid-error" class="error-text"></p>
+      <h3 style="margin-top:14px">Live bids on this lot</h3>
+      <ul class="feed" id="lot-bids"><li class="muted">No bids on this lot yet.</li></ul>
     </section>
 
     <section class="card">
@@ -101,6 +103,11 @@
         </div>
       </form>
     </details>
+  </section>
+
+  <section class="card" id="opponents-card">
+    <div class="card-head"><h2>Opponents' squads</h2></div>
+    <div id="opponents-box"><p class="muted small">Loading…</p></div>
   </section>
 </div>
 {% endif %}
