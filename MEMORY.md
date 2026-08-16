@@ -429,9 +429,15 @@ Update this file whenever you learn something durable. Keep it current as the bu
   listening on :10001 (started before schema changes) serving stale code → 500s
   (`KeyError: 'purse_remaining'` in its log) + broken navbar/auth. `run.py` then fails to
   bind (port taken) so the browser keeps hitting the zombie. Fix: find it with
-  `netstat -ano | grep :10001`, `taskkill //PID <pid> //F`, then start fresh. Also: plain
-  `python` on this machine resolves to **Anaconda** (`/c/Users/sanaw/anaconda3/python`) —
-  always use `./.venv/Scripts/python.exe` so flask/reportlab are importable.
+  `netstat -ano | grep :10001`, `taskkill //PID <pid> //F //T` (**use //T — debug/reloader
+  spawns child processes that inherit the socket, so killing the parent isn't enough**),
+  then start fresh. Also: plain `python` resolves to **Anaconda**
+  (`/c/Users/sanaw/anaconda3/python`) — always use `./.venv/Scripts/python.exe`.
+- **`.env` gotcha (2026-08-16, 2nd report)**: "changing the env doesn't change the DB"
+  was again the stale-server problem — a leftover process kept serving the OLD db because
+  the new one couldn't bind :10001. `.env` IS read correctly by a fresh process
+  (`Config.DB_PATH`). Now `run.py` pre-checks the port and prints the exact PID/kill
+  command + the active DB path at startup, so a port conflict is loud, not silent.
 
 ## Balance reset + purse removal (2026-08-15)
 
