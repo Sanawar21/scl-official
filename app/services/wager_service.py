@@ -53,6 +53,27 @@ class WagerService:
     # ------------------------------------------------------------------
     # queries
     # ------------------------------------------------------------------
+    @staticmethod
+    def house_coverage(wager: dict) -> dict:
+        """The House's automatic guarantee, live at any point during the wager.
+
+        Mirrors `resolve()`: if side X wins, winners are guaranteed
+        round(stakes_X * fair_X); when that exceeds the pot, the House tops up
+        the difference. Returns {"cover_a": n, "cover_b": n} — how much the
+        House covers if side_a wins, and if side_b wins. Auto-adjusts as new
+        bids land because it reads the live totals each call.
+        """
+        yes = int(wager.get("yes_total") or 0)
+        no = int(wager.get("no_total") or 0)
+        pot = yes + no + int(wager.get("house_injected") or 0)
+        p_b = float(wager.get("house_probability") or 50.0)
+        fair_a = 100.0 / (100.0 - p_b) if p_b < 100 else 0.0
+        fair_b = 100.0 / p_b if p_b > 0 else 0.0
+        return {
+            "cover_a": max(0, int(round(yes * fair_a)) - pot),
+            "cover_b": max(0, int(round(no * fair_b)) - pot),
+        }
+
     def list_wagers(self, season_id: str = None) -> list:
         with self.db.read() as conn:
             rows = conn.execute(
@@ -69,6 +90,7 @@ class WagerService:
         for w in wagers:
             w["pot"] = int(w["yes_total"] or 0) + int(w["no_total"] or 0) + int(w["house_injected"] or 0)
             w["calibration_estimates"] = json_loads(w.get("calibration_estimates"), [])
+            w.update(self.house_coverage(w))
         return wagers
 
     def get_wager(self, wager_id: str) -> dict:
@@ -89,6 +111,7 @@ class WagerService:
             wager["yes_total"] = yes
             wager["no_total"] = no
             wager["pot"] = yes + no + int(wager["house_injected"] or 0)
+            wager.update(self.house_coverage(wager))
             return wager
 
     def my_bets(self, user_id: str) -> list:

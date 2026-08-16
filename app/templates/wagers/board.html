@@ -64,13 +64,15 @@
       </div>
     {% endif %}
 
-    <div class="team-stats">
-      <span>{{ w.side_a }} <b>{{ w.yes_total }}</b></span>
-      <span>{{ w.side_b }} <b>{{ w.no_total }}</b></span>
-      <span>Pot: <b>{{ w.pot }}</b>{% if w.house_injected %} (+{{ w.house_injected }} house){% endif %}</span>
+    <div class="team-stats" data-wager="{{ w.id }}">
+      <span class="js-yes">{{ w.side_a }} <b>{{ w.yes_total }}</b></span>
+      <span class="js-no">{{ w.side_b }} <b>{{ w.no_total }}</b></span>
+      <span class="js-pot">Pot: <b>{{ w.pot }}</b>{% if w.house_injected %} (+{{ w.house_injected }} house){% endif %}</span>
       {% if w.house_probability %}
         <span>{{ w.side_a }} fair <b>{{ '%.2f'|format(100 / (100 - w.house_probability)) }}x</b></span>
         <span>{{ w.side_b }} fair <b>{{ '%.2f'|format(100 / w.house_probability) }}x</b></span>
+        <span class="js-cover chip chip-info">House covers: {{ w.side_a }} win → <b>{{ w.cover_a }}</b> ·
+          {{ w.side_b }} win → <b>{{ w.cover_b }}</b></span>
       {% endif %}
       <span class="muted">{{ w.bet_count }} bet(s)</span>
       {% if w.season_id %}<span class="muted">{{ w.season_id }}</span>{% endif %}
@@ -110,6 +112,35 @@
 {% endblock %}
 
 {% block scripts %}
+<script>
+  (function () {
+    // Live house coverage: poll the JSON snapshot so the guarantee shown
+    // adjusts automatically as new bids land on either side.
+    async function refresh() {
+      let wagers;
+      try {
+        wagers = await (await fetch("{{ url_for('wagers.live_board') }}")).json();
+      } catch (err) { return; }
+      wagers.forEach(function (w) {
+        const row = document.querySelector('[data-wager="' + w.id + '"]');
+        if (!row) return;
+        const yes = row.querySelector('.js-yes b');
+        const no = row.querySelector('.js-no b');
+        const pot = row.querySelector('.js-pot b');
+        const cover = row.querySelector('.js-cover b');
+        if (yes) yes.textContent = w.yes_total;
+        if (no) no.textContent = w.no_total;
+        if (pot) pot.textContent = w.pot;
+        if (cover) {
+          const bs = cover.querySelectorAll('b');
+          if (bs.length === 2) { bs[0].textContent = w.cover_a; bs[1].textContent = w.cover_b; }
+        }
+      });
+    }
+    refresh();
+    setInterval(refresh, 4000);
+  })();
+</script>
 <script>
   (function () {
     const sideA = document.querySelector('input[name="side_a"]');

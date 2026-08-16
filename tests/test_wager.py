@@ -252,3 +252,44 @@ def test_route_board_and_admin_pages(app):
     assert c.get("/wagers/admin").status_code == 302  # admin required
     c.post("/auth/login", data={"username": "admin", "password": "admin123"})
     assert c.get("/wagers/admin").status_code == 200
+
+
+def test_house_coverage_computed_live(app, wager, bank):
+    """The automatic guarantee shows how much the House covers per side, and
+    adjusts as stakes land on either side."""
+    season, players, _ = _setup(app, n_teams=2)
+    bank.get_or_create_account("house", "house")
+    alice = _linked_user(app, "alice", players[0]["global_player_id"])
+    bob = _linked_user(app, "bob", players[1]["global_player_id"])
+    # p(No) = 25 -> fair(Yes) = 100/75 = 1.33x, fair(No) = 4x.
+    w = _open_market(app, wager, alice, side="Yes", amount=200, estimate=25)
+    assert w["pot"] == 200
+    # If Yes wins: guaranteed 200*1.33 = 267 > pot 200 -> House covers 67.
+    # If No wins: no No stakes -> covers 0.
+    assert w["cover_a"] == 67   # int(round(200 * 100/75)) - 200
+    assert w["cover_b"] == 0
+
+    # Bob stakes 100 on No: pot 300.
+    w = wager.place_bet(bob, w["id"], "No", 100)
+    assert w["pot"] == 300
+    # If No wins: guaranteed 100*4 = 400 > 300 -> covers 100. The bigger pot now
+    # also fully covers the Yes guarantee (267 < 300).
+    assert w["cover_a"] == 0
+    assert w["cover_b"] == 100
+
+    # Alice adds 100 more on Yes: pot 400 — the No guarantee (100*4 = 400) is
+    # now exactly covered too, so the House is off the hook on both sides.
+    wager.place_bet(alice, w["id"], "Yes", 100)
+    w = wager.get_wager(w["id"])
+    assert w["pot"] == 400
+    assert w["cover_a"] == 0
+    assert w["cover_b"] == 0
+
+    # The live endpoints expose the same numbers.
+    c = app.test_client()
+    live = c.get("/wagers/live").get_json()
+    entry = next(x for x in live if x["id"] == w["id"])
+    assert entry["cover_a"] == 0 and entry["cover_b"] == 0
+    single = c.get(f"/wagers/{w['id']}/live").get_json()
+    assert single["cover_a"] == 0 and single["cover_b"] == 0
+    assert single["pot"] == 400

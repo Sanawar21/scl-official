@@ -1,8 +1,8 @@
 # SCL Rebuild — Session Resume Handoff
 
 Read this first in a new session, then `MEMORY.md` (living context + gotchas) and `PLAN.md`
-(feature plan). Last updated 2026-08-16 — **S2 economy restructure COMPLETE** (all 5
-increments; 183 tests).
+(feature plan). Last updated 2026-08-16 — **S2 economy COMPLETE** + **deposit removed +
+automatic house guarantee** shipped (193 tests).
 
 ## S2 economy — COMPLETE (2026-08-16, 5 increments)
 
@@ -11,6 +11,14 @@ increments; 183 tests).
 3. 250/match credit to every wallet + auto-mode vault toggle on /account
 4. Squad-cost levy on draft complete + three-section balance board
 5. Admin flows polish + reference docs updated for the S2 economy
+
+## Deposit removed + automatic house guarantee — DONE (2026-08-16)
+
+- Players have **no deposit form** — the admin bank adjust is the only way to add
+  balance (positive grants route through `credit()` → auto accounts' vault).
+- Wagers show the **live house coverage per side** everywhere (board/detail/admin),
+  computed by `wager_service.house_coverage()` and polled every 4s via
+  `/wagers/live` + `/wagers/<id>/live`.
 
 What's next (backlog): wager polish (auto-resolve from match results), fantasy
 entries, ball-by-ball already shipped. Demo: `scripts/seed_demo.py` (funds via

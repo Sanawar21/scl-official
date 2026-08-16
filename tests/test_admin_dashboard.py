@@ -100,6 +100,47 @@ def test_finances_levy_route(app):
     assert len([e for e in finance.list_finance_entries(season["id"]) if e["type"] == "squad_levy"]) == 1
 
 
+def test_admin_grant_routes_to_vault_for_auto_account(app):
+    """Bank adjust is the only deposit path now; positive grants route straight
+    to the vault when the account is on auto mode."""
+    season, players, _ = _setup(app, n_teams=2)
+    bank = app.extensions["bank_service"]
+    # players[0] is a manager (funded 10k by _setup) — the grant must vault,
+    # leaving liquid untouched.
+    gp = players[0]["global_player_id"]
+    acct = bank.get_or_create_account("player", gp)
+    bank.set_auto(acct["id"], True)
+    liquid_before = bank.account_for_owner("player", gp)["liquid_cash"]
+    client = _login(app)
+    r = client.post(f"/admin/bank/adjust?season={season['id']}",
+                    data={"account_id": f"player:{gp}", "amount": "500",
+                          "comment": "credit saved"})
+    assert r.status_code == 302
+    fresh = bank.account_for_owner("player", gp)
+    # The money went to the vault, not liquid.
+    assert fresh["liquid_cash"] == liquid_before
+    assert fresh["locked_capital"] == 500
+
+    # Manual accounts keep plain liquid credit.
+    gp2 = players[2]["global_player_id"]  # a non-manager player
+    acct2 = bank.get_or_create_account("player", gp2)
+    bank.set_auto(acct2["id"], False)
+    r = client.post(f"/admin/bank/adjust?season={season['id']}",
+                    data={"account_id": f"player:{gp2}", "amount": "300",
+                          "comment": "manual grant"})
+    assert r.status_code == 302
+    fresh2 = bank.account_for_owner("player", gp2)
+    assert fresh2["liquid_cash"] == 300
+    assert fresh2["locked_capital"] == 0
+
+    # Negative amounts (fines) always come from liquid.
+    r = client.post(f"/admin/bank/adjust?season={season['id']}",
+                    data={"account_id": f"player:{gp2}", "amount": "-100",
+                          "comment": "fine"})
+    assert r.status_code == 302
+    assert bank.account_for_owner("player", gp2)["liquid_cash"] == 200
+
+
 def test_overview_wager_card(app, wager):
     season, players, _ = _setup(app, n_teams=2)
     gp = players[0]["global_player_id"]

@@ -1,9 +1,9 @@
 """Phase 3 e2e: player/manager surfaces.
 
-Banking/vault (balance hero, deposit, vault position cards, transaction
-filter), wagers (market cards with pool bars + fair odds, stake flow with the
-live "you'd win X" preview), and the manager dashboard (team hub, squad,
-bid controls, trades).
+Banking/vault (balance hero, auto mode + admin-grant routing, vault position
+cards, transaction filter), wagers (market cards with pool bars + fair odds +
+house guarantee chip, stake flow with the live "you'd win X" preview), and the
+manager dashboard (team hub, squad, bid controls, trades).
 """
 import pytest
 
@@ -79,8 +79,8 @@ def test_vault_position_card_and_reinvest(page, base_url, login, seed):
     assert page.locator(".js-reinvest").count() >= 1
 
 
-def test_auto_mode_toggle_and_deposit_routing(page, base_url, login, seed):
-    """Auto mode routes deposits to the vault; the toggle flips it back."""
+def test_auto_mode_toggle_and_admin_grant_routing(page, base_url, login, seed):
+    """Auto mode routes admin grants to the vault; the toggle flips it back."""
     login("alice", "alicepw")
     body = page.locator("body").inner_text().lower()
     assert "auto mode" in body
@@ -90,15 +90,22 @@ def test_auto_mode_toggle_and_deposit_routing(page, base_url, login, seed):
     page.wait_for_function(
         "document.querySelector('#auto-form input[name=\"auto\"]')?.value === '0'",
         timeout=10000)
-    # Deposit now routes to the vault (liquid unchanged, locked grows).
-    page.fill('form[action*="/deposit"] input[name="amount"]', "500")
-    page.click('form[action*="/deposit"] button[type="submit"]')
-    # The deposit form navigates to the JSON response; return to the account.
+    # An admin grant now routes to the vault (locked grows, liquid unchanged).
+    alice_gp = seed["players"][0]["global_player_id"]
+    login("admin", "admin123")
+    page.goto(base_url + "/admin/auction")
+    page.select_option("section#bank select[name='account_id']", f"player:{alice_gp}")
+    page.fill("section#bank input[name='amount']", "500")
+    page.fill("section#bank input[name='comment']", "auto grant")
+    with page.expect_navigation():
+        page.click("section#bank button[type='submit']")
     page.wait_for_load_state("networkidle")
+    # Back on alice's account: the grant sits in the vault, not liquid.
+    login("alice", "alicepw")
     page.goto(base_url + "/account")
     body = page.locator("body").inner_text().lower()
     assert "auto mode" in body and "on" in body
-    assert "locked until m12" in body  # vault position created by the deposit
+    assert "locked until m12" in body  # vault position created by the grant
     # Turn auto OFF again (the button label flips back to 'Turn on auto mode';
     # note 'switch to manual harvest' on the vault card is a different thing).
     page.click("#auto-form button[type='submit']")
@@ -132,6 +139,23 @@ def test_wagers_board_market_card(page, base_url, seed):
     assert card.locator(".pool-bar").count() == 1
     # fair odds shown once calibrated
     assert "fair" in body
+
+
+def test_wagers_board_house_coverage_chip(page, base_url, seed):
+    """Calibrated markets show the automatic house guarantee per side."""
+    page.goto(base_url + "/wagers")
+    card = page.locator(".card", has_text="Will Thunder win Match 1?").first
+    cover = card.locator(".js-cover")
+    assert cover.count() == 1
+    text = cover.inner_text()
+    assert "house covers" in text.lower()
+    assert "Yes win" in text and "No win" in text
+    # Seeded market: Yes 500 @ fair 2.5x -> guaranteed 1250, pot 500 -> cover 750.
+    assert "750" in text
+    # The live endpoint feeds the chip.
+    live = page.request.get(base_url + "/wagers/live").json()
+    entry = next(w for w in live if w["id"] == seed["wager"]["id"])
+    assert entry["cover_a"] == 750
 
 
 def test_wager_detail_pools_and_fair_odds(page, base_url, seed):

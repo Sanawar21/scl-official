@@ -31,18 +31,20 @@ real `data/scl.db` is never touched). Demo logins: `ayaan`/`bilal` (managers),
 ## 2. Your account — `/account`
 
 ### 2.1 Balance hero
-- **Liquid cash** — spendable money (deposits, wager payouts, vault unlocks,
-  match credits).
+- **Liquid cash** — spendable money (wager payouts, vault unlocks, match
+  credits).
 - **Locked capital** — money locked in the vault for a season.
 - If you're a **manager**, a callout reminds you the wallet is the team's money.
+- **You can't add money yourself** — only the admin can (grants via the admin
+  dashboard, with a comment explaining it, e.g. "credit saved").
 
 ### 2.2 Auto mode (the hands-free option)
 - A toggle card on `/account`: **Auto mode ON** means everything that comes in
-  (deposits, grants, the universal 10k funding, the 250-per-match credit) goes
+  (admin grants, the universal 10k funding, the 250-per-match credit) goes
   **straight into your vault** and compounds at 7% per match — you never have to
   manage your liquid cash. Wallets created for players who never signed up are
   auto by default; turn it off to manage manually (needed if you want to bid or
-  stake).
+  stake). Admin grants to an auto account land in the vault, not liquid.
 
 ### 2.3 Start a team / My team
 - **Start a team** (`/account` card): create a **persistent team account** — your
@@ -50,12 +52,7 @@ real `data/scl.db` is never touched). Demo logins: `ayaan`/`bilal` (managers),
 - **My team**: edit the team's name, logo, and about section; see which seasons
   it played. The admin registers it for a season when it's time to play.
 
-### 2.4 Deposit
-- **Deposit** form (`/account/deposit`): add funds to your liquid cash — or to
-  the vault if auto mode is on. (Real payment integration is out of scope; the
-  admin can also add balance and comment why — e.g. "credit saved".)
-
-### 2.5 Vault
+### 2.4 Vault
 - **Lock** (`/account/vault/lock`): move liquid cash → locked capital for a
   chosen season. Position options:
   - **Compounding (default)**: yield is added to locked capital each match, so it
@@ -69,8 +66,8 @@ real `data/scl.db` is never touched). Demo logins: `ayaan`/`bilal` (managers),
   (admin can force-unlock earlier).
 
 ### 2.6 Transactions
-- Filterable table of every movement: deposits, vault locks, wager stakes +
-  payouts, the 250 match credits, admin grants/fines.
+- Filterable table of every movement: vault locks, wager stakes + payouts,
+  the 250 match credits, admin grants/fines.
 
 ---
 
@@ -80,12 +77,19 @@ real `data/scl.db` is never touched). Demo logins: `ayaan`/`bilal` (managers),
 - **Market cards** per wager: question, sides, **pool bar** (Yes/No share of the
   pot), fair odds, pot total, number of bets, and a status chip
   (proposed / calibrating / vetted / frozen / resolved / voided).
+- **House guarantee chip**: for calibrated markets, shows **how much the House
+  covers if either side wins** (e.g. "House covers: Yes win → 750 · No win → 0").
+  It's computed live from the pools and **auto-adjusts every 4s** as new stakes
+  land on either side — no manual injection needed.
 - **Propose a market** (collapsible flow): title, description, sides, your side,
   opening stake (must have liquid cash). Proposing opens a `proposed` market and
   places your opening bet.
 
 ### 3.2 Market detail
 - **Pool visual**: Yes/No split with percentages + fair odds.
+- **House guarantee banner**: the House automatically tops up so winners get
+  fair odds — shows the live amount it covers if `side_a` wins vs if `side_b`
+  wins, **refreshing every 4s** as stakes land.
 - **Stake flow** (`/wagers/<id>/bet`): pick side + amount. A live **"You'd win
   X (stake Y at Zx)"** preview updates as you type/switch.
 - **Bets** feed (everyone's bets) + **history** (lifecycle events).
@@ -150,9 +154,10 @@ The dashboard renders the current lot + a **bid action bar** (JS-driven, live vi
   team's starting bank.
 - **S2 funding**: every player gets the **universal 10k** before the auction
   (auto-created wallets default to auto mode → vaulted). No tier purse.
-- **Liquid cash** moves: deposit (+), wager stake (−) / payout (+), match credit
-  (+250 to every player per finalized match), admin grants/fines (+/−), auction
-  close (− for bought players), trades, vault lock (−) / unlock (+).
+- **Liquid cash** moves: wager stake (−) / payout (+), match credit (+250 to
+  every player per finalized match), admin grants/fines (+/−), auction close (−
+  for bought players), trades, vault lock (−) / unlock (+). Only the admin can
+  add balance (grants with a comment).
 - **Squad-cost levy**: when the draft completes, the average squad cost is
   deducted from wallets that didn't spend in the auction (liquid first, then the
   vault for auto accounts).

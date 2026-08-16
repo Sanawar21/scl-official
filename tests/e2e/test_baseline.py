@@ -85,13 +85,17 @@ def test_logout(page, base_url, login):
 # ----------------------------------------------------------------------
 # banking flows (player)
 # ----------------------------------------------------------------------
-def test_deposit_flow(page, base_url, login):
+def test_deposit_is_admin_only(page, base_url, login):
+    """Players have no deposit form — only the admin adds balance (with comment)."""
     login("alice", "alicepw")
-    page.fill('form[action*="/deposit"] input[name="amount"]', "250")
-    with page.expect_navigation():
-        page.click('form[action*="/deposit"] button[type="submit"]')
-    body = page.locator("body").inner_text()
-    assert '"ok":true' in body
+    # No deposit form on the player account page.
+    assert page.locator('form[action*="/deposit"]').count() == 0
+    assert "only the admin can add balance" in page.locator("body").inner_text().lower()
+    # The admin's bank-adjust form is the deposit mechanism.
+    login("admin", "admin123")
+    page.goto(base_url + "/admin/auction")
+    body = page.locator("body").inner_text().lower()
+    assert "bank adjust" in body
 
 
 def test_vault_lock_flow(page, base_url, login, seed):

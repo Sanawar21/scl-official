@@ -22,17 +22,17 @@
     <div class="stat-row" style="margin-top:12px">
       <div class="stat-tile">
         <div class="stat-label">{{ wager.side_a }}</div>
-        <div class="stat-value">{{ wager.yes_total }}</div>
+        <div class="stat-value" id="pool-yes">{{ wager.yes_total }}</div>
         <div class="small muted">{{ (100 * wager.yes_total / total)|round(1) if total else 0 }}% of pot</div>
       </div>
       <div class="stat-tile">
         <div class="stat-label">{{ wager.side_b }}</div>
-        <div class="stat-value">{{ wager.no_total }}</div>
+        <div class="stat-value" id="pool-no">{{ wager.no_total }}</div>
         <div class="small muted">{{ (100 * wager.no_total / total)|round(1) if total else 0 }}% of pot</div>
       </div>
       <div class="stat-tile">
         <div class="stat-label">Pot</div>
-        <div class="stat-value">{{ wager.pot }}</div>
+        <div class="stat-value" id="pool-pot">{{ wager.pot }}</div>
         <div class="small muted">{% if wager.house_injected %}incl. {{ wager.house_injected }} house{% endif %}</div>
       </div>
     </div>
@@ -41,6 +41,12 @@
         Fair odds: {{ wager.side_a }} <b>{{ '%.2f'|format(100 / (100 - wager.house_probability)) }}x</b> ·
         {{ wager.side_b }} <b>{{ '%.2f'|format(100 / wager.house_probability) }}x</b>
       </p>
+      <div class="banner banner-info" id="house-cover">
+        <b>House guarantee</b> — the House automatically tops up so winners get fair odds.
+        If <b>{{ wager.side_a }}</b> wins it covers <b id="cover-a">{{ wager.cover_a }}</b>;
+        if <b>{{ wager.side_b }}</b> wins it covers <b id="cover-b">{{ wager.cover_b }}</b>.
+        <span class="small muted">(live — adjusts as stakes land)</span>
+      </div>
     {% endif %}
   </section>
 {% endif %}
@@ -117,6 +123,31 @@
 {% endblock %}
 
 {% block scripts %}
+<script>
+  (function () {
+    // Live house coverage + pool numbers, auto-adjusting as bids land.
+    async function refresh() {
+      let w;
+      try {
+        const res = await fetch("{{ url_for('wagers.live_detail', wager_id=wager.id) }}");
+        if (!res.ok) return;
+        w = await res.json();
+      } catch (err) { return; }
+      const yes = document.getElementById('pool-yes');
+      const no = document.getElementById('pool-no');
+      const pot = document.getElementById('pool-pot');
+      const coverA = document.getElementById('cover-a');
+      const coverB = document.getElementById('cover-b');
+      if (yes) yes.textContent = w.yes_total;
+      if (no) no.textContent = w.no_total;
+      if (pot) pot.textContent = w.pot;
+      if (coverA) coverA.textContent = w.cover_a;
+      if (coverB) coverB.textContent = w.cover_b;
+    }
+    refresh();
+    setInterval(refresh, 4000);
+  })();
+</script>
 {% if wager.status == 'vetted' and user and user.global_player_id %}
 <script>
   (function () {

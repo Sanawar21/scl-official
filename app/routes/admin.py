@@ -25,6 +25,11 @@ def _season_id():
     return (request.args.get("season") or request.form.get("season") or "").strip().lower()
 
 
+def _latest_season_id():
+    seasons = current_app.extensions["auction_service"].list_seasons()  # newest first
+    return seasons[0]["id"] if seasons else None
+
+
 def _build_context(season_id=None):
     auction_service = current_app.extensions["auction_service"]
     seasons = auction_service.list_seasons()
@@ -410,7 +415,15 @@ def bank_adjust():
             account_id = account["id"]
         else:
             account_id = account_ref
-        account = bank_service.adjust(account_id, amount, comment, tx_type="admin_adjust")
+        if amount >= 0:
+            # Grants/deposits: credit() routes straight to the vault for auto
+            # accounts (the owner chose not to manage liquid cash).
+            season = _season_id() or _latest_season_id()
+            account = bank_service.credit(account_id, amount, comment,
+                                          tx_type="admin_adjust", season_id=season)
+        else:
+            # Deductions (fines/take-back) always come from liquid cash.
+            account = bank_service.adjust(account_id, amount, comment, tx_type="admin_adjust")
         flash(f"Account adjusted. Liquid cash: {account['liquid_cash']}.", "success")
     except ValueError as exc:
         flash(str(exc), "error")

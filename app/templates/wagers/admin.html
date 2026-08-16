@@ -39,7 +39,8 @@
       <span>by {{ w.initiator_name }}</span>
       <span>pot {{ w.pot }} ({{ w.yes_total }} / {{ w.no_total }})</span>
       <span>house injected {{ w.house_injected }}</span>
-      {% if w.house_probability %}<span>consensus {{ '%.2f'|format(w.house_probability) }}% for {{ w.side_b }}</span>{% endif %}
+      {% if w.house_probability %}<span>consensus {{ '%.2f'|format(w.house_probability) }}% for {{ w.side_b }}</span>
+        <span class="chip chip-info">House covers: {{ w.side_a }} win → {{ w.cover_a }} · {{ w.side_b }} win → {{ w.cover_b }}</span>{% endif %}
     </div>
 
     {% if w.status in ('proposed', 'calibrating') %}

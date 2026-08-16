@@ -5,7 +5,7 @@ realistic data so you can click through every surface as each role:
 
 - admin (auction control, scorer, finances, wagers, account links)
 - managers (bid during the auction, propose trades, see wallet/squad)
-- players (account: deposit + vault, wagers: propose + stake)
+- players (account: vault, wagers: propose + stake)
 
 Usage:
     ./.venv/Scripts/python.exe scripts/seed_demo.py [path/to/demo.db]
@@ -223,7 +223,7 @@ def seed_demo(db_path: str) -> None:
     print("                   nominate next, set phase, scorer admin, finances,")
     print("                   wager admin, link accounts)")
     print("  Try as manager : /manager (bid/pass on the live lot, propose trades)")
-    print("  Try as player  : /account (deposit, vault lock/reinvest), /wagers")
+    print("  Try as player  : /account (vault lock/reinvest), /wagers")
     print("                   (propose a market, stake on vetted ones)")
     print("  Public         : / (home), /live, /matches, /table, /leaderboards,")
     print("                   /teams, /players, /finances, /wagers")

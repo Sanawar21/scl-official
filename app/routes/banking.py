@@ -12,14 +12,6 @@ def _my_account(bank_service, user):
     return bank_service.get_or_create_account("player", user["global_player_id"])
 
 
-def _latest_season_id():
-    auction_service = current_app.extensions["auction_service"]
-    seasons = auction_service.list_seasons()  # newest first
-    if not seasons:
-        return None
-    return seasons[0]["id"]
-
-
 @banking_bp.get("")
 @login_required()
 def account():
@@ -127,28 +119,6 @@ def vault_reinvest(position_id):
     try:
         position = bank_service.set_reinvest(position_id, request.form.get("reinvest", "1") != "0")
         return jsonify({"ok": True, "position": position})
-    except ValueError as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
-
-
-@banking_bp.post("/deposit")
-@login_required()
-def deposit():
-    bank_service = current_app.extensions["bank_service"]
-    user = session.get("user") or {}
-    account = _my_account(bank_service, user)
-    if not account:
-        return jsonify({"ok": False, "error": "Account not linked to a player"}), 400
-    try:
-        amount = int(request.form.get("amount") or 0)
-        if amount <= 0:
-            raise ValueError("Amount must be positive")
-        # Auto mode: deposits go straight into the vault of the latest season.
-        season_id = request.form.get("season_id") or _latest_season_id()
-        account = bank_service.credit(account["id"], amount,
-                                      request.form.get("comment", ""),
-                                      tx_type="deposit", season_id=season_id)
-        return jsonify({"ok": True, "account": account})
     except ValueError as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400
 

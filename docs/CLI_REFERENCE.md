@@ -71,7 +71,7 @@ SCL_DB_PATH=data/demo.db $VENV run.py
 ### Try these URLs
 - **Admin:** `/admin` (auction control, scorer, finances, wager admin, link accounts)
 - **Manager:** `/manager` (bid/pass on the live lot, propose trades)
-- **Player:** `/account` (deposit, vault lock/reinvest), `/wagers` (propose a market, stake)
+- **Player:** `/account` (vault lock/reinvest, auto mode), `/wagers` (propose a market, stake)
 - **Public:** `/`, `/live`, `/matches`, `/table`, `/leaderboards`, `/teams`, `/players`, `/finances`, `/wagers`
 
 ---

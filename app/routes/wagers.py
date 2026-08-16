@@ -1,4 +1,4 @@
-from flask import Blueprint, current_app, flash, redirect, render_template, request, session, url_for
+from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, session, url_for
 
 from .. import rules as R
 from ..authz import login_required
@@ -49,6 +49,23 @@ def board():
                            account=account, seasons=seasons, user=user)
 
 
+@wagers_bp.get("/live")
+def live_board():
+    """JSON snapshot of every wager with live house coverage — polled by the
+    board so the house guarantee auto-adjusts as new bids land."""
+    svc = _wager_service()
+    wagers = svc.list_wagers()
+    return jsonify([{
+        "id": w["id"], "title": w["title"], "status": w["status"],
+        "side_a": w["side_a"], "side_b": w["side_b"],
+        "yes_total": w["yes_total"], "no_total": w["no_total"],
+        "pot": w["pot"], "house_injected": w["house_injected"],
+        "house_probability": w["house_probability"],
+        "cover_a": w["cover_a"], "cover_b": w["cover_b"],
+        "bet_count": w["bet_count"],
+    } for w in wagers])
+
+
 @wagers_bp.get("/<wager_id>")
 def detail(wager_id):
     svc = _wager_service()
@@ -84,6 +101,24 @@ def create():
     except ValueError as exc:
         flash(str(exc), "error")
     return _redirect_back("wagers.board")
+
+
+@wagers_bp.get("/<wager_id>/live")
+def live_detail(wager_id):
+    """JSON snapshot of a single wager for the detail page's live poller."""
+    svc = _wager_service()
+    w = svc.get_wager(wager_id)
+    if not w:
+        return jsonify({"error": "Wager not found"}), 404
+    return jsonify({
+        "id": w["id"], "title": w["title"], "status": w["status"],
+        "side_a": w["side_a"], "side_b": w["side_b"],
+        "yes_total": w["yes_total"], "no_total": w["no_total"],
+        "pot": w["pot"], "house_injected": w["house_injected"],
+        "house_probability": w["house_probability"],
+        "cover_a": w["cover_a"], "cover_b": w["cover_b"],
+        "bet_count": len(w["bets"]),
+    })
 
 
 @wagers_bp.post("/<wager_id>/bet")

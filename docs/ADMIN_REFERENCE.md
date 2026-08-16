@@ -88,8 +88,12 @@ Visible once phase is `complete`/`transfers_open`:
   with optional cash and/or credits. The action log + undo cover these too.
 
 ### 2.6 Bank adjust — `/admin/bank/adjust`
-The catch-all money tool (used from the auction page's team boxes):
+The catch-all money tool (used from the auction page's team boxes) — **the only
+way to add balance** (players have no deposit form):
 - **Account** (team/manager), **amount**, **reason**, direction (+/−).
+- Positive amounts go through `credit()`: auto-mode accounts get the money
+  routed **straight to their vault**; manual accounts get liquid cash. Negative
+  amounts (fines) always come from liquid.
 - This is how the admin grants credits, applies fines, and adds the
   "credit saved" deposits (just add balance + comment explaining it).
 
@@ -179,8 +183,17 @@ per market with the current stage highlighted and the next action inline:
 | `resolved` | Winner paid out from the pot | — |
 | `voided` | Cancelled (stakes returned) | (from proposed/calibrating: **Veto**) |
 
-### 5.2 Other admin actions
-- **Inject house** (`/wagers/admin/<id>/inject`): add house funds to the pot.
+### 5.2 House guarantee (automatic)
+The House **automatically** tops up so winners get fair odds when the pot is
+thin — no manual step required. The admin page shows the **live guarantee**
+per calibrated market: "House covers: {side_a} win → N · {side_b} win → M".
+It is recomputed on every view and the public board/detail poll it every 4s, so
+it adjusts as stakes land on either side.
+
+### 5.3 Other admin actions
+- **Inject house** (`/wagers/admin/<id>/inject`): optionally pre-fund the pot
+  with house funds (lowers the automatic guarantee); the guarantee itself is
+  automatic either way.
 - **Void** (`/wagers/admin/<id>/void`): cancel a market entirely (stakes returned).
 
 ---
@@ -204,7 +217,7 @@ New signups are **unlinked** until an admin links them to a global player:
   calculator), `/leaderboards`, `/teams`, `/players`, `/finances`, `/wagers`,
   `/season/<slug>` (published snapshot).
 - Manager: `/manager` (dashboard: bid/pass, trades).
-- Player: `/account` (deposit, vault), `/wagers` (board + detail, propose/stake).
+- Player: `/account` (vault, auto mode), `/wagers` (board + detail, propose/stake).
 
 ---
 
@@ -236,5 +249,5 @@ New signups are **unlinked** until an admin links them to a global player:
 **Onboard a new player**
 1. They sign up on `/auth/signup` (role pending).
 2. `/auth/admin/link` → link them to a global player → they can log in as a
-   player, get an account, deposit, stake, use the vault.
+   player, get an account, stake, use the vault.
 3. If they manage a team: assign manager + team (auction setup).

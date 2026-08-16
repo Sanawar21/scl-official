@@ -135,6 +135,12 @@ Update this file whenever you learn something durable. Keep it current as the bu
   (phase set → nominate → manager bid/pass → close → complete/undo → wallet assertions).
   Found + fixed: the e2e seed was overwriting `global_team_id` with random ids (silently
   duplicating teams on the board). Suite now 191 (116 unit + 75 e2e).
+- [x] **Deposit removed + automatic house guarantee** (2026-08-16): players have NO deposit
+  form — admin bank adjust is the only way to add balance (positive grants now go through
+  `credit()`, so auto accounts route them to the vault; fines stay liquid). Wagers show the
+  **live house coverage per side** ("House covers: Yes win → N · No win → M") on board,
+  detail + admin pages, computed by `wager_service.house_coverage()` and polled every 4s
+  via new `/wagers/live` + `/wagers/<id>/live` JSON endpoints. Suite now 193.
 
 ## E2E gotchas (auction driving)
 - The manager dashboard has NO `#bid-feed` (that's the live board) — bid feedback appears in
