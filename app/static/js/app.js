@@ -261,19 +261,30 @@
 
     const ruleset = state.ruleset;
     const inBiddingPhase = state.phase.startsWith("phase_a_") || state.phase === "phase_b";
+    const holdsTop = p && p.current_bidder_team_id === myTeamId;
     let disabled = false;
     let reason = "";
     if (team.control_status === "admin_takeover") { disabled = true; reason = "Team under admin control"; }
     else if (!p) { disabled = true; reason = "No player nominated"; }
-    else if (p.current_bidder_team_id === myTeamId) { disabled = true; reason = "You hold the highest bid — wait for another team to bid"; }
+    else if (holdsTop) { disabled = true; reason = "You hold the highest bid — wait for another team to bid"; }
     else if (!inBiddingPhase) { disabled = true; reason = "Bidding not open"; }
     else if (state.phase === "phase_b" && team.players.length < ruleset.required_players) {
       disabled = true; reason = "Incomplete teams cannot bid in Phase B";
     }
     else if (team.credits_remaining < p.credits) { disabled = true; reason = "Not enough credits for this player"; }
 
+    // Pass is always available: it signals you're done with this player — and
+    // as the high bidder, that you won't go higher.
+    const passBtn = document.createElement("button");
+    passBtn.className = "btn";
+    passBtn.textContent = "Pass";
+    passBtn.addEventListener("click", function () {
+      postForm(urls.passUrl, {}, function (data) { showBidError(data.error || ""); });
+    });
+
     if (disabled) {
       box.innerHTML = '<p class="muted small">' + esc(reason) + "</p>";
+      if (holdsTop) box.appendChild(passBtn);
       return;
     }
 
@@ -312,12 +323,6 @@
     customBtn.addEventListener("click", function () { doBid(urls.bidUrl, parseInt(custom.value, 10)); });
     box.appendChild(customBtn);
 
-    const passBtn = document.createElement("button");
-    passBtn.className = "btn";
-    passBtn.textContent = "Pass";
-    passBtn.addEventListener("click", function () {
-      postForm(urls.passUrl, {}, function (data) { showBidError(data.error || ""); });
-    });
     box.appendChild(passBtn);
 
     if (cantAfford) {
@@ -380,11 +385,68 @@
 
     const form = el("trade-form");
     if (form) {
+      const wrap = form.closest("details");
+      if (state.phase !== "break") {
+        if (wrap) wrap.style.display = "none";
+      } else {
+        if (wrap) wrap.style.display = "";
+        rebuildTradeForm(form, state, myTeamId);
+      }
       form.onsubmit = function (e) {
         e.preventDefault();
         postForm(urls.tradeUrl, new FormData(form), function () {});
       };
     }
+  }
+
+  /* Rebuild the trade form's selects from live state so the rosters shown
+     (offer / request) reflect trades and auction results without a refresh. */
+  function rebuildTradeForm(form, state, myTeamId) {
+    const others = state.teams.filter(function (t) { return t.id !== myTeamId && t.is_active; });
+    const mine = state.teams.find(function (t) { return t.id === myTeamId; });
+    const prev = {};
+    Array.prototype.forEach.call(form.elements, function (el2) {
+      if (el2.name) prev[el2.name] = el2.value;
+    });
+
+    let html = '<div class="row">';
+    html += '<select name="to_team_id" required style="width:auto"><option value="">— with team —</option>';
+    others.forEach(function (t) {
+      html += '<option value="' + esc(t.id) + '">' + esc(t.name) + "</option>";
+    });
+    html += "</select>";
+    html += '<select name="offered_player_id" required style="width:auto"><option value="">— offer —</option>';
+    if (mine) {
+      mine.players.forEach(function (pid, i) {
+        html += '<option value="' + esc(pid) + '">' + esc(mine.player_labels[i] || pid) + "</option>";
+      });
+      mine.bench.forEach(function (pid, i) {
+        html += '<option value="' + esc(pid) + '">' + esc(mine.bench_labels[i] || pid) + "</option>";
+      });
+    }
+    html += "</select>";
+    html += '<select name="requested_player_id" style="width:auto"><option value="">— request (optional) —</option>';
+    others.forEach(function (t) {
+      t.players.forEach(function (pid, i) {
+        html += '<option value="' + esc(pid) + '">' + esc(t.player_labels[i] || pid) + "</option>";
+      });
+    });
+    html += "</select>";
+    html += '<input type="number" name="cash_from_initiator" placeholder="cash I pay" value="0" style="width:100px">';
+    html += '<input type="number" name="cash_from_target" placeholder="cash they pay" value="0" style="width:100px">';
+    html += '<button class="btn btn-primary btn-small" type="submit">Request trade</button>';
+    html += "</div>";
+    form.innerHTML = html;
+
+    /* keep the manager's selections where the option still exists */
+    Array.prototype.forEach.call(form.elements, function (el2) {
+      if (el2.name && prev[el2.name] && el2.tagName === "SELECT") {
+        var exists = Array.prototype.some.call(el2.options, function (o) {
+          return o.value === prev[el2.name];
+        });
+        if (exists) el2.value = prev[el2.name];
+      }
+    });
   }
 
   function postForm(url, data, onDone) {

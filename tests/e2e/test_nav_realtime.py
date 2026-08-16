@@ -130,7 +130,7 @@ def _isolated_server(tmp_path_factory):
                     break
         except Exception:
             time.sleep(0.2)
-    return base, seed
+    return base, seed, app
 
 
 def test_squad_updates_live_after_lot_close(tmp_path_factory, page):
@@ -138,7 +138,7 @@ def test_squad_updates_live_after_lot_close(tmp_path_factory, page):
     1. the manager sees live bids on the lot and opponents' squads,
     2. the admin sees incoming bids without refreshing,
     3. after the lot closes, the manager's squad + wallet/spent update alone."""
-    base, seed = _isolated_server(tmp_path_factory)
+    base, seed, _app = _isolated_server(tmp_path_factory)
     sid = seed["season"]["id"]
 
     # --- admin: phase + nominate ---
@@ -263,5 +263,127 @@ def test_squad_updates_live_after_lot_close(tmp_path_factory, page):
         assert wallet < 10000, "Wallet tile should reflect the deduction"
         # opponents' section stays live (Blaze still empty)
         expect(mgr.locator("#opponents-box")).to_contain_text("Blaze")
+    finally:
+        ctx.close()
+
+
+def test_trade_flow_updates_live(tmp_path_factory, page):
+    """Trade flow end-to-end: dave buys a player, sends a trade to Blaze during
+    the break, bob accepts — and NO page refresh is needed anywhere (the
+    dashboard used to crash with 'sqlite3.Row has no attribute get' the moment
+    a trade existed, and the form's rosters went stale until reload)."""
+    import http.cookiejar
+    import urllib.parse
+    import urllib.request
+
+    base, seed, app = _isolated_server(tmp_path_factory)
+    sid = seed["season"]["id"]
+    auth = app.extensions["auth_service"]
+    bank = app.extensions["bank_service"]
+
+    # bob = manager of Blaze (players[1] = Bob), with a funded wallet
+    bob_user = auth.signup("bob", "bobpw", "Bob")
+    bob_gp = seed["players"][1]["global_player_id"]
+    auth.link_user_to_player(bob_user["id"], bob_gp)
+    bob_acct = bank.get_or_create_account("player", bob_gp)
+    bank.adjust(bob_acct["id"], 10000, "e2e trade funding", tx_type="funding")
+
+    def http_session(uname, pw):
+        cj = http.cookiejar.CookieJar()
+        opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
+        def post(path, data=None):
+            body = urllib.parse.urlencode(data or {}).encode()
+            req = urllib.request.Request(base + path, data=body, headers={
+                "Content-Type": "application/x-www-form-urlencoded"})
+            with opener.open(req, timeout=10) as resp:
+                return resp.status
+        post("/auth/login", {"username": uname, "password": pw})
+        return post
+
+    admin = http_session("admin", "admin123")
+    dave = http_session("dave", "davepw")
+    bob = http_session("bob", "bobpw")
+
+    # auction: dave wins Alice for 3100
+    admin(f"/admin/season/{sid}/phase", {"phase": "phase_a_platinum"})
+    admin(f"/admin/season/{sid}/nominate", {})
+    dave("/manager/bid", {"amount": 3000})
+    bob("/manager/bid", {"amount": 3050})
+    dave("/manager/bid", {"amount": 3100})
+    admin(f"/admin/season/{sid}/close", {})
+    admin(f"/admin/season/{sid}/phase", {"phase": "break"})
+
+    ctx = page.context.browser.new_context()
+    dave_page, bob_page = ctx.new_page(), ctx.new_page()
+    try:
+        # dave's dashboard: break phase, trade form live, offer lists Alice
+        dave_page.goto(base + "/auth/login")
+        dave_page.fill('input[name="username"]', "dave")
+        dave_page.fill('input[name="password"]', "davepw")
+        dave_page.click('button[type="submit"]')
+        dave_page.wait_for_load_state("networkidle")
+        dave_page.goto(base + "/manager")
+        dave_page.wait_for_load_state("networkidle")
+        expect(dave_page.locator("#squad-box")).to_contain_text("Alice")
+        offer_texts = dave_page.locator('select[name="offered_player_id"] option').evaluate_all(
+            "els => els.map(e => e.textContent)")
+        assert any("Alice" in t for t in offer_texts), f"offer options: {offer_texts}"
+
+        # dave sends the trade via the UI (open the collapsible form first)
+        dave_page.locator("#trade-section summary").click()
+        dave_page.select_option('select[name="to_team_id"]', index=1)  # Blaze
+        dave_page.select_option('select[name="offered_player_id"]', index=1)  # Alice
+        dave_page.click('button[type="submit"]:has-text("Request trade")')
+
+        # outgoing trade appears live (state_json no longer crashes on it)
+        deadline = time.time() + 10
+        while time.time() < deadline:
+            if "Alice" in dave_page.locator("#trade-requests").inner_text():
+                break
+            time.sleep(0.5)
+        assert "Alice" in dave_page.locator("#trade-requests").inner_text(), \
+            "Outgoing trade did not appear (state_json likely crashed)"
+        # a fresh server render of the dashboard also survives (was a 500)
+        dave_page.goto(base + "/manager")
+        dave_page.wait_for_load_state("networkidle")
+        assert "Alice" in dave_page.locator("#trade-requests").inner_text()
+
+        # bob sees the incoming trade and accepts it
+        bob_page.goto(base + "/auth/login")
+        bob_page.fill('input[name="username"]', "bob")
+        bob_page.fill('input[name="password"]', "bobpw")
+        bob_page.click('button[type="submit"]')
+        bob_page.wait_for_load_state("networkidle")
+        bob_page.goto(base + "/manager")
+        bob_page.wait_for_load_state("networkidle")
+        deadline = time.time() + 10
+        while time.time() < deadline:
+            if "Alice" in bob_page.locator("#trade-requests").inner_text():
+                break
+            time.sleep(0.5)
+        assert "Alice" in bob_page.locator("#trade-requests").inner_text()
+        bob_page.locator('#trade-requests button[data-action="accept"]').click()
+
+        # bob's squad gains Alice live (no refresh)
+        deadline = time.time() + 12
+        while time.time() < deadline:
+            if "Alice" in bob_page.locator("#squad-box").inner_text():
+                break
+            time.sleep(0.5)
+        assert "Alice" in bob_page.locator("#squad-box").inner_text(), \
+            "Blaze squad did not gain the traded player live"
+
+        # dave's page: squad empty + offer select no longer lists Alice (live)
+        dave_page.bring_to_front()
+        deadline = time.time() + 12
+        while time.time() < deadline:
+            offer_texts = dave_page.locator('select[name="offered_player_id"] option').evaluate_all(
+                "els => els.map(e => e.textContent)")
+            if not any("Alice" in t for t in offer_texts):
+                break
+            time.sleep(0.5)
+        assert not any("Alice" in t for t in offer_texts), \
+            "Dave's offer select still lists the traded player (stale form)"
+        assert "No players bought yet" in dave_page.locator("#squad-box").inner_text()
     finally:
         ctx.close()

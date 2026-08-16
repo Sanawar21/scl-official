@@ -341,6 +341,29 @@ def test_complete_draft_fills_incomplete_and_undo(app, svc):
 # ---------------------------------------------------------------------------
 # trades
 # ---------------------------------------------------------------------------
+def test_trade_requests_enrich_with_names(app, svc):
+    """Regression: get_trade_requests_for_team crashed with "sqlite3.Row
+    object has no attribute 'get'" the moment any trade existed — the lookup
+    maps held raw Rows while the enrich closure called .get() on them."""
+    season, players, teams = _setup(app)
+    sid = season["id"]
+    svc.set_phase(sid, "phase_a_platinum")
+    svc.nominate_next(sid)
+    svc.place_bid(sid, teams[0]["id"], 3000)
+    svc.close_current(sid)  # Alice -> teams[0]
+    svc.set_phase(sid, "break")
+    offered = players[0]["id"]
+    req = svc.request_trade(sid, teams[0]["id"], teams[1]["id"], offered)
+
+    out = svc.get_trade_requests_for_team(sid, teams[0]["id"])
+    assert out["outgoing"][0]["offered_player_name"] == "Alice"
+    assert out["outgoing"][0]["to_team_name"] == teams[1]["name"]
+    inc = svc.get_trade_requests_for_team(sid, teams[1]["id"])
+    assert inc["incoming"][0]["offered_player_name"] == "Alice"
+    assert inc["incoming"][0]["from_team_name"] == teams[0]["name"]
+    assert req["id"] == inc["incoming"][0]["id"]
+
+
 def test_trade_during_break_with_cash(app, svc):
     season, players, teams = _setup(app)
     sid = season["id"]

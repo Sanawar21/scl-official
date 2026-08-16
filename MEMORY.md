@@ -731,6 +731,21 @@ bounced, season resolution broke.
 - Tests: `tests/test_season_delete.py` (5 tests) — cascade coverage, vault release,
   global identity preserved, manager unassign, unknown-season error.
 
+## Trade fixes — DONE (2026-08-16)
+
+- **Crash**: `get_trade_requests_for_team` built its player/team lookup maps
+from raw `sqlite3.Row`s then called `.get()` on them — the manager dashboard
+500'd (`AttributeError: 'sqlite3.Row' object has no attribute 'get'`) the
+moment any trade existed. Fixed by wrapping rows in `row_to_dict`.
+- **Stale form**: the trade form's offer/request selects were server-rendered
+once; `rebuildTradeForm()` now rebuilds them live from `state.teams` on every
+state update (preserving selections that still exist), and the form is hidden
+outside the break phase.
+- Self-bid lockout now keeps the Pass button (top bidder may signal "won't go
+higher"). E2E `test_trade_flow_updates_live` covers the full circle: dave buys
+Alice, trades to Blaze in break, bob accepts — outgoing/incoming lists and
+both rosters + the offer select update with no refresh.
+
 ## Auction bid guardrails — DONE (2026-08-16)
 
 - **No self-bidding**: `place_bid` rejects the current highest bidder

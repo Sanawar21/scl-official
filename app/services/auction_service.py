@@ -1269,9 +1269,12 @@ class AuctionService:
                 "ORDER BY created_at DESC",
                 (team_id, team_id),
             ).fetchall()
-            players_by_id = {p["id"]: p for p in conn.execute(
+            # row_to_dict: the enrich closure calls .get() on these, and raw
+            # sqlite3.Rows have no .get() — that crashed the manager dashboard
+            # the moment any trade request existed.
+            players_by_id = {p["id"]: row_to_dict(p) for p in conn.execute(
                 "SELECT * FROM players WHERE season_id = ?", (season_id,)).fetchall()}
-            teams_by_id = {t["id"]: t for t in conn.execute(
+            teams_by_id = {t["id"]: row_to_dict(t) for t in conn.execute(
                 "SELECT * FROM teams WHERE season_id = ?", (season_id,)).fetchall()}
 
             def enrich(item):
