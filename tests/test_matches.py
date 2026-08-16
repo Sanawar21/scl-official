@@ -3,6 +3,7 @@ import io
 
 import pytest
 
+from app.services.scorer_service import team_profile_slug
 from tests.conftest import _setup
 
 CSV_HEADER = [
@@ -113,6 +114,35 @@ def test_registry_delete_removes_rows(app, scorer):
     result = scorer.delete_match_registry_entry(season["id"], "M1")
     assert result["ok"] is True
     assert scorer.get_match_registry_entry(season["id"], "M1") is None
+
+
+# ----------------------------------------------------------------------
+# team profile squad names
+# ----------------------------------------------------------------------
+def test_team_profile_squad_shows_names_not_raw_ids(app, scorer):
+    season, teams = _teams(app)
+    svc = app.extensions["auction_service"]
+    team = teams[0]
+    gid = (team.get("global_team_id") or "").strip() or team["id"]
+
+    # Add players to the auction pool and assign two to the team's squad.
+    p1 = svc.add_player(season["id"], "Alice", "platinum", "BATTER")
+    p2 = svc.add_player(season["id"], "Bob", "gold", "BOWLER")
+    import json
+    with app.extensions["db"].write() as conn:
+        conn.execute("UPDATE teams SET players = ?, bench = ? WHERE id = ?",
+                     (json.dumps([p1["id"]]), json.dumps([p2["id"]]), team["id"]))
+
+    profile = scorer.team_profile(team_profile_slug(gid, team["name"]))
+    squad = next(s for s in profile["squads"] if s["season_id"] == season["id"])
+    assert squad["players"] == [{"player_id": p1["id"], "name": "Alice"}]
+    assert squad["bench"] == [{"player_id": p2["id"], "name": "Bob"}]
+
+    # Route renders names, not raw ids.
+    c = app.test_client()
+    html = c.get(f"/teams/{profile['team_slug']}").data.decode()
+    assert "Alice" in html and "Bob" in html
+    assert p1["id"] not in html and p2["id"] not in html
 
 
 # ----------------------------------------------------------------------

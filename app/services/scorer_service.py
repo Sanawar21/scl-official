@@ -1554,6 +1554,19 @@ class ScorerService:
             - round((totals["runs_against"] * 6.0 / totals["balls_against"]) if totals["balls_against"] else 0.0, 2), 2)
         totals["nrr_display"] = f"{totals['nrr']:.2f}"
 
+        # Resolve squad player ids to names: teams.players stores per-season
+        # `players.id` values, with `global_players` as a fallback (e.g. for
+        # historical/imported rows where the per-season row no longer exists).
+        with self.db.read() as conn:
+            name_by_pid = {}
+            for r in conn.execute("SELECT id, name FROM players").fetchall():
+                name_by_pid[r["id"]] = r["name"]
+            for r in conn.execute("SELECT id, name FROM global_players").fetchall():
+                name_by_pid.setdefault(r["id"], r["name"])
+
+        def _named(pid):
+            return {"player_id": pid, "name": name_by_pid.get(pid, "")}
+
         squads = []
         for t in teams:
             if (t["global_team_id"] or "").strip() != gid and t["id"] != gid:
@@ -1562,8 +1575,8 @@ class ScorerService:
                 "season_id": t["season_id"],
                 "name": t["name"],
                 "manager_global_player_id": t["manager_player_id"],
-                "players": json_loads(t["players"], []),
-                "bench": json_loads(t["bench"], []),
+                "players": [_named(pid) for pid in json_loads(t["players"], [])],
+                "bench": [_named(pid) for pid in json_loads(t["bench"], [])],
             })
         squads.sort(key=lambda s: _season_sort_key(s.get("season_id") or ""))
 

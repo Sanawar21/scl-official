@@ -63,12 +63,12 @@
       {% if squad.players %}
         <div class="row">
           {% for p in squad.players %}
-            <span class="chip">{{ p.name or p.player_name or p }}</span>
+            <span class="chip">{{ p.name or 'Unknown player' }}</span>
           {% endfor %}
         </div>
       {% endif %}
       {% if squad.bench %}
-        <p class="muted small">Bench: {% for p in squad.bench %}{{ p.name or p.player_name or p }}{% if not loop.last %}, {% endif %}{% endfor %}</p>
+        <p class="muted small">Bench: {% for p in squad.bench %}{{ p.name or 'Unknown player' }}{% if not loop.last %}, {% endif %}{% endfor %}</p>
       {% endif %}
     </section>
   {% endfor %}
