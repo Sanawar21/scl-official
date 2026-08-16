@@ -126,6 +126,24 @@ Update this file whenever you learn something durable. Keep it current as the bu
 - [x] **Frontend transformation Phase 5 — COMPLETE** — final suite green (141: 85 unit + 56 e2e),
   mobile sweep of every page per role passed; plan `FRONTEND_PLAN.md` marked done. The redesign
   touched every template except the offline scorer.
+- [x] **S2 economy restructure (5 increments)** — `global_teams` persistence, no tier purse,
+  idempotent 10k universal funding (button + `scripts/fund_players.py`), 250/match credit to
+  every wallet + `auto_vault` toggle on `/account`, squad-cost levy at draft end + three-section
+  balance board; plan `ECONOMY_PLAN.md`, commits `6841556`..`efc1336`
+- [x] **Auction lifecycle e2e suite** — `tests/e2e/test_auction_lifecycle.py`: 8 tests on an
+  ISOLATED per-test server (own app + temp DB), driving the full draft through the browser
+  (phase set → nominate → manager bid/pass → close → complete/undo → wallet assertions).
+  Found + fixed: the e2e seed was overwriting `global_team_id` with random ids (silently
+  duplicating teams on the board). Suite now 191 (116 unit + 75 e2e).
+
+## E2E gotchas (auction driving)
+- The manager dashboard has NO `#bid-feed` (that's the live board) — bid feedback appears in
+  `#current-lot` ("Current bid: N") after the 4s state poll.
+- The custom "Bid" button is the `+` adjacent sibling of the custom input; `~` also matches Pass.
+- Pass is never disabled (only the Bid buttons are) — don't assert all buttons disabled.
+- The admin helpers must log in as admin first (`/admin/auction` bounces unauthenticated).
+- Nomination order is `rowid` within tier — Alpha/Beta/Gamma/Delta/Epsilon/Zeta for the seed lots.
+- Manager players are marked `sold` to their own team in the seed so lots stay nominatable.
 
 ## Increment 1 — what was built (structure)
 

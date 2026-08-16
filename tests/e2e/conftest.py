@@ -74,14 +74,11 @@ def _seed_match(app, season, players, teams):
     scorer = app.extensions["scorer_service"]
     sid = season["id"]
 
-    # create_team leaves global_team_id NULL (the prod import sets it) — assign
-    # one so the scorer's identity maps (local->global) resolve.
-    gids = {}
-    with db.write() as conn:
-        for t in teams:
-            gid = secrets.token_hex(8)
-            gids[t["id"]] = gid
-            conn.execute("UPDATE teams SET global_team_id = ? WHERE id = ?", (gid, t["id"]))
+    # create_team already set each team's real global_team_id (the global_teams
+    # row id) — the scorer CSV references teams by that canonical id. NEVER
+    # overwrite it with random ids (that orphans the global_teams link and
+    # duplicates teams on the budget board).
+    gids = {t["id"]: (t["global_team_id"] or t["id"]) for t in teams}
 
     scorer.upsert_match_registry_entry(
         sid, "M1", match_number="Match 1", between="Thunder vs Blaze",
