@@ -8,7 +8,10 @@ Covers:
    updates on its own (socket push — no manual refresh).
 4. The vendored socket.io client is loaded on every page.
 """
+import socket
+import threading
 import time
+import urllib.request
 
 from playwright.sync_api import expect
 
@@ -89,5 +92,112 @@ def test_manager_sees_live_chip_and_auto_updates(base_url, seed, login, page):
                 break
             time.sleep(0.5)
         assert updated, "Manager phase badge did not update automatically"
+    finally:
+        ctx.close()
+
+
+def _isolated_server(tmp_path_factory):
+    """Boot a throwaway server on its own temp DB, isolated from the shared
+    session server — so this test is deterministic no matter what other tests
+    in the suite did to the shared auction."""
+    from app import create_app, socketio
+    from tests.e2e.conftest import _seed
+
+    db_path = str(tmp_path_factory.mktemp("squad") / "squad.db")
+    app = create_app({"SECRET_KEY": "e2e", "DB_PATH": db_path,
+                      "ADMIN_USERNAME": "admin", "ADMIN_PASSWORD": "admin123"})
+    seed = _seed(app)
+
+    sock = socket.socket()
+    sock.bind(("127.0.0.1", 0))
+    port = sock.getsockname()[1]
+    sock.close()
+
+    thread = threading.Thread(
+        target=socketio.run,
+        kwargs={"app": app, "host": "127.0.0.1", "port": port,
+                "use_reloader": False, "debug": False,
+                "allow_unsafe_werkzeug": True},
+        daemon=True,
+    )
+    thread.start()
+    base = f"http://127.0.0.1:{port}"
+    deadline = time.time() + 30
+    while time.time() < deadline:
+        try:
+            with urllib.request.urlopen(base + "/", timeout=2) as resp:
+                if resp.status == 200:
+                    break
+        except Exception:
+            time.sleep(0.2)
+    return base, seed
+
+
+def test_squad_updates_live_after_lot_close(tmp_path_factory, page):
+    """The exact reported bug: after the admin closes a lot and the player is
+    sold to the manager's team, the manager's "My squad" + wallet/spent tiles
+    update automatically (socket) — no manual refresh."""
+    base, seed = _isolated_server(tmp_path_factory)
+    sid = seed["season"]["id"]
+
+    # --- admin: phase + nominate ---
+    page.goto(base + "/auth/login")
+    page.fill('input[name="username"]', "admin")
+    page.fill('input[name="password"]', "admin123")
+    page.click('button[type="submit"]')
+    page.wait_for_load_state("networkidle")
+    page.goto(base + f"/admin/auction?season={sid}")
+    page.select_option("#phase-select", "phase_a_platinum")
+    page.click('button[type="submit"]:has-text("Set phase")')
+    page.wait_for_load_state("networkidle")
+    page.click('button[type="submit"]:has-text("Nominate next")')
+    page.wait_for_load_state("networkidle")
+    player_name = page.locator(".lot-box .lot-name").inner_text().split()[0]
+    assert player_name
+
+    # --- manager (dave → Thunder): bid the minimum ---
+    ctx = page.context.browser.new_context()
+    mgr = ctx.new_page()
+    try:
+        mgr.goto(base + "/auth/login")
+        mgr.fill('input[name="username"]', "dave")
+        mgr.fill('input[name="password"]', "davepw")
+        mgr.click('button[type="submit"]')
+        mgr.wait_for_load_state("networkidle")
+        mgr.goto(base + "/manager")
+        mgr.wait_for_load_state("networkidle")
+
+        squad = mgr.locator("#squad-box")
+        expect(squad).to_contain_text("No players bought yet")
+        expect(mgr.locator("#stat-spent")).to_have_text("0")
+        expect(mgr.locator("#stat-wallet")).to_have_text("10000")
+
+        # place the minimum bid
+        bid_btn = mgr.locator("#bid-controls button.btn-primary")
+        expect(bid_btn).to_be_visible()
+        bid_btn.click()
+        # bid registers on the lot
+        expect(mgr.locator("#current-lot")).to_contain_text("Current bid:")
+
+        # --- admin closes the lot → sold to Thunder ---
+        page.bring_to_front()
+        page.click('button[type="submit"]:has-text("Close lot")')
+        page.wait_for_load_state("networkidle")
+
+        # --- manager's squad must update WITHOUT a manual reload ---
+        mgr.bring_to_front()
+        deadline = time.time() + 12
+        while time.time() < deadline:
+            if player_name in squad.inner_text():
+                break
+            time.sleep(0.5)
+        assert player_name in squad.inner_text(), (
+            f"Squad did not update automatically after the lot closed "
+            f"(expected '{player_name}' in: {squad.inner_text()})")
+        # wallet + spent tiles updated too
+        spent = int(mgr.locator("#stat-spent").inner_text())
+        assert spent > 0, "Spent tile should reflect the sale"
+        wallet = int(mgr.locator("#stat-wallet").inner_text())
+        assert wallet < 10000, "Wallet tile should reflect the deduction"
     finally:
         ctx.close()

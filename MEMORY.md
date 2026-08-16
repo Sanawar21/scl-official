@@ -731,6 +731,18 @@ bounced, season resolution broke.
 - Tests: `tests/test_season_delete.py` (5 tests) — cascade coverage, vault release,
   global identity preserved, manager unassign, unknown-season error.
 
+## Manager squad updates live — DONE (2026-08-16)
+
+Fixed: the manager's "My squad" (XI/bench) was server-rendered and never
+re-rendered by `refreshManager` — when the admin closed a lot and a player was
+sold to the team, the squad stayed stale until refresh. `renderSquad()` in
+`app.js` now re-renders `#squad-box` from `state.teams` (which already carries
+`player_labels`/`bench_labels`) on every state update, and also refreshes the
+wallet/credits/spent stat tiles (`#stat-wallet` etc.). E2E
+`test_squad_updates_live_after_lot_close` (isolated server) drives the real
+flow: bid → close lot → squad shows the player + spent/wallet update with no
+reload.
+
 ## Password recovery (admin-reset) — DONE (2026-08-16)
 
 No email system exists in the app (accounts don't store emails), so recovery is

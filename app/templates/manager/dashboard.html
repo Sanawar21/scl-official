@@ -29,15 +29,15 @@
     <div class="stat-row">
       <div class="stat-tile">
         <div class="stat-label">Wallet (purse)</div>
-        <div class="stat-value">{{ my_team.wallet }}</div>
+        <div class="stat-value" id="stat-wallet">{{ my_team.wallet }}</div>
       </div>
       <div class="stat-tile">
         <div class="stat-label">Credits left</div>
-        <div class="stat-value">{{ my_team.credits_remaining }}</div>
+        <div class="stat-value" id="stat-credits">{{ my_team.credits_remaining }}</div>
       </div>
       <div class="stat-tile">
         <div class="stat-label">Spent</div>
-        <div class="stat-value">{{ my_team.spent }}</div>
+        <div class="stat-value" id="stat-spent">{{ my_team.spent }}</div>
       </div>
     </div>
   </section>
@@ -52,20 +52,22 @@
 
     <section class="card">
       <div class="card-head"><h2>My squad</h2></div>
-      <h3>XI</h3>
-      {% if my_team.player_labels %}
-        <div class="row">
-          {% for label in my_team.player_labels %}<span class="chip">{{ label }}</span>{% endfor %}
-        </div>
-      {% else %}
-        <p class="muted small">No players bought yet.</p>
-      {% endif %}
-      {% if my_team.bench_labels %}
-        <h3>Bench</h3>
-        <div class="row">
-          {% for label in my_team.bench_labels %}<span class="chip chip-bench">{{ label }}</span>{% endfor %}
-        </div>
-      {% endif %}
+      <div id="squad-box">
+        <h3>XI</h3>
+        {% if my_team.player_labels %}
+          <div class="row">
+            {% for label in my_team.player_labels %}<span class="chip">{{ label }}</span>{% endfor %}
+          </div>
+        {% else %}
+          <p class="muted small">No players bought yet.</p>
+        {% endif %}
+        {% if my_team.bench_labels %}
+          <h3>Bench</h3>
+          <div class="row">
+            {% for label in my_team.bench_labels %}<span class="chip chip-bench">{{ label }}</span>{% endfor %}
+          </div>
+        {% endif %}
+      </div>
     </section>
   </div>
 

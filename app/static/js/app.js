@@ -180,8 +180,39 @@
     renderBudget(state);
     renderManagerControls(state, myTeamId, urls);
     renderTradeRequests(state, myTeamId, urls);
+    renderSquad(state, myTeamId);
     const badge = el("phase-badge");
     if (badge && badge.textContent !== state.phase) badge.textContent = state.phase;
+  }
+
+  /* Re-render the manager's squad (XI/bench) + wallet/credits/spent tiles when
+     a lot closes and a player is sold to this team. The state JSON already
+     carries the enriched team (player_labels / bench_labels). */
+  function renderSquad(state, myTeamId) {
+    const box = el("squad-box");
+    if (!box) return;
+    const team = state.teams.find(function (t) { return t.id === myTeamId; });
+    if (!team) { box.innerHTML = ""; return; }
+    let html = "<h3>XI</h3>";
+    if (team.player_labels && team.player_labels.length) {
+      html += '<div class="row">' + team.player_labels.map(function (l) {
+        return '<span class="chip">' + esc(l) + "</span>";
+      }).join("") + "</div>";
+    } else {
+      html += '<p class="muted small">No players bought yet.</p>';
+    }
+    if (team.bench_labels && team.bench_labels.length) {
+      html += "<h3>Bench</h3><div class=\"row\">" + team.bench_labels.map(function (l) {
+        return '<span class="chip chip-bench">' + esc(l) + "</span>";
+      }).join("") + "</div>";
+    }
+    box.innerHTML = html;
+    const wallet = el("stat-wallet");
+    const credits = el("stat-credits");
+    const spent = el("stat-spent");
+    if (wallet && team.wallet != null) wallet.textContent = team.wallet;
+    if (credits && team.credits_remaining != null) credits.textContent = team.credits_remaining;
+    if (spent && team.spent != null) spent.textContent = team.spent;
   }
 
   function renderManagerControls(state, myTeamId, urls) {
