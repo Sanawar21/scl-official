@@ -37,19 +37,30 @@ jobs:
             fi
             ./.venv/bin/pip install -r requirements.txt --quiet
 
-            # 3. Stop the old server — kill by PORT, never by process name.
-            #    (A name-based pkill can match the deploy script's own shell,
-            #    because the whole script text is the ssh command line, and
-            #    SIGTERM the SSH session mid-deploy — that killed the previous
-            #    deploys.) netstat (net-tools) is confirmed installed on the
-            #    VPS; fuser is a fallback. Port 10001 is never the SSH port.
+            # 3. Stop the old server — kill by PID file / screen session / port
+            #    only, never by process name. (A name-based pkill can match the
+            #    deploy script's own shell, because the whole script text is the
+            #    ssh command line, and SIGTERM the SSH session mid-deploy.) Every
+            #    strategy is guarded so a missing tool or stale pid is a no-op.
             screen -S sanawar-scl-official -X quit >/dev/null 2>&1 || true
+            if [ -f server.pid ]; then
+              OLD_PID=$(tr -dc '0-9' < server.pid 2>/dev/null)
+              if [ -n "$OLD_PID" ]; then
+                echo "stopping old server via server.pid ($OLD_PID)"
+                kill "$OLD_PID" >/dev/null 2>&1 || true
+              fi
+            fi
 
+            # Port-based kill: ss (iproute2, on every modern distro) first,
+            # netstat (net-tools) as fallback. Port 10001 is never the SSH port.
             kill_by_port() {
               local pid
-              pid=$(netstat -nlp 2>/dev/null | awk '/:10001 /{print $NF}' | head -1 | cut -d/ -f1)
+              pid=$(ss -ltnp 2>/dev/null | grep ":10001 " | grep -o 'pid=[0-9]*' | head -1 | cut -d= -f2 || true)
+              if [ -z "$pid" ]; then
+                pid=$(netstat -nlp 2>/dev/null | awk '/:10001 /{print $NF}' | head -1 | cut -d/ -f1 || true)
+              fi
               if [ -n "$pid" ] && [ "$pid" != "-" ]; then
-                echo "stopping old server (pid $pid)"
+                echo "stopping old server on :10001 (pid $pid)"
                 kill "$1" "$pid" >/dev/null 2>&1 || true
                 return 0
               fi
@@ -60,6 +71,7 @@ jobs:
               sleep 1
             done
             command -v fuser >/dev/null 2>&1 && fuser -k 10001/tcp >/dev/null 2>&1 || true
+            rm -f server.pid  # stale after the kill; the new server rewrites it
 
             # 4. Wait until the port is actually free (the server refuses to
             #    start while another process holds it). Poll for up to 15s,
@@ -79,14 +91,19 @@ jobs:
             fi
 
             # 5. Start fresh in a screen session named sanawar-scl-official.
+            #    Truncate the log first so the health check can only see output
+            #    from THIS server.
+            : > /root/scl-official/server.log
             screen -dmS sanawar-scl-official bash -c './.venv/bin/python run.py >> /root/scl-official/server.log 2>&1'
 
-            # 6. Health check: the new server must actually answer on :10001.
-            #    If not, surface the log and fail the deploy loudly instead of
-            #    printing a misleading "Deploy complete".
+            # 6. Health check: the new server must answer on :10001 AND log a
+            #    fresh "Serving on" line. (The old server may linger in TIME_WAIT
+            #    for a minute — a TCP connect alone isn't proof the new one is
+            #    up.) If it fails, surface the log and fail loudly.
             up=""
-            for i in $(seq 1 15); do
-              if timeout 2 bash -c "echo > /dev/tcp/127.0.0.1/10001" 2>/dev/null; then
+            for i in $(seq 1 20); do
+              if timeout 2 bash -c "echo > /dev/tcp/127.0.0.1/10001" 2>/dev/null \
+                 && grep -q "Serving on" /root/scl-official/server.log 2>/dev/null; then
                 up="yes"
                 echo "server is up on :10001 (after ${i}s)"
                 break
@@ -94,8 +111,8 @@ jobs:
               sleep 1
             done
             if [ -z "$up" ]; then
-              echo "DEPLOY FAILED: server did not bind :10001. Last log lines:" >&2
-              tail -20 /root/scl-official/server.log 2>/dev/null || true
+              echo "DEPLOY FAILED: server did not come up on :10001. Log:" >&2
+              tail -30 /root/scl-official/server.log 2>/dev/null || true
               exit 1
             fi
 

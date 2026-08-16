@@ -731,6 +731,18 @@ bounced, season resolution broke.
 - Tests: `tests/test_season_delete.py` (5 tests) — cascade coverage, vault release,
   global identity preserved, manager unassign, unknown-season error.
 
+## Deploy bind-failure root cause: TIME_WAIT — DONE (2026-08-16)
+
+Run 8's bind error happened AFTER the kill worked (old server's access logs
+stop mid-deploy): the killed server's connections (managers' /manager/state
+polling) leave TIME_WAIT tuples on :10001 for ~60s, and run.py's port
+pre-check bound WITHOUT SO_REUSEADDR → EADDRINUSE even though nothing was
+listening. Fixes: run.py pre-check now sets SO_REUSEADDR (werkzeug already
+did), writes `server.pid` (cleaned on exit; gitignored) so deploys kill by
+pid file, prints the startup line with flush=True, and gives a cross-platform
+kill hint. Deploy now also kills via ss (iproute2) + pid file, truncates
+server.log before start, and health-checks for a fresh "Serving on" line.
+
 ## Live bids + opponents' squads everywhere — DONE (2026-08-16)
 
 - **Manager dashboard**: added `#lot-bids` (live bids on the current lot,

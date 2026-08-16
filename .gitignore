@@ -18,3 +18,4 @@ data/brandings/*
 .DS_Store
 .env
 logs/
+server.pid
