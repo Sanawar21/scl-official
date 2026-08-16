@@ -98,11 +98,11 @@ class BankService:
     def fund_all_players(self, amount: int = 10000, comment: str = "") -> dict:
         """Credit every global player's wallet once (S2 universal funding).
 
-        Wallets are auto-created — players who never signed up get one too, and
-        it runs on **auto mode** (auto_vault on; the 10k lands in the vault of
-        the latest season). Accounts the owner already manages keep their own
-        mode. Idempotent: an account that already received `season_funding` is
-        skipped on re-runs. Returns {"funded": n, "skipped": n}.
+        The money lands in **liquid cash** (manual mode) so it's usable for the
+        auction — auto-vault is opt-in per player, never forced by funding.
+        Wallets are auto-created for players who never signed up. Idempotent:
+        an account that already received `season_funding` is skipped on
+        re-runs. Returns {"funded": n, "skipped": n}.
         """
         amount = int(amount)
         if amount <= 0:
@@ -117,9 +117,6 @@ class BankService:
         funded = skipped = 0
         with self.db.write() as conn:
             for pid in pids:
-                existed = conn.execute(
-                    "SELECT 1 FROM bank_accounts WHERE owner_type = 'player' AND owner_id = ?",
-                    (pid,)).fetchone()
                 acct = self.get_or_create_account("player", pid, conn=conn)
                 already = conn.execute(
                     "SELECT 1 FROM bank_transactions WHERE account_id = ? "
@@ -127,12 +124,6 @@ class BankService:
                 if already:
                     skipped += 1
                     continue
-                # A wallet created right here (player never signed up) runs on
-                # auto by default; pre-existing wallets keep the owner's mode.
-                if not existed and not acct["auto_vault"]:
-                    conn.execute(
-                        "UPDATE bank_accounts SET auto_vault = 1 WHERE id = ?",
-                        (acct["id"],))
                 self.credit(acct["id"], amount, comment, tx_type="season_funding",
                             season_id=season_id, conn=conn)
                 funded += 1

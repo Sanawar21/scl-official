@@ -21,6 +21,26 @@ def test_account_and_adjust(app, bank):
     assert len(txns) == 1 and txns[0]["amount"] == 5000
 
 
+def test_fund_all_players_lands_in_liquid_not_vault(app, bank):
+    """Universal funding must be spendable (liquid) — managers need it to bid.
+    Auto mode is opt-in, never forced by funding."""
+    with app.extensions["db"].write() as conn:
+        conn.execute("INSERT INTO global_players (id, name, tier, speciality, created_at) "
+                     "VALUES ('gp-x', 'X', 'gold', 'BATTER', '2026-01-01')")
+        conn.execute("INSERT INTO global_players (id, name, tier, speciality, created_at) "
+                     "VALUES ('gp-y', 'Y', 'silver', 'BOWLER', '2026-01-01')")
+    result = bank.fund_all_players(10000)
+    assert result["funded"] == 2
+    for gp_id in ("gp-x", "gp-y"):
+        acct = bank.account_for_owner("player", gp_id)
+        assert acct["liquid_cash"] == 10000, "funding must land liquid"
+        assert acct["auto_vault"] == 0, "auto mode must not be forced"
+        assert acct["locked_capital"] == 0, "nothing locked by funding"
+    # Idempotent: second run skips both.
+    result2 = bank.fund_all_players(10000)
+    assert result2["skipped"] == 2
+
+
 def test_vault_lock_and_compounding_yield(app, bank):
     account = _account(app, bank)
     bank.adjust(account["id"], 10000, "funds")
