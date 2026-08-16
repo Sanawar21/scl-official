@@ -37,17 +37,33 @@ jobs:
             fi
             ./.venv/bin/pip install -r requirements.txt --quiet
 
-            # 3. Stop the old server — reliably, with several strategies so it
-            #    works even when the old process was started with nohup (not in
-            #    screen) or when psmisc (fuser) isn't installed. "run[.]py"
-            #    avoids pkill matching this script's own command line.
+            # 3. Stop the old server — kill by PORT, never by process name.
+            #    (A name-based pkill can match the deploy script's own shell,
+            #    because the whole script text is the ssh command line, and
+            #    SIGTERM the SSH session mid-deploy — that killed the previous
+            #    deploys.) netstat (net-tools) is confirmed installed on the
+            #    VPS; fuser is a fallback. Port 10001 is never the SSH port.
             screen -S sanawar-scl-official -X quit >/dev/null 2>&1 || true
-            command -v fuser >/dev/null 2>&1 && fuser -k 10001/tcp >/dev/null 2>&1 || true
-            pkill -f "run[.]py" >/dev/null 2>&1 || true
 
-            # 4. Wait until the port is actually free (run.py refuses to start
-            #    while another process holds it). Poll for up to 15s, then
-            #    force-kill and wait once more.
+            kill_by_port() {
+              local pid
+              pid=$(netstat -nlp 2>/dev/null | awk '/:10001 /{print $NF}' | head -1 | cut -d/ -f1)
+              if [ -n "$pid" ] && [ "$pid" != "-" ]; then
+                echo "stopping old server (pid $pid)"
+                kill "$1" "$pid" >/dev/null 2>&1 || true
+                return 0
+              fi
+              return 1
+            }
+            for i in 1 2 3 4 5; do
+              kill_by_port -TERM || break
+              sleep 1
+            done
+            command -v fuser >/dev/null 2>&1 && fuser -k 10001/tcp >/dev/null 2>&1 || true
+
+            # 4. Wait until the port is actually free (the server refuses to
+            #    start while another process holds it). Poll for up to 15s,
+            #    then force-kill by port and wait once more.
             for i in $(seq 1 15); do
               if ! timeout 1 bash -c "echo > /dev/tcp/127.0.0.1/10001" 2>/dev/null; then
                 echo "port 10001 free"
@@ -57,8 +73,8 @@ jobs:
               sleep 1
             done
             if timeout 1 bash -c "echo > /dev/tcp/127.0.0.1/10001" 2>/dev/null; then
-              echo "port 10001 still held after 15s — force killing run.py"
-              pkill -9 -f "run[.]py" >/dev/null 2>&1 || true
+              echo "port 10001 still held after 15s — force killing by port"
+              kill_by_port -KILL || true
               sleep 3
             fi
 
