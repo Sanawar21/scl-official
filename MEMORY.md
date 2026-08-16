@@ -141,6 +141,18 @@ Update this file whenever you learn something durable. Keep it current as the bu
   **live house coverage per side** ("House covers: Yes win → N · No win → M") on board,
   detail + admin pages, computed by `wager_service.house_coverage()` and polled every 4s
   via new `/wagers/live` + `/wagers/<id>/live` JSON endpoints. Suite now 193.
+- [x] **Participant documents drafted (2026-08-16)** — `docs/SCL_BRAND_PROMPT.md` (paste-into-
+  nano-banana branding prompt), `docs/SCL_RULEBOOK.md`, `docs/SCL_VAULT_GUIDE.md`,
+  `docs/SCL_WAGERS_GUIDE.md`, `docs/SCL_ECONOMY_GUIDE.md`. New rules added per user: umpiring
+  quota 3 matches else 1,500 fine at season end; Substitution Release Clause = 50% of the
+  player's auction price; 500 fine to the manager whose player invades the field; 200 for
+  sponsored match announcements (promote/trash talk). MDs for review → PDFs later.
+
+## Participant docs — source of truth mapping
+- Rulebook/vault/wager sources are `rulebook.txt`, `vault.txt`, `wager.txt` in the repo root
+  (S2 rulebook PDFs too). Platform numbers that override them: no tier purse (universal 10k),
+  match reward 250 to EVERY player, credit refund 1000, bid increment 50, vault 7%/match cap
+  12, roster = manager + 3, squad-cost levy on non-spenders at draft end.
 
 ## E2E gotchas (auction driving)
 - The manager dashboard has NO `#bid-feed` (that's the live board) — bid feedback appears in
