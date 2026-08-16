@@ -1068,7 +1068,10 @@ class ScorerService:
             team_names = {}
             for t in conn.execute("SELECT * FROM teams WHERE season_id = ?", (season_id,)).fetchall():
                 gid = (t["global_team_id"] or "").strip() or t["id"]
+                # Stats rows may reference either the per-season team id or the
+                # global id (imported S1 stats use the global id) — map both.
                 team_names.setdefault(gid, t["name"])
+                team_names.setdefault(t["id"], t["name"])
         agg = {}
         for r in rows:
             tid = r["team_id"]
@@ -1490,11 +1493,22 @@ class ScorerService:
         with self.db.read() as conn:
             teams = [dict(r) for r in conn.execute(
                 "SELECT * FROM teams").fetchall()]
-        target = self._resolve_team_slug(team_slug, teams)
+            global_teams = [dict(r) for r in conn.execute(
+                "SELECT * FROM global_teams").fetchall()]
+        # Global-only teams (not in any season) resolve through global_teams too.
+        pool = list(teams) + [{
+            "id": gt["id"], "name": gt["name"], "global_team_id": gt["id"],
+            "season_id": None, "manager_player_id": gt["manager_player_id"],
+        } for gt in global_teams]
+        target = self._resolve_team_slug(team_slug, pool)
         if not target:
             return None
         gid = (target["global_team_id"] or "").strip() or target["id"]
-        name = target["name"]
+        profile = next((gt for gt in global_teams if gt["id"] == gid), None)
+        name = (profile or {}).get("name") or target["name"]
+        logo = (profile or {}).get("logo") or ""
+        about = (profile or {}).get("about") or ""
+        manager_player_id = (profile or {}).get("manager_player_id") or target.get("manager_player_id")
 
         with self.db.read() as conn:
             rows = conn.execute(
@@ -1556,6 +1570,9 @@ class ScorerService:
             "team_id": gid,
             "team_name": name,
             "team_slug": team_profile_slug(gid, name),
+            "logo": logo,
+            "about": about,
+            "manager_player_id": manager_player_id,
             "global_stats": totals,
             "season_stats": [dict(sorted(e.items())) for e in per_season.values()],
             "squads": squads,

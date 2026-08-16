@@ -13,10 +13,36 @@
   </div>
 {% else %}
   {% if my_team %}
-    <div class="banner banner-info">
-      You manage <b>{{ my_team.name }}</b> — your wallet is the team's money.
-      <span class="small">Match rewards, fines and transfers all move through it.</span>
-    </div>
+    <section class="card">
+      <div class="card-head">
+        <h2>My team</h2>
+        <span class="tag tag-active">Manager</span>
+      </div>
+      <p class="muted small">Your wallet is the team's money — rewards, grants and transfers all move through it.
+        {% if my_team.seasons %}Playing seasons: {% for s in my_team.seasons %}<b>{{ s.season_id }}</b>{% if not loop.last %}, {% endif %}{% endfor %}.{% else %}
+        This team isn't registered for a season yet — the admin adds it when it's time to play.{% endif %}</p>
+      <form id="team-update-form" class="row" style="gap:10px;align-items:flex-start">
+        <input type="hidden" name="team_id" value="{{ my_team.id }}">
+        <div class="col" style="gap:8px">
+          <input type="text" name="name" value="{{ my_team.name }}" required style="width:220px">
+          <input type="text" name="logo" value="{{ my_team.logo or '' }}" placeholder="logo URL (optional)" style="width:220px">
+          <textarea name="about" rows="3" placeholder="About the team…" style="width:220px">{{ my_team.about or '' }}</textarea>
+        </div>
+        <button class="btn btn-primary" type="submit">Save team</button>
+        <span id="team-msg" class="error-text"></span>
+      </form>
+    </section>
+  {% else %}
+    <section class="card">
+      <div class="card-head"><h2>Start a team</h2></div>
+      <p class="muted small">Create a team account and manage it from here — its money is your wallet.
+        Your team can play in a future season even if it isn't registered now.</p>
+      <form id="team-create-form" class="row">
+        <input type="text" name="name" placeholder="team name" required style="width:220px">
+        <button class="btn btn-primary" type="submit">Create team</button>
+        <span id="team-msg" class="error-text"></span>
+      </form>
+    </section>
   {% endif %}
 
   <section class="card">
@@ -130,6 +156,28 @@
 </script>
 <script>
   window.addEventListener('load', () => {
+    const teamCreate = document.getElementById('team-create-form');
+    if (teamCreate) teamCreate.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const res = await fetch("{{ url_for('banking.team_create') }}", {
+        method: 'POST',
+        body: new FormData(teamCreate),
+      });
+      const data = await res.json();
+      if (data.ok) { location.reload(); }
+      else { document.getElementById('team-msg').textContent = data.error || 'Error'; }
+    });
+    const teamUpdate = document.getElementById('team-update-form');
+    if (teamUpdate) teamUpdate.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const res = await fetch("{{ url_for('banking.team_update') }}", {
+        method: 'POST',
+        body: new FormData(teamUpdate),
+      });
+      const data = await res.json();
+      if (data.ok) { location.reload(); }
+      else { document.getElementById('team-msg').textContent = data.error || 'Error'; }
+    });
     const lockForm = document.getElementById('vault-lock-form');
     if (lockForm) lockForm.addEventListener('submit', async (e) => {
       e.preventDefault();

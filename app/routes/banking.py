@@ -29,12 +29,61 @@ def account():
     my_team = None
     if user.get("global_player_id"):
         with db.read() as conn:
-            my_team = conn.execute(
-                "SELECT id, name, season_id FROM teams "
-                "WHERE manager_player_id = ? LIMIT 1", (user["global_player_id"],)).fetchone()
+            gt = conn.execute(
+                "SELECT * FROM global_teams WHERE manager_player_id = ? LIMIT 1",
+                (user["global_player_id"],)).fetchone()
+            if gt:
+                my_team = dict(gt)
+                acct = conn.execute(
+                    "SELECT liquid_cash FROM bank_accounts WHERE owner_type = 'player' "
+                    "AND owner_id = ?", (user["global_player_id"],)).fetchone()
+                my_team["wallet"] = int(acct["liquid_cash"]) if acct else 0
+                my_team["seasons"] = [
+                    dict(r) for r in conn.execute(
+                        "SELECT season_id, name FROM teams "
+                        "WHERE global_team_id = ? ORDER BY season_id", (my_team["id"],)).fetchall()
+                ]
     return render_template("banking/account.html", account=account,
                            vault_positions=vault_positions, seasons=seasons, txns=txns,
-                           finalized_counts=finalized_counts, my_team=dict(my_team) if my_team else None)
+                           finalized_counts=finalized_counts, my_team=my_team)
+
+
+@banking_bp.post("/team/create")
+@login_required()
+def team_create():
+    auction_service = current_app.extensions["auction_service"]
+    user = session.get("user") or {}
+    if not user.get("global_player_id"):
+        return jsonify({"ok": False, "error": "Account not linked to a player"}), 400
+    try:
+        team = auction_service.create_team_account(
+            user["global_player_id"], request.form.get("name", ""))
+        return jsonify({"ok": True, "team": team})
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@banking_bp.post("/team/update")
+@login_required()
+def team_update():
+    auction_service = current_app.extensions["auction_service"]
+    user = session.get("user") or {}
+    if not user.get("global_player_id"):
+        return jsonify({"ok": False, "error": "Account not linked to a player"}), 400
+    team_id = (request.form.get("team_id") or "").strip()
+    team = auction_service.get_global_team(team_id)
+    if not team or team.get("manager_player_id") != user["global_player_id"]:
+        return jsonify({"ok": False, "error": "You don't manage this team"}), 403
+    try:
+        team = auction_service.update_team_profile(
+            team_id,
+            name=request.form.get("name"),
+            logo=request.form.get("logo"),
+            about=request.form.get("about"),
+        )
+        return jsonify({"ok": True, "team": team})
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
 
 
 @banking_bp.post("/vault/lock")

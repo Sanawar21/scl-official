@@ -49,6 +49,9 @@ def _seed(app):
     dave = auth.signup("dave", "davepw", "Dave")
     dave = auth.link_user_to_player(dave["id"], players[3]["global_player_id"])
     auth.assign_manager(dave["id"], teams[0]["id"])
+    # S2 economy: no tier purse — fund the manager's wallet directly.
+    dave_acct = bank.get_or_create_account("player", players[3]["global_player_id"])
+    bank.adjust(dave_acct["id"], 10000, "e2e seed funding", tx_type="funding")
     users["dave"] = dave
 
     market = wager.create_wager(users["alice"], "Will Thunder win Match 1?",

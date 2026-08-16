@@ -9,6 +9,18 @@ CREATE TABLE IF NOT EXISTS global_players (
   created_at TEXT NOT NULL
 );
 
+-- Persistent team identity (spans seasons). Per-season participation rows in
+-- `teams` link here via teams.global_team_id. The manager's player wallet IS
+-- the team's money; a team not in any season still exists here (logo/about).
+CREATE TABLE IF NOT EXISTS global_teams (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  logo TEXT,
+  about TEXT,
+  manager_player_id TEXT REFERENCES global_players(id),
+  created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   username TEXT NOT NULL UNIQUE,

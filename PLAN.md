@@ -213,6 +213,14 @@ status + what they need), the required-margin calculator on `/table` (JSON endpo
 panel on match summaries. Top-N season-aware: registry > RR count → final → top-2 (S1),
 else top-1 (S2). 11 unit + 6 e2e tests (164 total: 99 unit + 65 e2e).
 
+## S2 economy restructure (in progress) — plan: ECONOMY_PLAN.md
+
+1. ✅ Persistent team identity (`global_teams` + no purse + delete-keeps-wallet + team accounts) — DONE (2026-08-16)
+2. S2 economy rules — remove tier purse from ruleset UI/defaults; 10k universal funding action
+3. Universal credit (250/match to every wallet) + auto-mode vault
+4. Squad-cost levy after the auction + three-section balance board
+5. Admin flows (fund-all, create/link anytime) + docs
+
 ## Ball-by-ball match view — DONE (2026-08-15)
 
 `/matches/<season>/<match>/balls` — play-by-play for scorer-scored matches: innings tabs,

@@ -45,6 +45,14 @@ def _setup(app, n_teams=4, players=None, phase_order=None):
     for i, tname in enumerate(team_names):
         manager_gp = player_rows[i]["global_player_id"]
         teams.append(svc.create_team(sid, tname, manager_gp))
+    # S2 economy: no tier purses — fund each manager's wallet directly.
+    bank = app.extensions["bank_service"]
+    for i, tname in enumerate(team_names):
+        manager_gp = player_rows[i]["global_player_id"]
+        acct = bank.get_or_create_account("player", manager_gp)
+        bank.adjust(acct["id"], 10000, "test funding (10k)", tx_type="funding")
+    # Refresh the returned team dicts so `wallet` reflects the funding.
+    teams = [svc._get_team(sid, t["id"]) for t in teams]
     return season, player_rows, teams
 
 

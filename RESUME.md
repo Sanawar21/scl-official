@@ -1,8 +1,17 @@
 # SCL Rebuild — Session Resume Handoff
 
 Read this first in a new session, then `MEMORY.md` (living context + gotchas) and `PLAN.md`
-(feature plan). Last updated 2026-08-15 at the end of the session that shipped the
-**reference docs + demo environment** (164 tests).
+(feature plan). Last updated 2026-08-16 at the end of the session that started the
+**S2 economy restructure** (ECONOMY_PLAN.md, Increment 1 done; 169 tests).
+
+## S2 economy — Increment 1 (persistent teams) DONE (2026-08-16)
+
+Plan + locked decisions: `ECONOMY_PLAN.md` (D1-D4). Inc 1 = team identity:
+`global_teams` table (backfilled from S1's 4 teams), `create_team` without
+purse funding, `delete_team` never touches the wallet, player-created team
+accounts with logo/about editing on `/account`, and `team_profile` + `/teams`
+reading global identity. Tests updated to fund wallets directly (no tier
+purses): `tests/conftest._setup` + e2e seed + `seed_demo.py` all fund 10k.
 
 ## Reference docs + demo/test environment — DONE (2026-08-15)
 

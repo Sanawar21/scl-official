@@ -141,7 +141,9 @@ def test_csv_import_derives_team_and_player_rows(app, scorer):
     assert len(derived["team_rows"]) == 2
     # players: Alice + Cara + Bob (non-strike in both innings)
     assert len(derived["player_rows"]) == 3
-    thunder = next(t for t in derived["team_rows"] if t["team_id"] == team_a)
+    # The import normalizes team ids to the canonical global team id.
+    thunder = next(t for t in derived["team_rows"]
+                   if t["team_id"] == teams[0]["global_team_id"])
     assert thunder["runs_scored"] == 4 and thunder["result"] == "win"
     # name fallback maps to the real created global player; 1 ball, 4 runs -> SR 400.0
     alice = next(p for p in derived["player_rows"] if p["player_name"] == "Alice")

@@ -200,18 +200,30 @@ def leaderboards():
 @matches_bp.get("/teams")
 def teams_index():
     svc = _scorer_service()
-    with current_app.extensions["db"].read() as conn:
-        rows = conn.execute(
-            "SELECT * FROM teams ORDER BY season_id, name").fetchall()
+    # Persistent team identities first, then any per-season rows not covered.
+    seen = set()
     teams = []
-    for t in rows:
-        gid = (t["global_team_id"] or "").strip() or t["id"]
-        teams.append({
-            "team_id": gid,
-            "name": t["name"],
-            "season_id": t["season_id"],
-            "slug": team_profile_slug(gid, t["name"]),
-        })
+    with current_app.extensions["db"].read() as conn:
+        for gt in conn.execute("SELECT * FROM global_teams ORDER BY name").fetchall():
+            gid = gt["id"]
+            seen.add(gid)
+            teams.append({
+                "team_id": gid,
+                "name": gt["name"],
+                "season_id": None,
+                "slug": team_profile_slug(gid, gt["name"]),
+            })
+        for t in conn.execute("SELECT * FROM teams ORDER BY season_id, name").fetchall():
+            gid = (t["global_team_id"] or "").strip() or t["id"]
+            if gid in seen:
+                continue
+            seen.add(gid)
+            teams.append({
+                "team_id": gid,
+                "name": t["name"],
+                "season_id": t["season_id"],
+                "slug": team_profile_slug(gid, t["name"]),
+            })
     return render_template("teams/index.html", teams=teams)
 
 

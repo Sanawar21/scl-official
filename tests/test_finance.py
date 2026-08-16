@@ -120,14 +120,15 @@ def test_unlock_allowed_after_12_finalized(app, bank):
 
 
 # ---------------------------------------------------------------------------
-# 3. wallet == purse from creation and at every auction money move
+# 3. wallet == team money from creation and at every auction money move
 # ---------------------------------------------------------------------------
-def test_create_team_funds_manager_wallet(app, svc):
+def test_create_team_wallet_is_manager_funding(app, svc):
     season, players, teams = _setup(app)
     bank = app.extensions["bank_service"]
     for team in teams:
-        # The wallet IS the purse (no separate purse_remaining field).
+        # No tier purse: the wallet is the manager's own funding (10k).
         assert _wallet(bank, team) == team["wallet"]
+        assert team["wallet"] == 10000
 
 
 def test_gift_moves_wallet_and_undo_reverses(app, svc):
@@ -190,13 +191,18 @@ def test_admin_transfer_moves_wallets(app, svc):
     assert _wallet(bank, t1) == t1_wallet
 
 
-def test_delete_team_zeroes_wallet(app, svc):
+def test_delete_team_keeps_wallet(app, svc):
+    """Deleting a team never touches the manager's wallet (S2 rule)."""
     season, _, teams = _setup(app)
     bank = app.extensions["bank_service"]
     team = teams[0]
+    before = _wallet(bank, team)
     svc.delete_team(season["id"], team["id"])
     account = bank.account_for_owner("player", team["manager_player_id"])
-    assert account is not None and int(account["liquid_cash"]) == 0
+    assert account is not None and int(account["liquid_cash"]) == before
+    # The persistent team identity survives the season-row deletion.
+    gt = svc.get_global_team(team["global_team_id"])
+    assert gt is not None and gt["name"] == team["name"]
 
 
 # ---------------------------------------------------------------------------

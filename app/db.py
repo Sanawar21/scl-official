@@ -4,9 +4,11 @@ Mirrors the reference app's LockedTinyDB pattern: a global RLock around
 connection-per-operation, WAL journal mode, and JSON helpers for flexible fields.
 """
 import json
+import secrets
 import sqlite3
 import threading
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 
 from . import schema  # noqa: F401  (ensures schema.sql is packaged)
@@ -101,9 +103,36 @@ class Database:
                     cols = {row[1] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
                     if column in cols:
                         conn.execute(f"ALTER TABLE {table} DROP COLUMN {column}")
+                self._backfill_global_teams(conn)
                 conn.commit()
             finally:
                 conn.close()
+
+    def _backfill_global_teams(self, conn):
+        """Idempotent: ensure every per-season team has a global_teams identity.
+
+        Teams already carrying a global_team_id (e.g. imported S1 rows) get a
+        global_teams row under that id; teams without one are assigned their own
+        id. Re-runs are no-ops (the global_teams row already exists)."""
+        try:
+            conn.execute("SELECT 1 FROM global_teams LIMIT 1").fetchone()
+        except sqlite3.OperationalError:
+            return  # table doesn't exist yet (very old DB) — schema.SQL creates it
+        rows = conn.execute("SELECT * FROM teams").fetchall()
+        for t in rows:
+            gid = (t["global_team_id"] or "").strip() or t["id"]
+            exists = conn.execute(
+                "SELECT 1 FROM global_teams WHERE id = ?", (gid,)).fetchone()
+            if not exists:
+                conn.execute(
+                    "INSERT INTO global_teams (id, name, logo, about, manager_player_id, created_at) "
+                    "VALUES (?, ?, '', '', ?, ?)",
+                    (gid, t["name"], t["manager_player_id"],
+                     datetime.now(timezone.utc).isoformat()),
+                )
+            if not (t["global_team_id"] or "").strip():
+                conn.execute(
+                    "UPDATE teams SET global_team_id = ? WHERE id = ?", (gid, t["id"]))
 
 
 def get_db(app) -> Database:

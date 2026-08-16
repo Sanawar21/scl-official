@@ -29,6 +29,34 @@ def test_account_manager_callout_only_for_managers(page, base_url, login):
     assert "your wallet is the team's money" in page.locator("body").inner_text().lower()
 
 
+def test_player_creates_and_edits_team_account(page, base_url, login):
+    """A linked player starts a team account (no season), then edits it."""
+    login("alice", "alicepw")
+    page.goto(base_url + "/account")
+    page.fill("#team-create-form input[name='name']", "Alice All-Stars")
+    page.click("#team-create-form button[type='submit']")
+    page.wait_for_selector("#team-update-form", timeout=10000)
+    body = page.locator("body").inner_text().lower()
+    assert "my team" in body
+    assert "isn't registered for a season yet" in body
+    # Edit the profile: rename + add about.
+    page.fill("#team-update-form input[name='name']", "Alice All-Stars FC")
+    page.fill("#team-update-form textarea[name='about']", "Managed by Alice")
+    page.click("#team-update-form button[type='submit']")
+    # The update reloads the page; wait for the persisted name in the input.
+    page.wait_for_function(
+        "document.querySelector(\"#team-update-form input[name='name']\")?.value === 'Alice All-Stars FC'",
+        timeout=10000)
+    # The page has already reloaded with the saved profile.
+    assert page.input_value("#team-update-form input[name='name']") == "Alice All-Stars FC"
+    assert page.input_value("#team-update-form textarea[name='about']") == "Managed by Alice"
+    # Let the form-triggered reload finish before navigating away.
+    page.wait_for_load_state("networkidle")
+    # The public team page shows the team (global-only, no season).
+    page.goto(base_url + "/teams")
+    assert "Alice All-Stars FC" in page.locator("body").inner_text()
+
+
 def test_unlinked_account_banner(page, base_url):
     page.goto(base_url + "/auth/signup")
     page.fill('input[name="username"]', "unlinked1")

@@ -245,6 +245,13 @@ Update this file whenever you learn something durable. Keep it current as the bu
 
 ## Gotchas learned (don't rediscover)
 
+- **Stats rows may reference either a team's per-season id or its global id**
+  (imported S1 stats use the global id; live scorer rows use the per-season id).
+  `league_table` maps names by BOTH (`team_names.setdefault(gid, ...)` + `t["id"]`);
+  `finance._resolve_match_teams` matches `id = ? OR global_team_id = ?`. When
+  touching team-id lookups, cover both (2026-08-16, Inc 1 global teams).
+- **Playwright `inner_text` excludes input/textarea values** — assert on
+  `page.input_value(...)` for form fields (2026-08-16).
 - **The DB-path env var is `SCL_DB_PATH`** (app/config.py), NOT `SCL_DB` — setting `SCL_DB`
   silently falls back to `data/scl.db` and a scratch script can **write into the real DB**.
   (2026-08-15: an e2e-seed scratch run polluted `data/scl.db` with a Test Season + users +
@@ -417,6 +424,25 @@ Key mechanics:
   (else `nominate_next` picks them); phases are `phase_a_<tier>`, not `platinum`; team
   credits are per-tier (a platinum manager team starts with 5 credits — 3 spent on a
   platinum buy leaves 2, so later platinum bids fail).
+
+## S2 economy — Increment 1 (persistent teams) DONE (2026-08-16)
+
+Plan: `ECONOMY_PLAN.md` (locked decisions D1-D4). Inc 1 shipped:
+
+- **`global_teams` table** = persistent team identity (name, logo, about,
+  manager_player_id). Per-season `teams` rows link via `global_team_id`
+  (backfill in `db._backfill_global_teams` is idempotent, runs at bootstrap).
+- **`create_team` no longer funds a purse** (no tier purse at all); it creates
+  or reuses the global team (by id or exact name) + registers the season row
+  while the season is in setup. Outside setup it creates the profile only
+  (`registered: False`). `delete_team` never touches the wallet.
+- **Team accounts**: `auction.create_team_account(gp, name)` + `update_team_profile`;
+  a player creates a team from their account page (`/account` "Start a team"
+  card, then "My team" edit form for logo/about). Public `/teams` + `team_profile`
+  read global identity; global-only teams (no season) appear too.
+- Tests updated to the new economy: `tests/conftest._setup` funds each manager
+  10k (`tx_type="funding"`) instead of relying on tier purses; e2e seed funds
+  the manager too; `seed_demo.py` funds 10k per user.
 
 ## Ball-by-ball match view — DONE (2026-08-15)
 

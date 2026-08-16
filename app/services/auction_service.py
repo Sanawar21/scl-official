@@ -277,7 +277,87 @@ class AuctionService:
                       ref_player_id=player_id)
         return {"ok": True}
 
-    def create_team(self, season_id: str, name: str, manager_player_id: str) -> dict:
+    # ------------------------------------------------------------------
+    # persistent team identity (global_teams) + per-season participation
+    # ------------------------------------------------------------------
+    def get_global_team(self, team_id: str) -> dict:
+        with self.db.read() as conn:
+            row = conn.execute("SELECT * FROM global_teams WHERE id = ?", (team_id,)).fetchone()
+            if not row:
+                return None
+            team = row_to_dict(row)
+            team["wallet"] = self._global_team_wallet(conn, team)
+            return team
+
+    def _global_team_wallet(self, conn, gt: dict) -> int:
+        if not gt.get("manager_player_id"):
+            return 0
+        acct = conn.execute(
+            "SELECT liquid_cash FROM bank_accounts WHERE owner_type = 'player' "
+            "AND owner_id = ?", (gt["manager_player_id"],)).fetchone()
+        return int(acct["liquid_cash"]) if acct else 0
+
+    def create_team_account(self, manager_player_id: str, name: str) -> dict:
+        """Create a persistent team (global_teams) owned by a player.
+
+        Works any time, for any season (or none): the team exists as a profile
+        (logo/about editable by the manager) even if it never plays. The team's
+        money is the manager's player wallet. No purse is funded."""
+        name = (name or "").strip()
+        if not name:
+            raise ValueError("Team name is required")
+        with self.db.write() as conn:
+            gp = conn.execute("SELECT * FROM global_players WHERE id = ?",
+                              (manager_player_id,)).fetchone()
+            if not gp:
+                raise ValueError("Player not found")
+            owns = conn.execute(
+                "SELECT 1 FROM global_teams WHERE manager_player_id = ?",
+                (manager_player_id,)).fetchone()
+            if owns:
+                raise ValueError("This player already manages a team")
+            dup = conn.execute(
+                "SELECT id FROM global_teams WHERE lower(name) = lower(?)",
+                (name,)).fetchone()
+            if dup:
+                raise ValueError("A team with this name already exists")
+            team_id = secrets.token_hex(8)
+            conn.execute(
+                "INSERT INTO global_teams (id, name, logo, about, manager_player_id, created_at) "
+                "VALUES (?, ?, '', '', ?, ?)",
+                (team_id, name, manager_player_id, _now()),
+            )
+        return self.get_global_team(team_id)
+
+    def update_team_profile(self, team_id: str, name: str = None, logo: str = None,
+                            about: str = None) -> dict:
+        with self.db.write() as conn:
+            gt = conn.execute("SELECT * FROM global_teams WHERE id = ?", (team_id,)).fetchone()
+            if not gt:
+                raise ValueError("Team not found")
+            new_name = (name or gt["name"]).strip()
+            if not new_name:
+                raise ValueError("Team name is required")
+            dup = conn.execute(
+                "SELECT id FROM global_teams WHERE lower(name) = lower(?) AND id != ?",
+                (new_name, team_id)).fetchone()
+            if dup:
+                raise ValueError("A team with this name already exists")
+            conn.execute(
+                "UPDATE global_teams SET name = ?, logo = ?, about = ? WHERE id = ?",
+                (new_name, (logo or "").strip(), (about or "").strip(), team_id),
+            )
+        return self.get_global_team(team_id)
+
+    def create_team(self, season_id: str, name: str, manager_player_id: str,
+                    global_team_id: str = None) -> dict:
+        """Register a team for a season (per-season row) + ensure its identity.
+
+        The persistent team (global_teams) is created on first use or reused by
+        id / exact name. No tier purse is funded — the team's money is the
+        manager's own wallet. The per-season row is only written while the
+        season is in setup (auction integrity); outside setup the team profile
+        still gets created/updated but isn't registered for the season."""
         name = (name or "").strip()
         if not name:
             raise ValueError("Team name is required")
@@ -285,42 +365,71 @@ class AuctionService:
             season = conn.execute("SELECT status FROM seasons WHERE id = ?", (season_id,)).fetchone()
             if not season:
                 raise ValueError("Season not found")
-            if season["status"] != "setup":
-                raise ValueError("Teams can only be created during setup")
-            dup = conn.execute("SELECT id FROM teams WHERE season_id = ? AND name = ?",
-                               (season_id, name)).fetchone()
-            if dup:
-                raise ValueError("A team with this name already exists")
             gp = conn.execute("SELECT * FROM global_players WHERE id = ?", (manager_player_id,)).fetchone()
             if not gp:
                 raise ValueError("Manager player not found")
-            taken = conn.execute(
-                "SELECT id FROM teams WHERE season_id = ? AND manager_player_id = ?",
-                (season_id, manager_player_id),
-            ).fetchone()
-            if taken:
-                raise ValueError("This player already manages a team in this season")
-            ruleset = self._get_ruleset(conn, season_id)
             manager_tier = gp["tier"]
-            team_id = secrets.token_hex(8)
-            conn.execute(
-                "INSERT INTO teams (id, season_id, name, manager_player_id, manager_tier, "
-                "spent, credits_remaining) "
-                "VALUES (?, ?, ?, ?, ?, 0, ?)",
-                (team_id, season_id, name, manager_player_id, manager_tier,
-                 ruleset.total_credits - ruleset.credits_for(manager_tier)),
-            )
-            # Fund the manager's wallet with the tier purse (team money == manager money).
-            self._wallet_adjust(conn, {"manager_player_id": manager_player_id},
-                                ruleset.purse_for(manager_tier),
-                                f"Team purse ({manager_tier})", tx_type="purse")
-            self._log(conn, season_id, "create_team", "admin",
-                      before={"team_id": team_id},
-                      after={"team_id": team_id, "name": name},
-                      ref_team_id=team_id)
-        return self._get_team(season_id, team_id)
+            gid = (global_team_id or "").strip()
+            if gid:
+                gt = conn.execute("SELECT * FROM global_teams WHERE id = ?", (gid,)).fetchone()
+                if not gt:
+                    raise ValueError("Global team not found")
+                if gt["manager_player_id"] and gt["manager_player_id"] != manager_player_id:
+                    raise ValueError("This team already has a different manager")
+                if not gt["manager_player_id"]:
+                    conn.execute(
+                        "UPDATE global_teams SET manager_player_id = ? WHERE id = ?",
+                        (manager_player_id, gid))
+            else:
+                gt = conn.execute(
+                    "SELECT * FROM global_teams WHERE lower(name) = lower(?)", (name,)).fetchone()
+                if gt:
+                    gid = gt["id"]
+                    if gt["manager_player_id"] and gt["manager_player_id"] != manager_player_id:
+                        raise ValueError("A team with this name already exists under a different manager")
+                else:
+                    gid = secrets.token_hex(8)
+                    conn.execute(
+                        "INSERT INTO global_teams (id, name, logo, about, manager_player_id, created_at) "
+                        "VALUES (?, ?, '', '', ?, ?)",
+                        (gid, name, manager_player_id, _now()),
+                    )
+            registered = season["status"] == "setup"
+            team_id = None
+            if registered:
+                dup = conn.execute(
+                    "SELECT id FROM teams WHERE season_id = ? AND (name = ? OR global_team_id = ?)",
+                    (season_id, name, gid)).fetchone()
+                if dup:
+                    raise ValueError("A team with this name already exists in this season")
+                taken = conn.execute(
+                    "SELECT id FROM teams WHERE season_id = ? AND manager_player_id = ?",
+                    (season_id, manager_player_id),
+                ).fetchone()
+                if taken:
+                    raise ValueError("This player already manages a team in this season")
+                ruleset = self._get_ruleset(conn, season_id)
+                team_id = secrets.token_hex(8)
+                conn.execute(
+                    "INSERT INTO teams (id, season_id, name, manager_player_id, manager_tier, "
+                    "spent, credits_remaining, global_team_id) "
+                    "VALUES (?, ?, ?, ?, ?, 0, ?, ?)",
+                    (team_id, season_id, name, manager_player_id, manager_tier,
+                     ruleset.total_credits - ruleset.credits_for(manager_tier), gid),
+                )
+                self._log(conn, season_id, "create_team", "admin",
+                          before={"team_id": team_id},
+                          after={"team_id": team_id, "name": name, "global_team_id": gid},
+                          ref_team_id=team_id)
+        if registered:
+            return self._get_team(season_id, team_id)
+        team = self.get_global_team(gid)
+        team["registered"] = False
+        team["season_id"] = season_id
+        return team
 
     def delete_team(self, season_id: str, team_id: str) -> dict:
+        """Remove a team from a season. The manager's wallet is never touched."""
         with self.db.write() as conn:
             season = conn.execute("SELECT status FROM seasons WHERE id = ?", (season_id,)).fetchone()
             if not season or season["status"] != "setup":
@@ -329,16 +438,10 @@ class AuctionService:
                                 (team_id, season_id)).fetchone()
             if not team:
                 raise ValueError("Team not found")
-            # Remove the funded purse from the manager's wallet (team deleted in setup).
-            account = self._team_wallet(conn, team)
-            liquid = int(account["liquid_cash"])
             before_row = row_to_dict(team)
-            if liquid > 0:
-                self.bank.adjust(account["id"], -liquid, "Team deleted (setup)",
-                                 tx_type="purse", conn=conn)
             conn.execute("DELETE FROM teams WHERE id = ?", (team_id,))
             self._log(conn, season_id, "delete_team", "admin",
-                      before={"team_id": team_id, "row": before_row, "wallet": liquid},
+                      before={"team_id": team_id, "row": before_row},
                       after={"team_id": team_id},
                       ref_team_id=team_id)
         return {"ok": True}

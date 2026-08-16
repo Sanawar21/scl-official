@@ -78,7 +78,8 @@ def seed_demo(db_path: str) -> None:
         auction.create_team(sid, "Falcons", players[3]["global_player_id"]),
     ]
 
-    # Manager + player users
+    # Manager + player users. S2 economy: no tier purses — everyone is funded
+    # with the universal 10k (managers' wallets are their teams' money).
     users = {}
     for uname, idx, display in [("ayaan", 0, "Ayaan"), ("bilal", 1, "Bilal"),
                                 ("cyrus", 2, "Cyrus"), ("dania", 3, "Dania"),
@@ -86,7 +87,7 @@ def seed_demo(db_path: str) -> None:
         u = auth.signup(uname, DEMO_PASSWORD, display)
         u = auth.link_user_to_player(u["id"], players[idx]["global_player_id"])
         acc = bank.get_or_create_account("player", u["global_player_id"])
-        bank.adjust(acc["id"], 3000, "demo seed funding", tx_type="deposit")
+        bank.adjust(acc["id"], 10000, "demo seed funding (10k)", tx_type="funding")
         users[uname] = u
     for uname, team in [("ayaan", teams[0]), ("bilal", teams[1])]:
         auth.assign_manager(users[uname]["id"], team["id"])

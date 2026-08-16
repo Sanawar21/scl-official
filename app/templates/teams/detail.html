@@ -3,6 +3,8 @@
 {% block content %}
 <div class="page-head">
   <h1>{{ profile.team_name }}</h1>
+  {% if profile.logo %}<img src="{{ profile.logo }}" alt="{{ profile.team_name }} logo" style="max-height:72px" class="team-logo">{% endif %}
+  {% if profile.about %}<p class="page-sub">{{ profile.about }}</p>{% endif %}
   <div class="row">
     <a class="btn btn-small" href="{{ url_for('matches.teams_index') }}">← All teams</a>
   </div>

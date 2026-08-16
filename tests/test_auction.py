@@ -16,15 +16,89 @@ def test_season_defaults_are_s2(app, svc):
     assert season["status"] == "setup"
 
 
-def test_create_team_purse_credits_from_manager_profile(app, svc):
+def test_create_team_credits_from_manager_profile_no_purse(app, svc):
     season, players, teams = _setup(app)
     by_name = {t["name"]: t for t in teams}
-    # Platinum manager (Alice) -> 9000 purse (wallet), 8-3=5 credits
-    assert by_name["Thunder"]["wallet"] == 9000
+    # S2: no tier purse — the wallet is the manager's own funding (10k from
+    # _setup), and credits depend on the manager's tier.
+    # Platinum manager (Alice) -> 8-3=5 credits; Gold manager (Bob) -> 8-2=6.
     assert by_name["Thunder"]["credits_remaining"] == 5
-    # Gold manager (Bob) -> 10000 purse (wallet), 8-2=6 credits
-    assert by_name["Blaze"]["wallet"] == 10000
     assert by_name["Blaze"]["credits_remaining"] == 6
+    assert by_name["Thunder"]["wallet"] == 10000
+    assert by_name["Blaze"]["wallet"] == 10000
+
+
+# ---------------------------------------------------------------------------
+# persistent team accounts (global_teams)
+# ---------------------------------------------------------------------------
+def test_player_creates_team_account_without_season(app, svc):
+    """A player can own a team that isn't in any season; its money is their
+    wallet and no purse is funded."""
+    season, players, _ = _setup(app)
+    gp = players[4]["global_player_id"]  # Eve, not a manager yet
+    bank = app.extensions["bank_service"]
+    acct = bank.get_or_create_account("player", gp)
+    bank.adjust(acct["id"], 5000, "eve funds", tx_type="funding")
+
+    team = svc.create_team_account(gp, "Eve United")
+    assert team["name"] == "Eve United"
+    assert team["manager_player_id"] == gp
+    assert team["wallet"] == 5000
+    # Not registered for any season.
+    with app.extensions["db"].read() as conn:
+        assert conn.execute(
+            "SELECT 1 FROM teams WHERE global_team_id = ?", (team["id"],)).fetchone() is None
+    # Same player can't own a second team.
+    try:
+        svc.create_team_account(gp, "Eve Second")
+        raise AssertionError("expected ValueError")
+    except ValueError as exc:
+        assert "already manages" in str(exc)
+
+
+def test_update_team_profile_logo_about(app, svc):
+    season, players, _ = _setup(app)
+    gp = players[4]["global_player_id"]
+    team = svc.create_team_account(gp, "Eve United")
+    updated = svc.update_team_profile(team["id"], name="Eve United FC",
+                                      logo="https://x/logo.png", about="From Eve")
+    assert updated["name"] == "Eve United FC"
+    assert updated["logo"] == "https://x/logo.png"
+    assert updated["about"] == "From Eve"
+
+
+def test_create_team_reuses_existing_global_team(app, svc):
+    """Admin registering a team for a season reuses the player's team account."""
+    season, players, _ = _setup(app)
+    sid = season["id"]
+    gp = players[4]["global_player_id"]  # Eve
+    gt = svc.create_team_account(gp, "Eve United")
+    season2 = svc.create_season("Season Two")
+    team = svc.create_team(season2["id"], "Eve United", gp)
+    assert team["global_team_id"] == gt["id"]
+    assert team["season_id"] == season2["id"]
+    # Still no purse: wallet is Eve's own funding (0 here — never funded).
+    assert team["wallet"] == 0
+    # Credits come from the manager's tier (Eve = gold -> 8-2=6).
+    assert team["credits_remaining"] == 6
+
+
+def test_create_team_after_season_completes_profile_only(app, svc):
+    """Admin can always create a team; once the season is done it's a profile,
+    not a registration."""
+    season, players, _ = _setup(app)
+    sid = season["id"]
+    gp = players[4]["global_player_id"]
+    with app.extensions["db"].write() as conn:
+        conn.execute("UPDATE seasons SET status = 'completed' WHERE id = ?", (sid,))
+    team = svc.create_team(sid, "Late Team", gp)
+    assert team["registered"] is False
+    with app.extensions["db"].read() as conn:
+        assert conn.execute(
+            "SELECT 1 FROM teams WHERE season_id = ? AND name = 'Late Team'",
+            (sid,)).fetchone() is None
+    # The profile still exists for future seasons.
+    assert svc.get_global_team(team["id"])["name"] == "Late Team"
 
 
 def test_add_update_player_before_auction(app, svc):
@@ -91,7 +165,7 @@ def test_close_lot_and_undo_sale(app, svc):
     player = svc._get_player(sid, players[0]["id"])
     assert player["status"] == "sold" and player["sold_price"] == 3000
     team = svc._get_team(sid, thunder["id"])
-    assert team["wallet"] == 9000 - 3000
+    assert team["wallet"] == 10000 - 3000
     assert players[0]["id"] in team["players"]
 
     # Undo the sale: refund, reopen lot.
@@ -99,7 +173,7 @@ def test_close_lot_and_undo_sale(app, svc):
     player = svc._get_player(sid, players[0]["id"])
     assert player["status"] == "unsold" and player["sold_price"] == 0
     team = svc._get_team(sid, thunder["id"])
-    assert team["wallet"] == 9000
+    assert team["wallet"] == 10000
     state = svc.get_state(sid)
     assert state["current_player"]["id"] == players[0]["id"]
 

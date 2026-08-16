@@ -59,8 +59,8 @@ def test_overview_numbers(app):
     assert '<div class="stat-label">Registry</div><div class="stat-value">1</div>' in body
     assert '<div class="stat-label">Finalized</div><div class="stat-value">1</div>' in body
     assert '<div class="stat-label">Pending fin.</div><div class="stat-value">1</div>' in body
-    # wallet_total = the two managers' tier purses (platinum 9000 + gold 10000).
-    assert '<div class="stat-label">Team wallets</div><div class="stat-value">19000</div>' in body
+    # wallet_total = the two managers' funding (2 x 10k; no tier purses in S2).
+    assert '<div class="stat-label">Team wallets</div><div class="stat-value">20000</div>' in body
     assert "Wagers" in body
 
 
