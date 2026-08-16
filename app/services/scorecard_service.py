@@ -23,7 +23,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.platypus import (
-    HRFlowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle,
+    HRFlowable, Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle,
 )
 
 C_ACCENT = HexColor("#0B1E38")   # SCL navy
@@ -284,36 +284,24 @@ class ScorecardService:
         )
         header = {"match_line": match_line}
 
-        BANNER_PATH = Path(__file__).resolve().parents[2] / "data" / "brandings" / "scl" / "wide-banner.JPG"
-        BANNER_H = 24 * mm
+        LOGO_MARK_PATH = Path(__file__).resolve().parents[2] / "data" / "brandings" / "scl" / "logo-mark-16-9.JPG"
+        HEADER_H = 12 * mm
 
         def on_page(canvas, doc):
             canvas.saveState()
             w, h = A4
-            # SCL banner letterhead (falls back to a navy band if missing).
-            try:
-                if BANNER_PATH.exists():
-                    canvas.drawImage(str(BANNER_PATH), 0, h - BANNER_H, w, BANNER_H,
-                                     preserveAspectRatio=False, mask="auto")
-                else:
-                    canvas.setFillColor(C_ACCENT)
-                    canvas.rect(0, h - BANNER_H, w, BANNER_H, fill=1, stroke=0)
-            except Exception:
-                canvas.setFillColor(C_ACCENT)
-                canvas.rect(0, h - BANNER_H, w, BANNER_H, fill=1, stroke=0)
-            canvas.setFillColor(C_VOLT)
-            canvas.rect(0, h - BANNER_H - 2.5 * mm, w, 2.5 * mm, fill=1, stroke=0)  # volt underline
-            # Title band under the banner.
-            band_h = 13 * mm
-            band_top = h - BANNER_H - 2.5 * mm - band_h
+            # Slim running header on every page: navy title band + volt underline.
             canvas.setFillColor(C_ACCENT)
-            canvas.rect(0, band_top, w, band_h, fill=1, stroke=0)
-            canvas.setFont("Helvetica-Bold", 15)
+            canvas.rect(0, h - HEADER_H, w, HEADER_H, fill=1, stroke=0)
+            canvas.setFillColor(C_VOLT)
+            canvas.rect(0, h - HEADER_H - 2 * mm, w, 2 * mm, fill=1, stroke=0)
+            canvas.setFont("Helvetica-Bold", 10)
             canvas.setFillColor(C_WHITE)
-            canvas.drawCentredString(w / 2, band_top + 4 * mm, "SCL  —  OFFICIAL SCORECARD")
+            canvas.drawString(MARGIN, h - HEADER_H + 3.5 * mm, "SCL — OFFICIAL SCORECARD")
             canvas.setFont("Helvetica", 7.5)
             canvas.setFillColor(C_GREY_LIGHT)
-            canvas.drawCentredString(w / 2, band_top - 0.5 * mm, header["match_line"])
+            canvas.drawRightString(w - MARGIN, h - HEADER_H + 3.5 * mm, header["match_line"])
+            # Footer.
             canvas.setFillColor(C_ACCENT)
             canvas.rect(0, 0, w, 9 * mm, fill=1, stroke=0)
             canvas.setFont("Helvetica", 7)
@@ -325,10 +313,23 @@ class ScorecardService:
         buf = BytesIO()
         doc = SimpleDocTemplate(
             buf, pagesize=A4,
-            topMargin=(BANNER_H + 3 * mm + 17 * mm), bottomMargin=13 * mm,
+            topMargin=(HEADER_H + 8 * mm), bottomMargin=13 * mm,
             leftMargin=MARGIN, rightMargin=MARGIN,
         )
         story = []
+        # Letterhead logo mark on the first page only (16:9, aspect preserved).
+        try:
+            if LOGO_MARK_PATH.exists():
+                mark = Image(str(LOGO_MARK_PATH))
+                iw, ih = mark.imageWidth, mark.imageHeight
+                if iw and ih:
+                    mark.drawWidth = 80 * mm
+                    mark.drawHeight = 80 * mm * ih / iw
+                    mark.hAlign = "CENTER"
+                    story.append(mark)
+                    story.append(Spacer(1, 6 * mm))
+        except Exception:
+            pass
         result_tbl = Table([[Paragraph(
             f"<b>Result: {summary.get('result') or '—'}</b>",
             _ps("res", fontSize=11, fontName="Helvetica-Bold",

@@ -154,34 +154,21 @@ def md_to_html(md: str) -> str:
 # ---------------------------------------------------------------------------
 # PDF renderer (reportlab)
 # ---------------------------------------------------------------------------
-def _draw_letterhead(canvas, document, title):
-    """Letterhead header: SCL wide banner across the top, volt line, title band."""
+def _draw_running_header(canvas, document, title):
+    """Slim running header on every page: navy title band + volt underline."""
     canvas.saveState()
     w, h = A4
-    # SCL banner strip (falls back to a navy band if the asset is missing).
-    try:
-        if BANNER_PATH.exists():
-            canvas.drawImage(str(BANNER_PATH), 0, h - BANNER_H, w, BANNER_H,
-                             preserveAspectRatio=False, mask="auto")
-        else:
-            canvas.setFillColor(C_ACCENT)
-            canvas.rect(0, h - BANNER_H, w, BANNER_H, fill=1, stroke=0)
-    except Exception:
-        canvas.setFillColor(C_ACCENT)
-        canvas.rect(0, h - BANNER_H, w, BANNER_H, fill=1, stroke=0)
-    canvas.setFillColor(C_VOLT)
-    canvas.rect(0, h - BANNER_H - 2.5 * mm, w, 2.5 * mm, fill=1, stroke=0)  # volt underline
-    # Slim title band under the banner.
-    band_h = 11 * mm
-    band_top = h - BANNER_H - 2.5 * mm - band_h
     canvas.setFillColor(C_ACCENT)
-    canvas.rect(0, band_top, w, band_h, fill=1, stroke=0)
-    canvas.setFont("Helvetica-Bold", 12)
+    canvas.rect(0, h - HEADER_H, w, HEADER_H, fill=1, stroke=0)
+    canvas.setFillColor(C_VOLT)
+    canvas.rect(0, h - HEADER_H - 2 * mm, w, 2 * mm, fill=1, stroke=0)  # volt underline
+    canvas.setFont("Helvetica-Bold", 10)
     canvas.setFillColor(C_WHITE)
-    canvas.drawString(MARGIN, band_top + 3 * mm, title)
-    canvas.setFont("Helvetica", 8)
+    canvas.drawString(MARGIN, h - HEADER_H + 3.5 * mm, title)
+    canvas.setFont("Helvetica", 7.5)
     canvas.setFillColor(C_GREY_LIGHT)
-    canvas.drawRightString(w - MARGIN, band_top + 3.5 * mm, "Section-C Cricket League — Official Document")
+    canvas.drawRightString(w - MARGIN, h - HEADER_H + 3.5 * mm,
+                           "Section-C Cricket League — Official Document")
     # Footer.
     canvas.setFillColor(C_ACCENT)
     canvas.rect(0, 0, w, 9 * mm, fill=1, stroke=0)
@@ -192,9 +179,26 @@ def _draw_letterhead(canvas, document, title):
     canvas.restoreState()
 
 
+def _logo_mark_flowable():
+    """The 16:9 SCL logo mark, only rendered on the first page."""
+    if not LOGO_MARK_PATH.exists():
+        return None
+    try:
+        img = Image(str(LOGO_MARK_PATH))
+        iw, ih = img.imageWidth, img.imageHeight
+        if not iw or not ih:
+            return None
+        img.drawWidth = LOGO_MARK_W
+        img.drawHeight = LOGO_MARK_W * ih / iw  # preserve 16:9 aspect
+        img.hAlign = "CENTER"
+        return img
+    except Exception:
+        return None
+
+
 def md_to_pdf(md: str, title: str, subtitle: str = "") -> bytes:
     def on_page(canvas, document):
-        _draw_letterhead(canvas, document, title)
+        _draw_running_header(canvas, document, title)
 
     S_H1 = _ps("dh1", fontSize=17, fontName="Helvetica-Bold", leading=22,
                spaceAfter=6, textColor=C_ACCENT)
@@ -211,6 +215,10 @@ def md_to_pdf(md: str, title: str, subtitle: str = "") -> bytes:
     S_ITEM = _ps("di", fontSize=9.5, leading=13, spaceAfter=2)
 
     story = []
+    mark = _logo_mark_flowable()
+    if mark is not None:
+        story.append(mark)
+        story.append(Spacer(1, 10))
     if subtitle:
         story.append(Paragraph(_inline(subtitle), S_P))
     for kind, payload in parse_blocks(md):
@@ -265,15 +273,16 @@ def md_to_pdf(md: str, title: str, subtitle: str = "") -> bytes:
 
     out = BytesIO()
     SimpleDocTemplate(
-        out, pagesize=A4, topMargin=(BANNER_H + 3 * mm + 16 * mm), bottomMargin=13 * mm,
+        out, pagesize=A4, topMargin=(HEADER_H + 8 * mm), bottomMargin=13 * mm,
         leftMargin=MARGIN, rightMargin=MARGIN,
     ).build(story, onFirstPage=on_page, onLaterPages=on_page)
     return out.getvalue()
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-BANNER_PATH = PROJECT_ROOT / "data" / "brandings" / "scl" / "wide-banner.JPG"
-BANNER_H = 24 * mm
+LOGO_MARK_PATH = PROJECT_ROOT / "data" / "brandings" / "scl" / "logo-mark-16-9.JPG"
+LOGO_MARK_W = 85 * mm
+HEADER_H = 12 * mm
 
 
 def _load_image(src: str, alt: str):

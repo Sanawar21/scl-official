@@ -46,11 +46,11 @@ def test_md_to_pdf_returns_pdf_bytes():
     assert len(pdf) > 500
 
 
-def test_md_to_pdf_has_banner_letterhead():
-    """Every doc PDF embeds the SCL wide banner as a letterhead strip."""
+def test_md_to_pdf_has_logo_mark_letterhead():
+    """First-page letterhead embeds the 16:9 SCL logo mark (not warped banner)."""
     pdf = md_to_pdf("# Title\n\nBody.", "Test doc")
     assert pdf[:4] == b"%PDF"
-    assert b"/DCTDecode" in pdf  # the banner JPEG is embedded
+    assert b"/DCTDecode" in pdf  # the logo mark JPEG is embedded
     assert len(pdf) > 50000      # image bytes included
 
 

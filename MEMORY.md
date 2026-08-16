@@ -501,11 +501,12 @@ Key mechanics:
 
 ## PDF letterhead + home banner — DONE (2026-08-16, +2 unit +1 e2e → 240 tests)
 
-- **PDF letterhead**: every generated PDF (doc_service docs + scorecard) now draws
-  the SCL `wide-banner.JPG` across the top of every page (`preserveAspectRatio=False`
-  strip, navy-band fallback if missing), volt underline, then a slim title band;
-  topMargin grew to fit (~40mm). `scripts/generate_docs.py` re-run (PDFs ~143KB now).
-- **Home page `/`**: brand-band hero now leads with the SCL wide banner image, then
+- **PDF letterhead**: every generated PDF (doc_service docs + scorecard) draws the
+  **16:9 SCL logo mark** (`logo-mark-16-9.JPG`, aspect preserved, ~80-85mm wide)
+  as a flowable at the top of the FIRST page only; every page gets a slim navy
+  running header (title + volt underline). Wide banner was warped as a strip, so
+  it was dropped from PDFs. `scripts/generate_docs.py` re-run.
+- **Home page `/`**: brand-band hero leads with the SCL wide banner image, then
   the logo mark + title + actions below.
 
 ## Branding gaps closed + docs show brand — DONE (2026-08-16, +5 unit +2 e2e → 237 tests)
