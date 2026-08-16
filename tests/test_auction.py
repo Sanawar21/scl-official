@@ -144,6 +144,105 @@ def test_bid_min_and_increment(app, svc):
     assert lot["current_bidder_team_id"] == teams[1]["id"]
 
 
+def test_bidder_cannot_bid_against_self(app, svc):
+    """The current highest bidder must not be able to raise the price on
+    their own wallet — only another team can push the bid up."""
+    season, players, teams = _setup(app)
+    sid = season["id"]
+    svc.set_phase(sid, "phase_a_platinum")
+    svc.nominate_next(sid)  # Alice, base 3000
+    thunder, blaze = teams[0], teams[1]
+
+    svc.place_bid(sid, thunder["id"], 3000)
+    # Thunder holds the top bid: re-bidding must be rejected, at any amount.
+    with pytest.raises(ValueError, match="already hold the highest bid"):
+        svc.place_bid(sid, thunder["id"], 3050)
+    with pytest.raises(ValueError, match="already hold the highest bid"):
+        svc.place_bid(sid, thunder["id"], 4000)
+    # Another team can still bid over them.
+    svc.place_bid(sid, blaze["id"], 3050)
+    # Now Blaze holds it: Thunder may bid again, Blaze may not.
+    with pytest.raises(ValueError, match="already hold the highest bid"):
+        svc.place_bid(sid, blaze["id"], 3100)
+    svc.place_bid(sid, thunder["id"], 3100)
+    lot = svc._get_player(sid, players[0]["id"])
+    assert lot["current_bid"] == 3100
+    assert lot["current_bidder_team_id"] == thunder["id"]
+
+
+def _bid_ids(app, sid, player_id):
+    """All bid ids for a player, lowest amount first (place_bid returns the
+    player, not the bid, so tests fetch real bid ids from the table)."""
+    with app.extensions["db"].read() as conn:
+        rows = conn.execute(
+            "SELECT id, amount FROM bids WHERE season_id = ? AND player_id = ? "
+            "ORDER BY amount", (sid, player_id)).fetchall()
+        return [dict(r) for r in rows]
+
+
+def test_admin_delete_bid_reverts_to_previous_top(app, svc):
+    """Deleting a mistaken bid on the current lot restores the previous
+    highest bidder as the top bid."""
+    season, players, teams = _setup(app)
+    sid = season["id"]
+    svc.set_phase(sid, "phase_a_platinum")
+    svc.nominate_next(sid)  # Alice, base 3000
+    thunder, blaze = teams[0], teams[1]
+
+    svc.place_bid(sid, thunder["id"], 3000)
+    svc.place_bid(sid, blaze["id"], 3050)
+    lot = svc._get_player(sid, players[0]["id"])
+    assert lot["current_bid"] == 3050 and lot["current_bidder_team_id"] == blaze["id"]
+    bids = _bid_ids(app, sid, players[0]["id"])  # [(3000, id), (3050, id)]
+
+    # admin deletes Blaze's mistaken top bid -> Thunder's bid becomes top
+    svc.delete_bid(sid, bids[1]["id"])
+    lot = svc._get_player(sid, players[0]["id"])
+    assert lot["current_bid"] == 3000
+    assert lot["current_bidder_team_id"] == thunder["id"]
+
+    # deleting the last bid zeroes the lot
+    svc.delete_bid(sid, bids[0]["id"])
+    lot = svc._get_player(sid, players[0]["id"])
+    assert lot["current_bid"] == 0
+    assert lot["current_bidder_team_id"] is None
+
+
+def test_admin_delete_bid_restricted_to_current_lot(app, svc):
+    """Bids on already-sold lots cannot be deleted — only the live lot."""
+    season, players, teams = _setup(app)
+    sid = season["id"]
+    svc.set_phase(sid, "phase_a_platinum")
+    svc.nominate_next(sid)  # Alice
+    svc.place_bid(sid, teams[0]["id"], 3000)
+    old_bid_id = _bid_ids(app, sid, players[0]["id"])[0]["id"]
+    svc.close_current(sid)  # sold to teams[0]
+    svc.nominate_next(sid)  # next player (Bob)
+    with pytest.raises(ValueError, match="current lot"):
+        svc.delete_bid(sid, old_bid_id)
+    with pytest.raises(ValueError, match="Bid not found"):
+        svc.delete_bid(sid, "nonexistent")
+
+
+def test_undo_delete_bid_restores_it(app, svc):
+    """Undo re-inserts a deleted bid and makes it the top bid again."""
+    season, players, teams = _setup(app)
+    sid = season["id"]
+    svc.set_phase(sid, "phase_a_platinum")
+    svc.nominate_next(sid)
+    thunder, blaze = teams[0], teams[1]
+    svc.place_bid(sid, thunder["id"], 3000)
+    svc.place_bid(sid, blaze["id"], 3050)
+    top_id = _bid_ids(app, sid, players[0]["id"])[1]["id"]
+    svc.delete_bid(sid, top_id)
+    lot = svc._get_player(sid, players[0]["id"])
+    assert lot["current_bid"] == 3000
+    svc.undo_last_action(sid)  # undo the delete_bid
+    lot = svc._get_player(sid, players[0]["id"])
+    assert lot["current_bid"] == 3050
+    assert lot["current_bidder_team_id"] == blaze["id"]
+
+
 def test_bid_insufficient_purse(app, svc):
     season, _, teams = _setup(app)
     sid = season["id"]

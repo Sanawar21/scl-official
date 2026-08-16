@@ -271,7 +271,13 @@
       <ul class="feed" id="admin-bid-feed">
         {% for b in state.bids[:15] %}
           <li><span class="chip">{{ b.team_name }}</span> {{ b.player_name }} — {{ b.amount }}
-            <span class="muted">{{ b.ts_display }}</span></li>
+            <span class="muted">{{ b.ts_display }}</span>
+            {% if state.current_player and b.player_id == state.current_player.id %}
+              <button class="btn btn-small btn-danger js-delete-bid" data-bid-id="{{ b.id }}"
+                      title="Delete this bid (top bid reverts)"
+                      style="margin-left:6px;padding:1px 7px">✕</button>
+            {% endif %}
+          </li>
         {% endfor %}
       </ul>
     </div>

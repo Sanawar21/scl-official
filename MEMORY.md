@@ -731,6 +731,20 @@ bounced, season resolution broke.
 - Tests: `tests/test_season_delete.py` (5 tests) — cascade coverage, vault release,
   global identity preserved, manager unassign, unknown-season error.
 
+## Auction bid guardrails — DONE (2026-08-16)
+
+- **No self-bidding**: `place_bid` rejects the current highest bidder
+("You already hold the highest bid — wait for another team"); manager UI
+`renderManagerControls` disables the buttons with the same reason.
+- **Admin delete-bid**: `auction_service.delete_bid(season_id, bid_id)` removes
+a mistaken bid on the CURRENT lot only and reverts the top bid to the previous
+one (mirrors `_undo_bid`); registered in `_UNDO_HANDLERS` as `delete_bid` so
+Undo re-inserts it. Route `POST /admin/season/<id>/bid/<bid_id>/delete`
+(JSON), UI: ✕ button on current-lot bids in the admin bid feed (server-rendered
++ live `renderAdminLive`), delegated click handler in `startAdminLive` with a
+confirm dialog. E2E covers the full circle: bid → self-locked → admin deletes
+→ re-bid → close → squad updates.
+
 ## Deploy bind-failure root cause: TIME_WAIT — DONE (2026-08-16)
 
 Run 8's bind error happened AFTER the kill worked (old server's access logs

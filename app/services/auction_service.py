@@ -939,6 +939,10 @@ class AuctionService:
                 raise ValueError("This team is excluded from auction participation")
             if team["control_status"] == R.CONTROL_TAKEOVER and actor != R.ROLE_ADMIN:
                 raise ValueError("This team is under admin control; the manager cannot bid")
+            # Never let the current highest bidder bid against themselves — it
+            # would only push the price up on their own wallet.
+            if player["current_bidder_team_id"] and player["current_bidder_team_id"] == team_id:
+                raise ValueError("You already hold the highest bid — wait for another team to bid")
 
             if phase == R.PHASE_B:
                 if len(json_loads(team["players"], [])) < ruleset.required_players:
@@ -982,6 +986,46 @@ class AuctionService:
                              "amount": amount},
                       ref_player_id=player_id, ref_team_id=team_id)
         return self._get_player(season_id, player_id)
+
+    def delete_bid(self, season_id: str, bid_id: str, actor: str = "admin") -> dict:
+        """Admin removes a mistaken bid on the CURRENT lot mid-auction.
+
+        The player's top bid / bidder reverts to the previous bid (or to
+        0/none if it was the only bid). Bids on already-sold lots cannot be
+        deleted — the sale is settled history."""
+        with self.db.write() as conn:
+            meta = self._get_meta(conn, season_id)
+            current_player_id = meta["current_player_id"]
+            bid = conn.execute(
+                "SELECT * FROM bids WHERE id = ? AND season_id = ?", (bid_id, season_id)).fetchone()
+            if not bid:
+                raise ValueError("Bid not found")
+            if not current_player_id or bid["player_id"] != current_player_id:
+                raise ValueError("Only bids on the current lot can be deleted")
+            bid = row_to_dict(bid)
+            conn.execute("DELETE FROM bids WHERE id = ?", (bid_id,))
+            top = conn.execute(
+                "SELECT * FROM bids WHERE player_id = ? AND kind = 'bid' "
+                "ORDER BY amount DESC, ts DESC, rowid DESC LIMIT 1",
+                (bid["player_id"],),
+            ).fetchone()
+            if top:
+                conn.execute(
+                    "UPDATE players SET current_bid = ?, current_bidder_team_id = ? WHERE id = ?",
+                    (top["amount"], top["team_id"], bid["player_id"]),
+                )
+            else:
+                conn.execute(
+                    "UPDATE players SET current_bid = 0, current_bidder_team_id = NULL "
+                    "WHERE id = ?", (bid["player_id"],),
+                )
+            self._log(conn, season_id, "delete_bid", actor,
+                      before={"bid_id": bid["id"], "season_id": season_id, "ts": bid["ts"],
+                              "team_id": bid["team_id"], "player_id": bid["player_id"],
+                              "amount": bid["amount"], "phase": bid["phase"]},
+                      after={"player_id": bid["player_id"]},
+                      ref_player_id=bid["player_id"], ref_team_id=bid["team_id"])
+        return {"ok": True, "deleted": bid_id}
 
     def pass_current(self, season_id: str, team_id: str, actor: str = "manager") -> dict:
         with self.db.write() as conn:
@@ -1656,6 +1700,29 @@ def _undo_bid(svc, conn, season_id, row):
                          (player_id,))
 
 
+def _undo_delete_bid(svc, conn, season_id, row):
+    """Re-insert a deleted bid and restore it as the top bid if it was."""
+    before = json_loads(row["before_state"], {})
+    bid_id = before.get("bid_id")
+    if not bid_id:
+        return
+    conn.execute(
+        "INSERT INTO bids (id, season_id, ts, team_id, player_id, amount, phase, kind) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, 'bid')",
+        (bid_id, before.get("season_id") or season_id, before.get("ts"),
+         before.get("team_id"), before.get("player_id"), before.get("amount"),
+         before.get("phase")),
+    )
+    top = conn.execute(
+        "SELECT * FROM bids WHERE player_id = ? AND kind = 'bid' "
+        "ORDER BY amount DESC, ts DESC, rowid DESC LIMIT 1",
+        (before.get("player_id"),),
+    ).fetchone()
+    if top:
+        conn.execute("UPDATE players SET current_bid = ?, current_bidder_team_id = ? WHERE id = ?",
+                     (top["amount"], top["team_id"], before["player_id"]))
+
+
 def _undo_pass(svc, conn, season_id, row):
     after = json_loads(row["after_state"], {})
     if after.get("bid_id"):
@@ -1959,6 +2026,7 @@ def _undo_delete_team(svc, conn, season_id, row):
 
 _UNDO_HANDLERS = {
     "bid": _undo_bid,
+    "delete_bid": _undo_delete_bid,
     "pass": _undo_pass,
     "close_unsold": _undo_close_unsold,
     "close_sold": _undo_close_sold,

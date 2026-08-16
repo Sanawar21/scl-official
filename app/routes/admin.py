@@ -462,6 +462,19 @@ def complete(season_id):
     return redirect(url_for("admin.auction", season=season_id))
 
 
+@admin_bp.post("/season/<season_id>/bid/<bid_id>/delete")
+@login_required(role=R.ROLE_ADMIN)
+def bid_delete(season_id, bid_id):
+    """Admin removes a mistaken bid on the current lot (restores the top bid)."""
+    auction_service = current_app.extensions["auction_service"]
+    try:
+        result = auction_service.delete_bid(season_id, bid_id)
+        emit_state(season_id)
+        return jsonify(result)
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
 @admin_bp.post("/season/<season_id>/undo")
 @login_required(role=R.ROLE_ADMIN)
 def undo(season_id):

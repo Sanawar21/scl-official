@@ -189,7 +189,16 @@ def test_squad_updates_live_after_lot_close(tmp_path_factory, page):
         assert "Thunder" in mgr.locator("#lot-bids").inner_text(), (
             "Manager does not see the live bid in the lot feed")
 
-        # --- admin sees the incoming bid WITHOUT refreshing ---
+        # --- the leading bidder is locked out of bidding against themselves ---
+        deadline = time.time() + 10
+        while time.time() < deadline:
+            if "You hold the highest bid" in mgr.locator("#bid-controls").inner_text():
+                break
+            time.sleep(0.5)
+        assert "You hold the highest bid" in mgr.locator("#bid-controls").inner_text(), (
+            "Manager can still bid against themselves")
+
+        # --- admin sees the incoming bid WITHOUT refreshing, then deletes it ---
         # (phase/lot unchanged, so no reload happened — just the live feed)
         page.bring_to_front()
         deadline = time.time() + 10
@@ -200,7 +209,40 @@ def test_squad_updates_live_after_lot_close(tmp_path_factory, page):
         assert "Thunder" in page.locator("#admin-bid-feed").inner_text(), (
             "Admin does not see the incoming bid without a refresh")
 
-        # --- admin closes the lot → sold to Thunder ---
+        # delete the mistaken bid from the admin UI (confirm dialog accepted)
+        page.on("dialog", lambda d: d.accept())
+        delete_btn = page.locator("#admin-bid-feed .js-delete-bid").first
+        expect(delete_btn).to_be_visible()
+        delete_btn.click()
+        deadline = time.time() + 10
+        while time.time() < deadline:
+            if "No bids yet" in page.locator("#admin-bid-feed").inner_text():
+                break
+            time.sleep(0.5)
+        assert "No bids yet" in page.locator("#admin-bid-feed").inner_text(), (
+            "Deleted bid did not disappear from the admin feed")
+
+        # the manager is unlocked again and places a fresh bid
+        mgr.bring_to_front()
+        deadline = time.time() + 10
+        while time.time() < deadline:
+            if "You hold the highest bid" not in mgr.locator("#bid-controls").inner_text():
+                break
+            time.sleep(0.5)
+        assert "You hold the highest bid" not in mgr.locator("#bid-controls").inner_text(), (
+            "Bid controls did not re-enable after the admin deleted the bid")
+        expect(mgr.locator("#bid-controls button.btn-primary")).to_be_visible()
+        mgr.locator("#bid-controls button.btn-primary").click()
+        expect(mgr.locator("#current-lot")).to_contain_text("Current bid:")
+
+        # --- admin sees the fresh bid, then closes the lot → sold to Thunder ---
+        page.bring_to_front()
+        deadline = time.time() + 10
+        while time.time() < deadline:
+            if "Thunder" in page.locator("#admin-bid-feed").inner_text():
+                break
+            time.sleep(0.5)
+        assert "Thunder" in page.locator("#admin-bid-feed").inner_text()
         page.click('button[type="submit"]:has-text("Close lot")')
         page.wait_for_load_state("networkidle")
 

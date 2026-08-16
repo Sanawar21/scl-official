@@ -265,6 +265,7 @@
     let reason = "";
     if (team.control_status === "admin_takeover") { disabled = true; reason = "Team under admin control"; }
     else if (!p) { disabled = true; reason = "No player nominated"; }
+    else if (p.current_bidder_team_id === myTeamId) { disabled = true; reason = "You hold the highest bid — wait for another team to bid"; }
     else if (!inBiddingPhase) { disabled = true; reason = "Bidding not open"; }
     else if (state.phase === "phase_b" && team.players.length < ruleset.required_players) {
       disabled = true; reason = "Incomplete teams cannot bid in Phase B";
@@ -483,11 +484,16 @@
       }
       const feed = el("admin-bid-feed");
       if (feed) {
+        const curId = state.current_player ? state.current_player.id : "";
         feed.innerHTML = (state.bids || []).slice(0, 15).map(function (b) {
           const label = b.kind === "pass" ? "pass" : b.amount;
+          const del = curId && b.player_id === curId
+            ? ' <button class="btn btn-small btn-danger js-delete-bid" data-bid-id="' +
+              esc(b.id) + '" title="Delete this bid (top bid reverts)" ' +
+              'style="margin-left:6px;padding:1px 7px">✕</button>' : "";
           return "<li><span class='chip'>" + esc(b.team_name) + "</span> " +
             esc(b.player_name) + " — " + esc(label) +
-            ' <span class="muted">' + esc(b.ts_display) + "</span></li>";
+            ' <span class="muted">' + esc(b.ts_display) + "</span>" + del + "</li>";
         }).join("") || '<li class="muted">No bids yet.</li>';
       }
     }
@@ -518,6 +524,24 @@
     });
     /* Catch anything that changed between page render and socket connect. */
     setTimeout(check, 1500);
+
+    /* Deleting a mistaken bid on the current lot (event delegation so it
+       survives the live feed re-renders). */
+    document.addEventListener("click", function (e) {
+      const btn = e.target && e.target.closest ? e.target.closest(".js-delete-bid") : null;
+      if (!btn) return;
+      e.preventDefault();
+      if (!window.confirm("Delete this bid? The lot's top bid reverts to the previous one.")) return;
+      const bidId = btn.dataset.bidId;
+      fetch("/admin/season/" + encodeURIComponent(seasonId) +
+            "/bid/" + encodeURIComponent(bidId) + "/delete", { method: "POST" })
+        .then(function (r) { return r.json().catch(function () { return {}; }); })
+        .then(function (d) {
+          if (d && d.error) window.alert(d.error);
+          /* success: the state_update push refreshes the feed + lot */
+        })
+        .catch(function () {});
+    });
   }
 
   window.startLive = startLive;
