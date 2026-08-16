@@ -604,6 +604,29 @@ Backlog: wager polish (auto-resolve), fantasy entries.
   url_prefix; routes include /matches explicitly). `/matches/finances` hits the
   `<season_id>` route and 302s.
 
+## Funding fix + ghost-account cleanup — DONE (2026-08-16)
+
+- **`fund_all_players` now funds LIQUID for everyone** — the old version forced
+  `auto_vault=1` on newly created wallets, so a player's 10k landed LOCKED in
+  the vault and the auction 'Purse' (liquid only) showed 0. Auto mode is
+  strictly opt-in via `/account`, never forced by funding. (+1 unit, commit
+  `176100f`; also restored the affected managers' 10k back to liquid in
+  `data/scl.db` via a ledger-logged unlock.)
+- **Phantom vault positions**: the old forced-auto funding left `vault_positions`
+  rows (principal 10000, locked 0, last_yield 0) on manual accounts the user
+  never opened — the /account page showed a vault the player didn't create.
+  Deleted positions where `locked_capital=0 AND last_yield_match=0 AND
+  account.auto_vault=0` (2 rows in scl.db: Ahmad + Sanawar).
+- **Ghost login accounts**: `import_prod.py` step 5 used to copy old prod
+  manager accounts (with a SHARED default password hash — a security hole) into
+  the rebuild, creating logins for players who never signed up. Removed the
+  step entirely: players self-signup and the admin links them. New test
+  `test_s1_import_creates_no_login_accounts` locks it in. Also deleted the 4
+  ghost users (Hassan/Hashir/Osama/Owais) from `data/scl.db`.
+- **Stale finance tests updated**: two `test_finance` tests still asserted the
+  old auto-vault funding behavior (they predated `176100f` and were never
+  re-run). Now assert liquid funding, auto never forced.
+
 ## S2 economy — Increment 3 (universal credit + auto mode) DONE (2026-08-16)
 
 - **Universal match credit**: `_apply_match_reward` credits EVERY player wallet
@@ -613,10 +636,10 @@ Backlog: wager polish (auto-resolve), fantasy entries.
   give it back from the vault via `bank.unlock_amount`); legacy per-team
   entries (S1) still undo individually.
 - **Auto mode**: `bank_accounts.auto_vault` (default 0). `bank.credit()` =
-  liquid for manual, straight-to-vault (compounding, via `_lock_internal`) for
+  liquid for manual, straight-to-  vault (compounding, via `_lock_internal`) for
   auto. Toggle: `POST /account/auto`, card on `/account`. `fund_all_players`
-  sets auto on NEWLY created wallets only (checks `existed` before
-  `get_or_create_account`) — pre-existing wallets keep the owner's mode.
+  funds LIQUID for everyone and never touches auto mode (auto is opt-in; see
+  the 'Funding fix' note above — the old force-auto behavior was removed).
 - **Gotcha**: the auto card's 'Switch to manual' text is a substring of the
   vault card's 'Switch to manual harvest' — e2e asserts must use the
   unambiguous 'Turn on auto mode'.

@@ -297,13 +297,15 @@ def test_fund_all_players_creates_wallets_and_is_idempotent(app, svc):
             "JOIN global_players g ON g.id = a.owner_id "
             "WHERE a.owner_type='player'").fetchall()
         assert len(rows) == n_players
-        auto = [r for r in rows if r["auto_vault"]]
-        manual = [r for r in rows if not r["auto_vault"]]
+        # Funding always lands liquid; auto-vault is opt-in, never forced.
+        assert all(not r["auto_vault"] for r in rows)
         # The 4 manager wallets existed before (manual) -> liquid 20000.
-        assert len(manual) == 4 and all(int(r["liquid_cash"]) == 20000 for r in manual)
-        # Newly created wallets run on auto: the 10k went to the vault.
-        assert len(auto) == n_players - 4
-        assert all(int(r["liquid_cash"]) == 0 and int(r["locked_capital"]) == 10000 for r in auto)
+        managers = [r for r in rows if int(r["liquid_cash"]) == 20000]
+        assert len(managers) == 4
+        # Newly created wallets also hold the 10k liquid, nothing locked.
+        fresh = [r for r in rows if int(r["liquid_cash"]) == 10000]
+        assert len(fresh) == n_players - 4
+        assert all(int(r["locked_capital"]) == 0 for r in rows)
 
     # Idempotent: a second run funds nobody.
     again = bank.fund_all_players(10000)
@@ -319,13 +321,12 @@ def test_fund_all_players_custom_amount(app, svc):
     with app.extensions["db"].read() as conn:
         rows = conn.execute(
             "SELECT * FROM bank_accounts WHERE owner_type='player'").fetchall()
-    # Managers (manual) got 10000 (from _setup) + 500 liquid; auto accounts
-    # have 500 locked in the vault.
+    # Everyone got the 500 in liquid (managers had 10000 from _setup);
+    # auto-vault is never forced by funding, so nothing is locked.
+    assert all(not r["auto_vault"] for r in rows)
+    assert all(int(r["locked_capital"]) == 0 for r in rows)
     for r in rows:
-        if r["auto_vault"]:
-            assert int(r["liquid_cash"]) == 0 and int(r["locked_capital"]) == 500
-        else:
-            assert int(r["liquid_cash"]) == 10500
+        assert int(r["liquid_cash"]) == 10500 or int(r["liquid_cash"]) == 500
 
 
 # ---------------------------------------------------------------------------
@@ -602,6 +603,29 @@ def _load_import_module():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+@pytest.mark.skipif(not PROD_DATA.is_dir(), reason="prod-data not present")
+def test_s1_import_creates_no_login_accounts(app, tmp_path):
+    """Manager logins are self-signup now: the import must NOT create user rows.
+
+    Regression: import_prod used to copy old prod manager accounts (with a
+    shared default password hash) into the rebuild — ghost accounts that
+    bypassed signup and were a security hole."""
+    from app.db import Database
+    db_path = str(tmp_path / "s1.db")
+    db = Database(db_path)
+    db.bootstrap()
+    imp = _load_import_module()
+    summary = imp.import_core(db, PROD_DATA)
+    assert summary["users"] == 0
+    with db.read() as conn:
+        users = conn.execute(
+            "SELECT username, role FROM users").fetchall()
+        # No manager accounts are imported (the admin is seeded by the app
+        # itself at startup, not by the import).
+        assert len(users) == 0
+
 
 
 @pytest.mark.skipif(not PROD_DATA.is_dir(), reason="prod-data not present")

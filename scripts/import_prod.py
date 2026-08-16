@@ -1,7 +1,8 @@
 """Import the deployed Season 1 data (prod-data/) into the rebuild's SQLite DB.
 
-Phase 1 (core): global players, season + S1 ruleset, players, teams, manager
-users, bids, and a rebuilt published snapshot.
+Phase 1 (core): global players, season + S1 ruleset, players, teams, bids,
+and a rebuilt published snapshot. Manager *user accounts* are NOT imported
+(players self-signup and the admin links them).
 Phase 2 (stats): match registry + scorer stats (team/player match rows), the
 teams.global_team_id backfill, and a league-table cross-check vs the old
 aggregates. Run `--phase stats` after core (or after a fresh core import).
@@ -35,7 +36,7 @@ EXPECTED = {
     "global_players": 17,
     "players": 17,
     "teams": 4,
-    "users": 4,          # managers only; the rebuild's admin is seeded separately
+    "users": 4,          # source count (managers in old prod; not imported)
     "bids": 66,
     "season_snapshots": 1,
 }
@@ -201,23 +202,13 @@ def import_core(db: Database, data_dir: Path) -> dict:
                 ),
             )
 
-        # 5. manager users (skip the old admin — the rebuild seeds its own)
-        team_by_id = {t["id"]: t for t in teams}
-        for u in users:
-            if (u.get("role") or "").lower() == "admin":
-                continue
-            team = team_by_id.get(u.get("team_id"))
-            conn.execute(
-                "INSERT INTO users (id, username, password_hash, role, display_name, "
-                "global_player_id, team_id, created_at) VALUES (?, ?, ?, 'manager', ?, ?, ?, ?)",
-                (
-                    secrets.token_hex(8), u["username"], u["password_hash"],
-                    u.get("display_name") or u["username"],
-                    (team or {}).get("manager_global_player_id"), u.get("team_id"), _now(),
-                ),
-            )
-
-        # 6. bids (verbatim, including legacy phase strings)
+        # 5. bids (verbatim, including legacy phase strings)
+        #    NOTE: manager *user accounts* are deliberately NOT imported. In the
+        #    rebuild, players create their own accounts and the admin links them
+        #    to their player profile + team (auth.link_page). Importing the old
+        #    prod accounts would (a) bypass self-signup and (b) carry over old
+        #    password hashes (a shared default) into live accounts — a security
+        #    hole. Teams/players/wallets are imported; logins are not.
         for b in bids:
             conn.execute(
                 "INSERT INTO bids (id, season_id, ts, team_id, player_id, amount, phase, kind) "
@@ -241,7 +232,7 @@ def import_core(db: Database, data_dir: Path) -> dict:
         "global_players": len(global_players),
         "players": len(players),
         "teams": len(teams),
-        "users": len(users) - 1,
+        "users": 0,  # logins are self-signup now; never imported
         "bids": len(bids),
         "season_snapshots": 1,
     }
