@@ -155,6 +155,8 @@ in a real browser. Run them with the rest of the suite (`pytest tests/`) or alon
 
 - App: http://127.0.0.1:10001 — admin login `admin` / `admin123` (env-overridable:
   `SCL_ADMIN_USERNAME`, `SCL_ADMIN_PASSWORD`, `SCL_SECRET_KEY`, `SCL_DB_PATH`).
+  New: `.env` auto-loads (copy `.env.example`; `.env` is gitignored) so you can
+  `python run.py` with no CLI vars — real env vars always win.
 - DB: `data/scl.db` (SQLite, WAL) — holds the **real Season 1**: imported players/teams/managers/
   bids, published snapshot, and full scorer stats (13 matches, 93 player-match rows).
 - Python 3.11 (`python`), venv at `.venv`, deps pinned in `requirements.txt`.

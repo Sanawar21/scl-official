@@ -54,6 +54,10 @@ SCL_DB_PATH=data/demo.db $VENV run.py
 #   /docs + /docs/<slug> + /docs/<slug>/pdf, /changelog (public), /admin/changelog
 #   /admin/teams — the team branding control panel (logo/banner uploads)
 #   /branding/... — SCL + team brand assets are served read-only from data/brandings/
+
+# Easier: put your settings in .env (copy .env.example) and just run:
+$VENV run.py
+#   app/config.py auto-loads .env at startup; real env vars always win over it.
 ```
 
 ### Demo logins (all password `demo123`)
@@ -97,6 +101,12 @@ SCL_DB_PATH=path/to.db $VENV run.py
 
 # Other env vars (see app/config.py)
 SCL_SECRET_KEY=... SCL_ADMIN_USERNAME=... SCL_ADMIN_PASSWORD=... $VENV run.py
+
+# Or set them once in .env (copy from .env.example) — no CLI passing needed:
+#   SCL_SECRET_KEY=<random>
+#   SCL_DB_PATH=data/demo.db
+#   SCL_ADMIN_USERNAME=admin
+#   SCL_ADMIN_PASSWORD=demo123
 ```
 
 ---
@@ -173,6 +183,11 @@ git log --oneline -10       # recent history
 
 - **`SCL_DB_PATH`, never `SCL_DB`** — `SCL_DB` is not read; a script setting it
   silently writes to the default `data/scl.db`.
+- **`.env` is auto-loaded** (app/config.py, no dependency): `#` comments, quoted
+  values, optional `export ` prefix. Real env vars always win. `.env` is
+  gitignored; `.env.example` is the documented template. Maintenance scripts
+  (`reset_balances`, `fund_players`, `import_prod`) take `--db` explicitly and
+  ignore `.env`'s DB path — good, they must never be silently redirected.
 - **CSS uppercases headings** — Playwright `inner_text` assertions on headings
   must use the uppercased form (e.g. `CURRENT LOT`).
 - **e2e seed details**: match M1 has a `delivery_log` (ball-by-ball page works);

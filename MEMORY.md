@@ -420,6 +420,9 @@ Update this file whenever you learn something durable. Keep it current as the bu
 - `./.venv/Scripts/python.exe run.py` → http://127.0.0.1:10001 (admin/admin123)
 - Tests: `./.venv/Scripts/python.exe -m pytest tests/ -q`
 - DB: `data/scl.db` by default; override with `SCL_DB_PATH` (also `SCL_SECRET_KEY`, `SCL_ADMIN_USERNAME/PASSWORD`)
+- **`.env` auto-loads at startup** (`app/config.py` `_load_dotenv`, zero deps): comments, quotes,
+  `export` prefix supported; real env vars always win over .env. `.env` gitignored,
+  `.env.example` the template. Maintenance scripts use explicit `--db` (never `.env`'s path).
 - Note: `python run.py` runs with debug/reloader (reference-app style); `emit_state` needs the
   app context of the running socketio server to broadcast (routes call it after mutations).
 - **Stale-server gotcha (2026-08-16)**: "broken dashboard" = an OLD python process still
