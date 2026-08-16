@@ -87,9 +87,10 @@ def seed_demo(db_path: str) -> None:
         u = auth.signup(uname, DEMO_PASSWORD, display)
         u = auth.link_user_to_player(u["id"], players[idx]["global_player_id"])
         users[uname] = u
-    # S2 funding: everyone gets 10k. The users who need to bid / stake / lock
-    # manually get their wallets pre-created as MANUAL first, so their 10k lands
-    # liquid; everyone else's wallet is auto-created on auto mode (10k vaulted).
+    # S2 funding: everyone gets 10k, landing LIQUID for everyone (new accounts
+    # default to auto mode, but universal funding stays spendable through the
+    # auction — leftover liquid locks into the vault only after the draft
+    # completes). Users who must manage cash manually opt out of auto here.
     for uname in ("ayaan", "bilal", "cyrus", "farah", "gul"):
         acc = bank.get_or_create_account("player", users[uname]["global_player_id"])
         bank.set_auto(acc["id"], False)

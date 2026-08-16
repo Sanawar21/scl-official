@@ -46,10 +46,13 @@ def _setup(app, n_teams=4, players=None, phase_order=None):
         manager_gp = player_rows[i]["global_player_id"]
         teams.append(svc.create_team(sid, tname, manager_gp))
     # S2 economy: no tier purses — fund each manager's wallet directly.
+    # New accounts default to auto mode; managers actively manage finances
+    # (bids, transfers, wagers), so they opt into manual like the demo seed.
     bank = app.extensions["bank_service"]
     for i, tname in enumerate(team_names):
         manager_gp = player_rows[i]["global_player_id"]
         acct = bank.get_or_create_account("player", manager_gp)
+        bank.set_auto(acct["id"], False)
         bank.adjust(acct["id"], 10000, "test funding (10k)", tx_type="funding")
     # Refresh the returned team dicts so `wallet` reflects the funding.
     teams = [svc._get_team(sid, t["id"]) for t in teams]

@@ -85,10 +85,11 @@
       <h2>Auto mode</h2>
       <span class="tag {% if account.auto_vault %}tag-active{% else %}tag-info{% endif %}">{{ 'ON' if account.auto_vault else 'OFF' }}</span>
     </div>
-    <p class="muted small">Auto mode runs your finances hands-free: <b>everything that comes in</b>
-      (admin grants, the universal funding, the {{ match_reward_amount }} per-match credit) goes
-      straight into your vault and compounds at 7% per match. Turn it off if you want to manage your
-      liquid cash yourself.</p>
+    <p class="muted small">Auto mode runs your finances hands-free (it's <b>on by default</b> for new
+      accounts): money that comes in — admin grants, the {{ match_reward_amount }} per-match credit —
+      goes straight into your vault and compounds at 7% per match. Your universal funding stays liquid
+      through the auction so you can bid, then locks into the vault once the draft completes. Turn it
+      off if you want to manage your liquid cash yourself.</p>
     <form id="auto-form" class="row">
       <input type="hidden" name="auto" value="{{ 0 if account.auto_vault else 1 }}">
       <button class="btn {% if account.auto_vault %}btn-secondary{% else %}btn-primary{% endif %}" type="submit">

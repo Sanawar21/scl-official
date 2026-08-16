@@ -35,8 +35,8 @@ class BankService:
                 return row_to_dict(row)
             account_id = secrets.token_hex(8)
             c.execute(
-                "INSERT INTO bank_accounts (id, owner_type, owner_id, liquid_cash, locked_capital, created_at) "
-                "VALUES (?, ?, ?, 0, 0, ?)",
+                "INSERT INTO bank_accounts (id, owner_type, owner_id, liquid_cash, locked_capital, auto_vault, created_at) "
+                "VALUES (?, ?, ?, 0, 0, 1, ?)",
                 (account_id, owner_type, owner_id, _now()),
             )
             return row_to_dict(c.execute(
@@ -98,11 +98,12 @@ class BankService:
     def fund_all_players(self, amount: int = 10000, comment: str = "") -> dict:
         """Credit every global player's wallet once (S2 universal funding).
 
-        The money lands in **liquid cash** (manual mode) so it's usable for the
-        auction — auto-vault is opt-in per player, never forced by funding.
-        Wallets are auto-created for players who never signed up. Idempotent:
-        an account that already received `season_funding` is skipped on
-        re-runs. Returns {"funded": n, "skipped": n}.
+        The money lands in **liquid cash** even for auto accounts — the 10k
+        must be spendable through the auction (managers bid with it). Auto
+        accounts' leftover liquid is locked into the vault AFTER the auction
+        via `lock_auto_after_auction`. Wallets are auto-created for players who
+        never signed up (auto mode ON by default). Idempotent: an account that
+        already received `season_funding` is skipped on re-runs.
         """
         amount = int(amount)
         if amount <= 0:
@@ -125,7 +126,7 @@ class BankService:
                     skipped += 1
                     continue
                 self.credit(acct["id"], amount, comment, tx_type="season_funding",
-                            season_id=season_id, conn=conn)
+                            season_id=season_id, conn=conn, force_liquid=True)
                 funded += 1
         return {"funded": funded, "skipped": skipped}
 
@@ -259,13 +260,15 @@ class BankService:
             return _impl(c)
 
     def credit(self, account_id: str, amount: int, comment: str, tx_type: str = "adjust",
-               season_id: str = None, conn=None) -> dict:
+               season_id: str = None, conn=None, force_liquid: bool = False) -> dict:
         """Credit an account; auto-vault accounts route straight to the vault.
 
         Auto accounts: money lands in liquid and is immediately locked into the
         season's vault position (compounding) — net liquid unchanged. Manual
-        accounts: plain liquid credit. Pass `conn` to run inside a caller's
-        write transaction (atomic with the caller's work)."""
+        accounts: plain liquid credit. `force_liquid=True` bypasses the auto
+        routing (used by universal funding, which must stay spendable through
+        the auction). Pass `conn` to run inside a caller's write transaction
+        (atomic with the caller's work)."""
         amount = int(amount)
         if amount <= 0:
             raise ValueError("Amount must be positive")
@@ -274,7 +277,7 @@ class BankService:
             account = c.execute("SELECT * FROM bank_accounts WHERE id = ?", (account_id,)).fetchone()
             if not account:
                 raise ValueError("Account not found")
-            if account["auto_vault"] and season_id:
+            if account["auto_vault"] and season_id and not force_liquid:
                 new_liquid = int(account["liquid_cash"]) + amount
                 c.execute(
                     "UPDATE bank_accounts SET liquid_cash = ? WHERE id = ?",
@@ -293,6 +296,28 @@ class BankService:
             return _impl(conn)
         with self.db.write() as c:
             return _impl(c)
+
+    def lock_auto_after_auction(self, season_id: str) -> dict:
+        """Lock every auto account's remaining liquid into the season's vault.
+
+        Runs when the auction completes: auto accounts keep their money liquid
+        through the auction (so managers can bid / stakers can stake), and the
+        leftover locks into the vault once the draft is done. Manual accounts
+        keep liquid control. Returns {"locked": n, "amount": total}."""
+        season_id = (season_id or "").strip().lower()
+        locked = 0
+        total = 0
+        with self.db.write() as conn:
+            accounts = conn.execute(
+                "SELECT * FROM bank_accounts WHERE auto_vault = 1").fetchall()
+            for account in accounts:
+                liquid = int(account["liquid_cash"])
+                if liquid <= 0:
+                    continue
+                self._lock_internal(conn, account, season_id, liquid, reinvest=True)
+                locked += 1
+                total += liquid
+        return {"locked": locked, "amount": total}
 
     def set_reinvest(self, position_id: str, reinvest: bool) -> dict:
         with self.db.write() as conn:

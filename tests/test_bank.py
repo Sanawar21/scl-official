@@ -23,7 +23,8 @@ def test_account_and_adjust(app, bank):
 
 def test_fund_all_players_lands_in_liquid_not_vault(app, bank):
     """Universal funding must be spendable (liquid) — managers need it to bid.
-    Auto mode is opt-in, never forced by funding."""
+    New accounts default to auto mode, but funding lands liquid regardless;
+    the leftover locks into the vault only after the auction."""
     with app.extensions["db"].write() as conn:
         conn.execute("INSERT INTO global_players (id, name, tier, speciality, created_at) "
                      "VALUES ('gp-x', 'X', 'gold', 'BATTER', '2026-01-01')")
@@ -34,11 +35,37 @@ def test_fund_all_players_lands_in_liquid_not_vault(app, bank):
     for gp_id in ("gp-x", "gp-y"):
         acct = bank.account_for_owner("player", gp_id)
         assert acct["liquid_cash"] == 10000, "funding must land liquid"
-        assert acct["auto_vault"] == 0, "auto mode must not be forced"
-        assert acct["locked_capital"] == 0, "nothing locked by funding"
+        assert acct["auto_vault"] == 1, "new accounts default to auto mode"
+        assert acct["locked_capital"] == 0, "nothing locked by funding itself"
     # Idempotent: second run skips both.
     result2 = bank.fund_all_players(10000)
     assert result2["skipped"] == 2
+
+
+def test_lock_auto_after_auction_locks_remaining_liquid(app, bank):
+    """After the auction, auto accounts' leftover liquid locks into the vault;
+    manual accounts keep liquid control."""
+    with app.extensions["db"].write() as conn:
+        conn.execute("INSERT INTO global_players (id, name, tier, speciality, created_at) "
+                     "VALUES ('gp-a', 'A', 'gold', 'BATTER', '2026-01-01')")
+        conn.execute("INSERT INTO global_players (id, name, tier, speciality, created_at) "
+                     "VALUES ('gp-b', 'B', 'silver', 'BOWLER', '2026-01-01')")
+    bank.fund_all_players(10000)  # both land liquid, auto by default
+    b = bank.account_for_owner("player", "gp-b")
+    bank.set_auto(b["id"], False)  # B opts out of auto
+
+    result = bank.lock_auto_after_auction("season-2")
+    assert result["locked"] == 1
+    assert result["amount"] == 10000
+
+    a = bank.account_for_owner("player", "gp-a")
+    assert a["liquid_cash"] == 0 and a["locked_capital"] == 10000
+    positions = bank.vault_positions(a["id"])
+    assert len(positions) == 1 and positions[0]["locked_capital"] == 10000
+    # Manual account untouched.
+    b = bank.account_for_owner("player", "gp-b")
+    assert b["liquid_cash"] == 10000 and b["locked_capital"] == 0
+    assert bank.vault_positions(b["id"]) == []
 
 
 def test_vault_lock_and_compounding_yield(app, bank):

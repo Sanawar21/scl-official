@@ -431,12 +431,17 @@ def complete(season_id):
     auction_service = current_app.extensions["auction_service"]
     try:
         auction_service.complete_draft(season_id)
-        # S2: automatically apply the squad-cost levy to non-spenders.
+        # S2: automatically apply the squad-cost levy to non-spenders, then
+        # lock auto accounts' leftover liquid into the vault (auto mode is the
+        # default; their money stays liquid through the auction, locks after).
         finance = current_app.extensions["finance_service"]
         levy = finance.apply_squad_levy(season_id)
+        bank = current_app.extensions["bank_service"]
+        vault = bank.lock_auto_after_auction(season_id)
         if levy.get("applied"):
             flash(f"Draft completed; squad-cost levy {levy['levy']:,} charged to "
-                  f"{levy['charged']} wallets ({levy['exempt']} exempt).", "success")
+                  f"{levy['charged']} wallets ({levy['exempt']} exempt). "
+                  f"{vault['locked']} auto accounts' funds locked in the vault.", "success")
         else:
             flash("Draft completed; incomplete teams filled with penalties.", "success")
     except ValueError as exc:

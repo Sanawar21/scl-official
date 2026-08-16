@@ -228,7 +228,8 @@ def test_credit_stays_liquid_when_manual(app, svc):
     sid = season["id"]
     bank = app.extensions["bank_service"]
     acct = bank.get_or_create_account("player", players[2]["global_player_id"])
-    assert acct["auto_vault"] == 0
+    assert acct["auto_vault"] == 1  # new accounts default to auto
+    bank.set_auto(acct["id"], False)  # owner opts into manual
     acct = bank.credit(acct["id"], 1000, "manual credit", tx_type="deposit", season_id=sid)
     assert acct["liquid_cash"] == 1000
     assert acct["locked_capital"] == 0
@@ -297,14 +298,13 @@ def test_fund_all_players_creates_wallets_and_is_idempotent(app, svc):
             "JOIN global_players g ON g.id = a.owner_id "
             "WHERE a.owner_type='player'").fetchall()
         assert len(rows) == n_players
-        # Funding always lands liquid; auto-vault is opt-in, never forced.
-        assert all(not r["auto_vault"] for r in rows)
-        # The 4 manager wallets existed before (manual) -> liquid 20000.
+        # Managers (opted into manual in _setup) stay manual; funding-created
+        # wallets default to auto mode. Universal funding lands liquid for
+        # everyone regardless of the mode.
         managers = [r for r in rows if int(r["liquid_cash"]) == 20000]
-        assert len(managers) == 4
-        # Newly created wallets also hold the 10k liquid, nothing locked.
+        assert len(managers) == 4 and all(not r["auto_vault"] for r in managers)
         fresh = [r for r in rows if int(r["liquid_cash"]) == 10000]
-        assert len(fresh) == n_players - 4
+        assert len(fresh) == n_players - 4 and all(r["auto_vault"] for r in fresh)
         assert all(int(r["locked_capital"]) == 0 for r in rows)
 
     # Idempotent: a second run funds nobody.
@@ -322,8 +322,8 @@ def test_fund_all_players_custom_amount(app, svc):
         rows = conn.execute(
             "SELECT * FROM bank_accounts WHERE owner_type='player'").fetchall()
     # Everyone got the 500 in liquid (managers had 10000 from _setup);
-    # auto-vault is never forced by funding, so nothing is locked.
-    assert all(not r["auto_vault"] for r in rows)
+    # funding bypasses auto routing, so nothing is locked yet. Managers are
+    # manual (from _setup); funding-created wallets default to auto.
     assert all(int(r["locked_capital"]) == 0 for r in rows)
     for r in rows:
         assert int(r["liquid_cash"]) == 10500 or int(r["liquid_cash"]) == 500
@@ -433,8 +433,10 @@ def test_on_match_finalized_credits_every_wallet_and_applies_yield(app, svc, sco
     a, b = teams[0], teams[1]
     a_wallet_before = _wallet(bank, a)
     b_wallet_before = _wallet(bank, b)
-    # Vault position so yield applies.
+    # Vault position so yield applies (owner opted into manual, so the match
+    # reward lands liquid).
     vault_acct = bank.get_or_create_account("player", "fin-owner")
+    bank.set_auto(vault_acct["id"], False)
     bank.adjust(vault_acct["id"], 10000, "funds")
     bank.lock_to_vault(vault_acct["id"], sid, 2000, reinvest=True)
     with app.extensions["db"].read() as conn:

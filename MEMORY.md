@@ -627,6 +627,22 @@ Backlog: wager polish (auto-resolve), fantasy entries.
   old auto-vault funding behavior (they predated `176100f` and were never
   re-run). Now assert liquid funding, auto never forced.
 
+## Auto mode default ON + post-auction vault lock — DONE (2026-08-16)
+
+- **New accounts default to auto mode**: `get_or_create_account` inserts
+  `auto_vault=1` (schema default changed too). The /account page shows
+  'Switch to manual' for fresh accounts; the copy explains auto is the default.
+- **Universal funding stays liquid through the auction**: `credit()` gained
+  `force_liquid=True` (bypasses the auto-vault routing); `fund_all_players`
+  passes it, so the 10k is spendable for bidding/staking even on auto accounts.
+- **Money locks AFTER the auction**: new `bank.lock_auto_after_auction(season_id)`
+  locks every auto account's leftover liquid into the season's vault position
+  (compounding). Wired into the admin complete-draft route, after the squad
+  levy. Manual accounts keep liquid control.
+- **Gotchas**: wagers debit liquid via `adjust` (unaffected by auto mode).
+  `_setup` (test conftest) opts managers into manual so match-reward tests
+  stay faithful; the e2e auto-mode test now asserts ON by default.
+
 ## S2 economy — Increment 3 (universal credit + auto mode) DONE (2026-08-16)
 
 - **Universal match credit**: `_apply_match_reward` credits EVERY player wallet

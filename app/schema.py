@@ -169,7 +169,7 @@ CREATE TABLE IF NOT EXISTS bank_accounts (
   owner_id TEXT NOT NULL,
   liquid_cash INTEGER NOT NULL DEFAULT 0,
   locked_capital INTEGER NOT NULL DEFAULT 0,
-  auto_vault INTEGER NOT NULL DEFAULT 0,
+  auto_vault INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL
 );
 

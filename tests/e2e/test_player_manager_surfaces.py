@@ -83,17 +83,13 @@ def test_vault_position_card_and_reinvest(page, base_url, login, seed):
     assert page.locator(".js-reinvest").count() >= 1
 
 
-def test_auto_mode_toggle_and_admin_grant_routing(page, base_url, login, seed):
-    """Auto mode routes admin grants to the vault; the toggle flips it back."""
+def test_auto_mode_default_on_and_grant_routing(page, base_url, login, seed):
+    """New accounts default to auto mode: admin grants route to the vault, and
+    the toggle can flip the account back to manual."""
     login("alice", "alicepw")
     body = page.locator("body").inner_text().lower()
     assert "auto mode" in body
-    assert "off" in body  # alice is manual by default
-    # Turn auto ON.
-    page.click("#auto-form button[type='submit']")
-    page.wait_for_function(
-        "document.querySelector('#auto-form input[name=\"auto\"]')?.value === '0'",
-        timeout=10000)
+    assert "on" in body  # new accounts default to auto mode
     # An admin grant now routes to the vault (locked grows, liquid unchanged).
     alice_gp = seed["players"][0]["global_player_id"]
     login("admin", "admin123")
@@ -110,8 +106,8 @@ def test_auto_mode_toggle_and_admin_grant_routing(page, base_url, login, seed):
     body = page.locator("body").inner_text().lower()
     assert "auto mode" in body and "on" in body
     assert "locked until m12" in body  # vault position created by the grant
-    # Turn auto OFF again (the button label flips back to 'Turn on auto mode';
-    # note 'switch to manual harvest' on the vault card is a different thing).
+    # Turn auto OFF (the button label flips to 'Turn on auto mode'; note
+    # 'switch to manual harvest' on the vault card is a different thing).
     page.click("#auto-form button[type='submit']")
     page.wait_for_function(
         "document.querySelector('#auto-form input[name=\"auto\"]')?.value === '1'",
