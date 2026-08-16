@@ -73,6 +73,9 @@ Platinum Players → Gold Players → 5-minute Trade Break → Silver Players
   managed from its owner's account.
 - **Every player gets the universal 10,000 funding** before the S2 auction. There is
   **no tier purse** — a team's money **is its manager's wallet**.
+- **Pre-auction balancing grants:** admins may gift **weaker managers extra funds before
+  the auction** (on top of the 10k) to level the field — at the committee's discretion,
+  case by case, recorded with a comment in the ledger.
 
 ### 3.2 Umpiring duty — every team must contribute
 - **Every team must volunteer to umpire at least 3 matches** across the season.

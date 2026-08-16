@@ -29,6 +29,14 @@ team starts with its manager's wallet and everything flows through it.
   10k — the auction is a test of judgment, not of starting pockets.
 - This is done **once**, before the auction, by the admin (**Fund all players**).
 
+### 2.1 Pre-auction balancing grants
+- The admins may **gift weak managers extra funds before the auction** to balance the
+  field — e.g. a first-time or struggling manager may receive a top-up on top of the 10k.
+- These grants are at the **admin's discretion**, applied per team, and are recorded with
+  a comment (visible in the ledger). They happen **before** the auction so the extra
+  money is available for bidding.
+- There is no fixed formula — the committee decides case by case.
+
 ---
 
 ## 3. Where money comes from
