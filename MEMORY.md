@@ -499,6 +499,15 @@ Key mechanics:
   credits are per-tier (a platinum manager team starts with 5 credits — 3 spent on a
   platinum buy leaves 2, so later platinum bids fail).
 
+## PDF letterhead + home banner — DONE (2026-08-16, +2 unit +1 e2e → 240 tests)
+
+- **PDF letterhead**: every generated PDF (doc_service docs + scorecard) now draws
+  the SCL `wide-banner.JPG` across the top of every page (`preserveAspectRatio=False`
+  strip, navy-band fallback if missing), volt underline, then a slim title band;
+  topMargin grew to fit (~40mm). `scripts/generate_docs.py` re-run (PDFs ~143KB now).
+- **Home page `/`**: brand-band hero now leads with the SCL wide banner image, then
+  the logo mark + title + actions below.
+
 ## Branding gaps closed + docs show brand — DONE (2026-08-16, +5 unit +2 e2e → 237 tests)
 
 - **Banners now render everywhere**: manager dashboard and team detail page

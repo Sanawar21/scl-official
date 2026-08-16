@@ -14,6 +14,7 @@ CSV on disk — the imported match is the single source of truth.
 
 from collections import defaultdict
 from io import BytesIO
+from pathlib import Path
 
 from reportlab.lib import colors
 from reportlab.lib.colors import HexColor
@@ -283,19 +284,36 @@ class ScorecardService:
         )
         header = {"match_line": match_line}
 
+        BANNER_PATH = Path(__file__).resolve().parents[2] / "data" / "brandings" / "scl" / "wide-banner.JPG"
+        BANNER_H = 24 * mm
+
         def on_page(canvas, doc):
             canvas.saveState()
             w, h = A4
-            canvas.setFillColor(C_ACCENT)
-            canvas.rect(0, h - 26 * mm, w, 26 * mm, fill=1, stroke=0)
+            # SCL banner letterhead (falls back to a navy band if missing).
+            try:
+                if BANNER_PATH.exists():
+                    canvas.drawImage(str(BANNER_PATH), 0, h - BANNER_H, w, BANNER_H,
+                                     preserveAspectRatio=False, mask="auto")
+                else:
+                    canvas.setFillColor(C_ACCENT)
+                    canvas.rect(0, h - BANNER_H, w, BANNER_H, fill=1, stroke=0)
+            except Exception:
+                canvas.setFillColor(C_ACCENT)
+                canvas.rect(0, h - BANNER_H, w, BANNER_H, fill=1, stroke=0)
             canvas.setFillColor(C_VOLT)
-            canvas.rect(0, h - 3 * mm, w, 3 * mm, fill=1, stroke=0)  # volt underline
-            canvas.setFont("Helvetica-Bold", 17)
+            canvas.rect(0, h - BANNER_H - 2.5 * mm, w, 2.5 * mm, fill=1, stroke=0)  # volt underline
+            # Title band under the banner.
+            band_h = 13 * mm
+            band_top = h - BANNER_H - 2.5 * mm - band_h
+            canvas.setFillColor(C_ACCENT)
+            canvas.rect(0, band_top, w, band_h, fill=1, stroke=0)
+            canvas.setFont("Helvetica-Bold", 15)
             canvas.setFillColor(C_WHITE)
-            canvas.drawCentredString(w / 2, h - 13 * mm, "SCL  —  OFFICIAL SCORECARD")
-            canvas.setFont("Helvetica", 8)
+            canvas.drawCentredString(w / 2, band_top + 4 * mm, "SCL  —  OFFICIAL SCORECARD")
+            canvas.setFont("Helvetica", 7.5)
             canvas.setFillColor(C_GREY_LIGHT)
-            canvas.drawCentredString(w / 2, h - 21 * mm, header["match_line"])
+            canvas.drawCentredString(w / 2, band_top - 0.5 * mm, header["match_line"])
             canvas.setFillColor(C_ACCENT)
             canvas.rect(0, 0, w, 9 * mm, fill=1, stroke=0)
             canvas.setFont("Helvetica", 7)
@@ -307,7 +325,7 @@ class ScorecardService:
         buf = BytesIO()
         doc = SimpleDocTemplate(
             buf, pagesize=A4,
-            topMargin=30 * mm, bottomMargin=13 * mm,
+            topMargin=(BANNER_H + 3 * mm + 17 * mm), bottomMargin=13 * mm,
             leftMargin=MARGIN, rightMargin=MARGIN,
         )
         story = []

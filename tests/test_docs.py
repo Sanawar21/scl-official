@@ -46,6 +46,21 @@ def test_md_to_pdf_returns_pdf_bytes():
     assert len(pdf) > 500
 
 
+def test_md_to_pdf_has_banner_letterhead():
+    """Every doc PDF embeds the SCL wide banner as a letterhead strip."""
+    pdf = md_to_pdf("# Title\n\nBody.", "Test doc")
+    assert pdf[:4] == b"%PDF"
+    assert b"/DCTDecode" in pdf  # the banner JPEG is embedded
+    assert len(pdf) > 50000      # image bytes included
+
+
+def test_home_page_shows_scl_banner(app):
+    c = app.test_client()
+    html = c.get("/").data.decode()
+    assert "wide-banner.JPG" in html
+    assert "logo-only-dark-bg-square.JPG" in html
+
+
 def test_md_to_pdf_handles_all_real_docs():
     for d in DOCS:
         md = read_doc(d["slug"])

@@ -4,11 +4,17 @@
 {% set role = current_user.role if current_user else 'anon' %}
 
 <div class="brand-band">
-  <img class="band-mark" src="{{ url_for('viewer.branding_asset', relpath='scl/logo-only-dark-bg-square.JPG') }}" alt="SCL">
-  <h1>Section-C Cricket League</h1>
-  <p class="band-sub">Auction, matches, banking and wagers — all in one place.</p>
+  <img class="band-banner" src="{{ url_for('viewer.branding_asset', relpath='scl/wide-banner.JPG') }}" alt="Section-C Cricket League"
+       style="display:block;width:100%;border-radius:8px;margin-bottom:16px">
+  <div class="row" style="gap:12px;align-items:center">
+    <img class="band-mark" src="{{ url_for('viewer.branding_asset', relpath='scl/logo-only-dark-bg-square.JPG') }}" alt="SCL">
+    <div>
+      <h1 style="margin:0">Section-C Cricket League</h1>
+      <p class="band-sub" style="margin:2px 0 0">Auction, matches, banking and wagers — all in one place.</p>
+    </div>
+  </div>
   {% if current_season %}
-    <p class="small" style="margin:0 0 12px;color:rgba(255,255,255,0.7)">Current season:
+    <p class="small" style="margin:12px 0">Current season:
       <span class="tag tag-volt" style="background:var(--scl-volt);border-color:var(--scl-volt);color:var(--scl-navy)">
         {{ current_season.name }} · {{ current_season.status }}</span>
     </p>

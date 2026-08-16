@@ -154,27 +154,47 @@ def md_to_html(md: str) -> str:
 # ---------------------------------------------------------------------------
 # PDF renderer (reportlab)
 # ---------------------------------------------------------------------------
+def _draw_letterhead(canvas, document, title):
+    """Letterhead header: SCL wide banner across the top, volt line, title band."""
+    canvas.saveState()
+    w, h = A4
+    # SCL banner strip (falls back to a navy band if the asset is missing).
+    try:
+        if BANNER_PATH.exists():
+            canvas.drawImage(str(BANNER_PATH), 0, h - BANNER_H, w, BANNER_H,
+                             preserveAspectRatio=False, mask="auto")
+        else:
+            canvas.setFillColor(C_ACCENT)
+            canvas.rect(0, h - BANNER_H, w, BANNER_H, fill=1, stroke=0)
+    except Exception:
+        canvas.setFillColor(C_ACCENT)
+        canvas.rect(0, h - BANNER_H, w, BANNER_H, fill=1, stroke=0)
+    canvas.setFillColor(C_VOLT)
+    canvas.rect(0, h - BANNER_H - 2.5 * mm, w, 2.5 * mm, fill=1, stroke=0)  # volt underline
+    # Slim title band under the banner.
+    band_h = 11 * mm
+    band_top = h - BANNER_H - 2.5 * mm - band_h
+    canvas.setFillColor(C_ACCENT)
+    canvas.rect(0, band_top, w, band_h, fill=1, stroke=0)
+    canvas.setFont("Helvetica-Bold", 12)
+    canvas.setFillColor(C_WHITE)
+    canvas.drawString(MARGIN, band_top + 3 * mm, title)
+    canvas.setFont("Helvetica", 8)
+    canvas.setFillColor(C_GREY_LIGHT)
+    canvas.drawRightString(w - MARGIN, band_top + 3.5 * mm, "Section-C Cricket League — Official Document")
+    # Footer.
+    canvas.setFillColor(C_ACCENT)
+    canvas.rect(0, 0, w, 9 * mm, fill=1, stroke=0)
+    canvas.setFont("Helvetica", 7)
+    canvas.setFillColor(C_WHITE)
+    canvas.drawString(MARGIN, 3 * mm, "Section-C Cricket League — Official Document")
+    canvas.drawRightString(w - MARGIN, 3 * mm, f"Page {document.page}")
+    canvas.restoreState()
+
+
 def md_to_pdf(md: str, title: str, subtitle: str = "") -> bytes:
     def on_page(canvas, document):
-        canvas.saveState()
-        w, h = A4
-        canvas.setFillColor(C_ACCENT)
-        canvas.rect(0, h - 22 * mm, w, 22 * mm, fill=1, stroke=0)
-        canvas.setFillColor(C_VOLT)
-        canvas.rect(0, h - 3 * mm, w, 3 * mm, fill=1, stroke=0)  # volt underline
-        canvas.setFont("Helvetica-Bold", 15)
-        canvas.setFillColor(C_WHITE)
-        canvas.drawString(MARGIN, h - 12 * mm, "SCL — SECTION-C CRICKET LEAGUE")
-        canvas.setFont("Helvetica", 8)
-        canvas.setFillColor(C_GREY_LIGHT)
-        canvas.drawRightString(w - MARGIN, h - 12 * mm, title)
-        canvas.setFillColor(C_ACCENT)
-        canvas.rect(0, 0, w, 9 * mm, fill=1, stroke=0)
-        canvas.setFont("Helvetica", 7)
-        canvas.setFillColor(C_WHITE)
-        canvas.drawString(MARGIN, 3 * mm, "Section-C Cricket League — Official Document")
-        canvas.drawRightString(w - MARGIN, 3 * mm, f"Page {document.page}")
-        canvas.restoreState()
+        _draw_letterhead(canvas, document, title)
 
     S_H1 = _ps("dh1", fontSize=17, fontName="Helvetica-Bold", leading=22,
                spaceAfter=6, textColor=C_ACCENT)
@@ -245,13 +265,15 @@ def md_to_pdf(md: str, title: str, subtitle: str = "") -> bytes:
 
     out = BytesIO()
     SimpleDocTemplate(
-        out, pagesize=A4, topMargin=26 * mm, bottomMargin=13 * mm,
+        out, pagesize=A4, topMargin=(BANNER_H + 3 * mm + 16 * mm), bottomMargin=13 * mm,
         leftMargin=MARGIN, rightMargin=MARGIN,
     ).build(story, onFirstPage=on_page, onLaterPages=on_page)
     return out.getvalue()
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+BANNER_PATH = PROJECT_ROOT / "data" / "brandings" / "scl" / "wide-banner.JPG"
+BANNER_H = 24 * mm
 
 
 def _load_image(src: str, alt: str):
