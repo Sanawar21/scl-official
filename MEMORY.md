@@ -422,6 +422,13 @@ Update this file whenever you learn something durable. Keep it current as the bu
 - DB: `data/scl.db` by default; override with `SCL_DB_PATH` (also `SCL_SECRET_KEY`, `SCL_ADMIN_USERNAME/PASSWORD`)
 - Note: `python run.py` runs with debug/reloader (reference-app style); `emit_state` needs the
   app context of the running socketio server to broadcast (routes call it after mutations).
+- **Stale-server gotcha (2026-08-16)**: "broken dashboard" = an OLD python process still
+  listening on :10001 (started before schema changes) serving stale code → 500s
+  (`KeyError: 'purse_remaining'` in its log) + broken navbar/auth. `run.py` then fails to
+  bind (port taken) so the browser keeps hitting the zombie. Fix: find it with
+  `netstat -ano | grep :10001`, `taskkill //PID <pid> //F`, then start fresh. Also: plain
+  `python` on this machine resolves to **Anaconda** (`/c/Users/sanaw/anaconda3/python`) —
+  always use `./.venv/Scripts/python.exe` so flask/reportlab are importable.
 
 ## Balance reset + purse removal (2026-08-15)
 
