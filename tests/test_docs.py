@@ -56,6 +56,44 @@ def test_md_to_pdf_handles_all_real_docs():
 
 
 # ---------------------------------------------------------------------------
+# images in docs (branding figures)
+# ---------------------------------------------------------------------------
+def test_md_to_html_renders_images():
+    md = "![SCL wide banner](/branding/scl/wide-banner.JPG)\n\nText.\n"
+    html = md_to_html(md)
+    assert '<figure class="doc-figure">' in html
+    assert 'src="/branding/scl/wide-banner.JPG"' in html
+    assert 'alt="SCL wide banner"' in html
+
+
+def test_md_to_pdf_embeds_branding_images():
+    md = "![SCL wide banner](/branding/scl/wide-banner.JPG)\n\n![SCL logo](/branding/scl/logo-only-light-bg-square.JPG)\n"
+    pdf = md_to_pdf(md, "Images doc")
+    assert pdf[:4] == b"%PDF"
+    # Both real JPEGs embedded (PDFs embed the image bytes).
+    assert len(pdf) > 50000
+
+
+def test_md_to_pdf_skips_missing_image_gracefully():
+    md = "![ghost](/branding/scl/does-not-exist.JPG)\n\nStill fine.\n"
+    pdf = md_to_pdf(md, "No image doc")
+    assert pdf[:4] == b"%PDF"
+    assert len(pdf) > 500
+
+
+def test_rulebook_shows_branding_figures():
+    md = read_doc("rulebook")
+    html = md_to_html(md)
+    assert html.count("<figure") >= 2
+    assert "wide-banner.JPG" in html and "logo-only-light-bg-square.JPG" in html
+
+
+def test_inline_italic_supported():
+    html = md_to_html("_emphasized_")
+    assert "<i>emphasized</i>" in html
+
+
+# ---------------------------------------------------------------------------
 # changelog service
 # ---------------------------------------------------------------------------
 def test_changelog_add_list_delete(app, changelog):

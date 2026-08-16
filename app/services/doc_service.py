@@ -18,7 +18,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.platypus import (
-    HRFlowable, ListFlowable, ListItem, Paragraph, SimpleDocTemplate, Spacer,
+    HRFlowable, Image, ListFlowable, ListItem, Paragraph, SimpleDocTemplate, Spacer,
     Table, TableStyle,
 )
 
@@ -42,9 +42,10 @@ def _ps(name, parent_name="Normal", **kw):
 # markdown -> token stream
 # ---------------------------------------------------------------------------
 def _inline(text):
-    """Escape HTML, then apply **bold** and `code` spans."""
+    """Escape HTML, then apply **bold**, `code`, and _italic_ spans."""
     text = html.escape(text)
     text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)
+    text = re.sub(r"_([^_]+)_", r"<i>\1</i>", text)
     text = re.sub(r"`([^`]+)`", r"<code>\1</code>", text)
     return text
 
@@ -61,6 +62,11 @@ def parse_blocks(md: str):
             continue
         if stripped == "---":
             yield ("hr", None)
+            i += 1
+            continue
+        m_img = re.match(r"^!\[([^]]*)\]\(([^)]+)\)\s*$", stripped)
+        if m_img:
+            yield ("img", {"alt": m_img.group(1), "src": m_img.group(2)})
             i += 1
             continue
         m = re.match(r"^(#{1,3})\s+(.*)$", line)
@@ -137,6 +143,9 @@ def md_to_html(md: str) -> str:
             parts.append(_table_html(payload))
         elif kind == "quote":
             parts.append(f"<blockquote>{payload}</blockquote>")
+        elif kind == "img":
+            parts.append(f'<figure class="doc-figure"><img src="{payload["src"]}" '
+                         f'alt="{html.escape(payload["alt"]).strip()}" loading="lazy"></figure>')
         elif kind == "hr":
             parts.append("<hr>")
     return "\n".join(parts)
@@ -203,6 +212,11 @@ def md_to_pdf(md: str, title: str, subtitle: str = "") -> bytes:
                 bulletType="1", leftIndent=16, spaceAfter=5))
         elif kind == "quote":
             story.append(Paragraph(payload, S_Q))
+        elif kind == "img":
+            img = _load_image(payload["src"], payload["alt"])
+            if img is not None:
+                story.append(img)
+                story.append(Spacer(1, 6))
         elif kind == "hr":
             story.append(HRFlowable(width="100%", thickness=1, color=C_GREY_MID,
                                     spaceBefore=4, spaceAfter=4))
@@ -235,6 +249,38 @@ def md_to_pdf(md: str, title: str, subtitle: str = "") -> bytes:
         leftMargin=MARGIN, rightMargin=MARGIN,
     ).build(story, onFirstPage=on_page, onLaterPages=on_page)
     return out.getvalue()
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _load_image(src: str, alt: str):
+    """Resolve an image src to a local file for the PDF, or None.
+
+    Supports ``/branding/<relpath>`` URLs (served by the app) and plain
+    filesystem paths relative to the project root.
+    """
+    try:
+        if src.startswith("/branding/"):
+            path = PROJECT_ROOT / "data" / "brandings" / src[len("/branding/"):]
+        else:
+            path = PROJECT_ROOT / src.lstrip("/")
+        if not path.exists():
+            return None
+        img = Image(str(path))
+        iw, ih = img.imageWidth, img.imageHeight
+        if not iw or not ih:
+            return None
+        # Scale to fit the text width (A4 minus margins), keep aspect ratio.
+        max_w = PAGE_W - 2 * MARGIN
+        max_h = 60 * mm
+        scale = min(1.0, max_w / iw, max_h / ih)
+        img.drawWidth = iw * scale
+        img.drawHeight = ih * scale
+        img.hAlign = "CENTER"
+        return img
+    except Exception:
+        return None
 
 
 # ---------------------------------------------------------------------------

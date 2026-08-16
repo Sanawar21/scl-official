@@ -75,12 +75,17 @@ DB) so auction mutations never leak into shared state:
 - **Insufficient wallet** (bid buttons disabled, bank-adjust via admin form)
 - **Live board** shows the nominated lot + current bid
 
-## 3c. Branding — `test_branding.py` (9 tests)
+## 3c. Branding — `test_branding.py` (11 tests)
 
 - **SCL brand on public surfaces**: navbar logo mark, home brand-band hero,
   `/branding/...` assets served with image content type
 - **Team logo fallback**: teams index/detail, league table, and live budget
   board all render the SCL mark when a team has no uploaded asset
+- **Team wide-banner fallback**: team detail shows the SCL `wide-banner.JPG`
+  when a team has no banner (was previously dead code — the `{% if %}` guard
+  hid the fallback entirely)
+- **Docs render the brand**: `/docs/rulebook` shows both the SCL wide banner
+  and logo mark figures in the doc body
 - **Admin teams panel** (`/admin/teams`): lists teams with fallback logos,
   **upload + remove** a team logo end-to-end (uploaded logo serves from
   `/branding/teams/`, remove restores the SCL fallback)

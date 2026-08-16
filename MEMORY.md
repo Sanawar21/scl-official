@@ -486,6 +486,20 @@ Key mechanics:
   credits are per-tier (a platinum manager team starts with 5 credits — 3 spent on a
   platinum buy leaves 2, so later platinum bids fail).
 
+## Branding gaps closed + docs show brand — DONE (2026-08-16, +5 unit +2 e2e → 237 tests)
+
+- **Banners now render everywhere**: manager dashboard and team detail page
+  always render the `<img class="team-banner">` (previously guarded by
+  `{% if ... banner %}` so the SCL **wide-banner fallback was dead**). Since
+  `team_banner()` always resolves (SCL fallback when a team has none), the
+  SCL wide banner now shows by default on every team page/dashboard.
+- **Docs show the brand**: `doc_service` markdown parser now supports
+  `![alt](/branding/...)` image blocks → HTML `<figure class="doc-figure">`
+  (site) and reportlab `Image` scaled to fit (PDF, resolves `/branding/`
+  to `data/brandings/`; missing images skipped gracefully). Added `_italic_`
+  support to `_inline` (rulebook uses it). Rulebook §3.1 now embeds the SCL
+  wide banner + logo mark with captions; `scripts/generate_docs.py` re-run.
+
 ## SCL branding + team branding assets — DONE (2026-08-16, +11 unit +9 e2e → 226 tests)
 
 - **BrandingService** (`app/services/branding_service.py`): SCL asset registry

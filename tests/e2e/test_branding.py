@@ -61,6 +61,26 @@ def test_team_detail_shows_fallback_logo(page, base_url):
     assert "/branding/scl/" in (img.get_attribute("src") or "")
 
 
+def test_team_detail_shows_fallback_wide_banner(page, base_url):
+    """Teams with no banner show the SCL wide banner by default."""
+    page.goto(base_url + "/teams")
+    page.locator("a.stat-tile").first.click()
+    page.wait_for_load_state("networkidle")
+    img = page.locator(".team-banner")
+    assert img.count() == 1
+    assert "/branding/scl/wide-banner.JPG" in (img.get_attribute("src") or "")
+
+
+def test_docs_rulebook_shows_branding_figures(page, base_url):
+    """The rule book renders the SCL logo + wide banner images."""
+    page.goto(base_url + "/docs/rulebook")
+    page.wait_for_selector("article.doc-body")
+    figures = page.locator("article.doc-body figure.doc-figure img")
+    srcs = [figures.nth(i).get_attribute("src") or "" for i in range(figures.count())]
+    assert any("wide-banner.JPG" in s for s in srcs)
+    assert any("logo-only-light-bg-square.JPG" in s for s in srcs)
+
+
 def test_league_table_rows_have_logos(page, base_url):
     page.goto(base_url + "/table")
     imgs = page.locator(".table-standings .team-logo-sm")

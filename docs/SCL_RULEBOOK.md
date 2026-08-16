@@ -71,6 +71,20 @@ Platinum Players → Gold Players → 5-minute Trade Break → Silver Players
 - Teams are **persistent** across seasons — name, logo, and about section live with the
   team, not the season. A team that is not playing this season still exists and is
   managed from its owner's account.
+- **Team branding.** Every team has a **logo** and a **wide banner**. The manager
+  uploads both from their account page; the committee can also set or replace them
+  from the admin panel. When a team has **no logo or banner of its own, the official
+  SCL brand is shown by default** — so the league always looks consistent:
+
+![SCL wide banner](/branding/scl/wide-banner.JPG)
+
+_The official SCL wide banner — the default shown on a team page until the team
+uploads its own._
+
+![SCL logo mark](/branding/scl/logo-only-light-bg-square.JPG)
+
+_The official SCL logo mark — the default team logo until the team uploads its own._
+
 - **Every player gets the universal 10,000 funding** before the S2 auction. There is
   **no tier purse** — a team's money **is its manager's wallet**.
 - **Pre-auction balancing grants:** admins may gift **weaker managers extra funds before

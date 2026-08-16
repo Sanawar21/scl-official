@@ -1,8 +1,8 @@
 # SCL Rebuild — Session Resume Handoff
 
 Read this first in a new session, then `MEMORY.md` (living context + gotchas) and `PLAN.md`
-(feature plan). Last updated 2026-08-16 — **SCL branding + team branding assets** shipped
-(226 tests).
+(feature plan). Last updated 2026-08-16 — branding gaps closed (banners render with SCL
+fallback everywhere, docs show the SCL logo + wide banner, 237 tests).
 
 ## S2 economy — COMPLETE (2026-08-16, 5 increments)
 
