@@ -1571,11 +1571,14 @@ class ScorerService:
         for t in teams:
             if (t["global_team_id"] or "").strip() != gid and t["id"] != gid:
                 continue
+            mgr_name = name_by_pid.get(t["manager_player_id"], "")
             squads.append({
                 "season_id": t["season_id"],
                 "name": t["name"],
                 "manager_global_player_id": t["manager_player_id"],
-                "manager_name": name_by_pid.get(t["manager_player_id"], ""),
+                "manager_name": mgr_name,
+                "manager_slug": player_profile_slug(t["manager_player_id"], mgr_name)
+                if mgr_name else "",
                 "players": [_named(pid) for pid in json_loads(t["players"], [])],
                 "bench": [_named(pid) for pid in json_loads(t["bench"], [])],
             })

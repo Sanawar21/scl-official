@@ -161,8 +161,13 @@ def test_team_profile_squad_mentions_manager_name(app, scorer):
 
     c = app.test_client()
     html = c.get(f"/teams/{profile['team_slug']}").data.decode()
-    assert f"Manager: <b>{squad['manager_name']}</b>" in html
+    assert squad["manager_name"] in html
     assert mgr_id not in html  # no raw id on the page
+    # The name links to the manager's player profile.
+    assert f"href=\"/players/{squad['manager_slug']}\"" in html
+    # And the linked profile actually resolves.
+    phtml = c.get(f"/players/{squad['manager_slug']}").data.decode()
+    assert squad["manager_name"] in phtml
 
 
 # ----------------------------------------------------------------------

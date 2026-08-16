@@ -61,7 +61,10 @@
         <span class="tag">{{ squad.name }}</span>
       </div>
       {% if squad.manager_name %}
-        <p class="muted small" style="margin-top:6px">Manager: <b>{{ squad.manager_name }}</b></p>
+        <p class="muted small" style="margin-top:6px">Manager:
+          <a href="{{ url_for('matches.player_detail', slug=squad.manager_slug) }}">
+            <b>{{ squad.manager_name }}</b></a>
+        </p>
       {% endif %}
       {% if squad.players %}
         <div class="row">
