@@ -1,0 +1,46 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # lets you trigger a deploy manually from the Actions tab
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Execute deployment commands via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            cd /root/scl-official
+
+            # 1. Pull the latest code.
+            #    data/ and .env are gitignored, so the DB and secrets on the
+            #    VPS are never touched by a deploy.
+            git pull origin main
+
+            # 2. Install dependencies (creates the venv on first deploy).
+            if [ ! -d .venv ]; then
+              python3 -m venv .venv
+            fi
+            ./.venv/bin/pip install -r requirements.txt --quiet
+
+            # 3. Stop the old server. run.py refuses to start while another
+            #    process holds port 10001, so the old one must die first.
+            screen -S sanawar-scl-official -X quit >/dev/null 2>&1 || true
+            sleep 2
+            fuser -k 10001/tcp >/dev/null 2>&1 || true
+            sleep 1
+
+            # 4. Start fresh in a screen session named sanawar-scl-official.
+            cd /root/scl-official
+            screen -dmS sanawar-scl-official bash -c './.venv/bin/python run.py >> /root/scl-official/server.log 2>&1'
+            sleep 5
+
+            echo "Deploy complete. Logs: tail -f /root/scl-official/server.log"
