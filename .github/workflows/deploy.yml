@@ -6,6 +6,12 @@ on:
       - main
   workflow_dispatch: # lets you trigger a deploy manually from the Actions tab
 
+# Never run two deploys at once: overlapping deploys race on port 10001 and
+# cause exactly the "Cannot bind port" failure.
+concurrency:
+  group: deploy
+  cancel-in-progress: true
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -31,16 +37,50 @@ jobs:
             fi
             ./.venv/bin/pip install -r requirements.txt --quiet
 
-            # 3. Stop the old server. run.py refuses to start while another
-            #    process holds port 10001, so the old one must die first.
+            # 3. Stop the old server — reliably, with several strategies so it
+            #    works even when the old process was started with nohup (not in
+            #    screen) or when psmisc (fuser) isn't installed. "run[.]py"
+            #    avoids pkill matching this script's own command line.
             screen -S sanawar-scl-official -X quit >/dev/null 2>&1 || true
-            sleep 2
-            fuser -k 10001/tcp >/dev/null 2>&1 || true
-            sleep 1
+            command -v fuser >/dev/null 2>&1 && fuser -k 10001/tcp >/dev/null 2>&1 || true
+            pkill -f "run[.]py" >/dev/null 2>&1 || true
 
-            # 4. Start fresh in a screen session named sanawar-scl-official.
-            cd /root/scl-official
+            # 4. Wait until the port is actually free (run.py refuses to start
+            #    while another process holds it). Poll for up to 15s, then
+            #    force-kill and wait once more.
+            for i in $(seq 1 15); do
+              if ! timeout 1 bash -c "echo > /dev/tcp/127.0.0.1/10001" 2>/dev/null; then
+                echo "port 10001 free"
+                break
+              fi
+              echo "waiting for old server to exit (${i}s)..."
+              sleep 1
+            done
+            if timeout 1 bash -c "echo > /dev/tcp/127.0.0.1/10001" 2>/dev/null; then
+              echo "port 10001 still held after 15s — force killing run.py"
+              pkill -9 -f "run[.]py" >/dev/null 2>&1 || true
+              sleep 3
+            fi
+
+            # 5. Start fresh in a screen session named sanawar-scl-official.
             screen -dmS sanawar-scl-official bash -c './.venv/bin/python run.py >> /root/scl-official/server.log 2>&1'
-            sleep 5
+
+            # 6. Health check: the new server must actually answer on :10001.
+            #    If not, surface the log and fail the deploy loudly instead of
+            #    printing a misleading "Deploy complete".
+            up=""
+            for i in $(seq 1 15); do
+              if timeout 2 bash -c "echo > /dev/tcp/127.0.0.1/10001" 2>/dev/null; then
+                up="yes"
+                echo "server is up on :10001 (after ${i}s)"
+                break
+              fi
+              sleep 1
+            done
+            if [ -z "$up" ]; then
+              echo "DEPLOY FAILED: server did not bind :10001. Last log lines:" >&2
+              tail -20 /root/scl-official/server.log 2>/dev/null || true
+              exit 1
+            fi
 
             echo "Deploy complete. Logs: tail -f /root/scl-official/server.log"
