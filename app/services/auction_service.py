@@ -232,6 +232,11 @@ class AuctionService:
         meta["nomination_history"] = json_loads(meta.get("nomination_history"), [])
         return meta
 
+    def get_phase(self, season_id: str) -> str:
+        """Lightweight current-phase lookup (no full state assembly)."""
+        with self.db.read() as conn:
+            return self._get_meta(conn, season_id).get("phase", R.PHASE_SETUP)
+
     # ------------------------------------------------------------------
     # players & teams (setup)
     # ------------------------------------------------------------------

@@ -9,16 +9,19 @@
 <body>
 {% set role = current_user.role if current_user else 'anon' %}
 
-{% macro nav_links() %}
+{% macro more_links() %}
+  <a href="{{ url_for('matches.scorer_page') }}">Scorer</a>
+  <a href="{{ url_for('viewer.docs_index') }}">Docs</a>
+  <a href="{{ url_for('viewer.changelog') }}">Changelog</a>
+{% endmacro %}
+
+{% macro nav_links(flat=false) %}
   <a href="{{ url_for('viewer.home') }}">Home</a>
   <a href="{{ url_for('viewer.live') }}">Live</a>
   <a href="{{ url_for('matches.matches_index') }}">Matches</a>
   <a href="{{ url_for('matches.league_table') }}">Table</a>
   <a href="{{ url_for('matches.leaderboards') }}">Top</a>
   <a href="{{ url_for('matches.finances_index') }}">Finances</a>
-  <a href="{{ url_for('matches.scorer_page') }}">Scorer</a>
-  <a href="{{ url_for('viewer.docs_index') }}">Docs</a>
-  <a href="{{ url_for('viewer.changelog') }}">Changelog</a>
   {% if role == 'manager' %}
     <a href="{{ url_for('manager.dashboard') }}">My Team</a>
   {% endif %}
@@ -32,6 +35,24 @@
     <a href="{{ url_for('wagers.admin') }}">Wagers</a>
   {% elif role != 'anon' %}
     <a href="{{ url_for('wagers.board') }}">Wagers</a>
+  {% endif %}
+  {% if flat %}
+    {{ more_links() }}
+  {% else %}
+    <div class="nav-more" id="nav-more">
+      <button type="button" class="nav-more-btn" id="nav-more-btn" aria-expanded="false">More ▾</button>
+      <div class="nav-more-menu" id="nav-more-menu">
+        {{ more_links() }}
+      </div>
+    </div>
+  {% endif %}
+{% endmacro %}
+
+{% macro auction_live_chip() %}
+  {% if nav_auction and nav_auction.live %}
+    <a class="nav-live" href="{{ nav_auction.url }}" title="Auction is live — click to open it">
+      <span class="nav-live-dot" aria-hidden="true"></span>Live Auction
+    </a>
   {% endif %}
 {% endmacro %}
 
@@ -60,6 +81,7 @@
     </a>
     <div class="nav-links">
       {{ nav_links() }}
+      {{ auction_live_chip() }}
       {% if current_user %}
         <a class="muted" href="{{ url_for('auth.logout') }}">Logout</a>
       {% else %}
@@ -81,7 +103,8 @@
       </span>
       <button class="drawer-close" id="drawer-close" aria-label="Close menu">✕</button>
     </div>
-    {{ nav_links() }}
+    {{ nav_links(flat=true) }}
+    {{ auction_live_chip() }}
     {% if current_user %}
       <a class="muted" href="{{ url_for('auth.logout') }}">Logout</a>
     {% else %}
@@ -109,6 +132,7 @@
   </div>
 </nav>
 
+<script src="{{ url_for('static', filename='vendor/socket.io.min.js') }}"></script>
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 {% block scripts %}{% endblock %}
 </body>

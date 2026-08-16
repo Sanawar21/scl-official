@@ -180,6 +180,8 @@
     renderBudget(state);
     renderManagerControls(state, myTeamId, urls);
     renderTradeRequests(state, myTeamId, urls);
+    const badge = el("phase-badge");
+    if (badge && badge.textContent !== state.phase) badge.textContent = state.phase;
   }
 
   function renderManagerControls(state, myTeamId, urls) {
@@ -330,6 +332,37 @@
       .catch(function () { onDone({ error: "Network error" }); });
   }
 
+  /* ---------- "More" dropdown ---------- */
+  function initNavMore() {
+    const btn = document.getElementById("nav-more-btn");
+    const menu = document.getElementById("nav-more-menu");
+    if (!btn || !menu) return;
+    function setOpen(open) {
+      menu.classList.toggle("open", open);
+      btn.setAttribute("aria-expanded", open ? "true" : "false");
+    }
+    btn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      setOpen(!menu.classList.contains("open"));
+    });
+    document.addEventListener("click", function () { setOpen(false); });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") setOpen(false);
+    });
+  }
+
+  /* ---------- scroll restoration on same-page reloads ---------- */
+  function initScrollRestore() {
+    const key = "scl-scroll:" + location.pathname + location.search;
+    window.addEventListener("pagehide", function () {
+      sessionStorage.setItem(key, String(window.scrollY || 0));
+    });
+    window.addEventListener("load", function () {
+      const y = sessionStorage.getItem(key);
+      if (y !== null && y !== "0") window.scrollTo(0, parseInt(y, 10));
+    });
+  }
+
   function startManager(stateUrl, seasonId, myTeamId, urls) {
     async function tick() {
       try {
@@ -359,5 +392,7 @@
   document.addEventListener("DOMContentLoaded", function () {
     initToasts();
     initDrawer();
+    initNavMore();
+    initScrollRestore();
   });
 })();

@@ -7,6 +7,14 @@
 </div>
 {{ tabs('auction', season_id) }}
 
+{% if state %}
+<div id="admin-auction-root"
+     data-season="{{ season_id }}"
+     data-phase="{{ state.phase }}"
+     data-lot="{{ state.current_player.id if state.current_player else '' }}"
+     data-state-url="{{ url_for('admin.state_json', season_id=season_id) }}"></div>
+{% endif %}
+
 {% if not seasons %}
   <section class="card">
     <h2>Create your first season</h2>
@@ -369,5 +377,48 @@
     ledger stays meaningful. A manager's wallet IS their team's purse.</p>
 </section>
 
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if state %}
+<script>
+/* Auto-refresh the auction page in real time: when the phase or the current
+   lot changes (admin actions, or managers closing a lot), reload in place.
+   Scroll position is preserved across the reload via app.js. */
+(function () {
+  "use strict";
+  const root = document.getElementById("admin-auction-root");
+  if (!root || typeof io === "undefined") return;
+  const seasonId = root.dataset.season;
+  const stateUrl = root.dataset.stateUrl;
+  let last = { phase: root.dataset.phase, lot: root.dataset.lot };
+  let reloading = false;
+
+  function maybeReload(state) {
+    if (reloading || !state) return;
+    const lot = state.current_player ? state.current_player.id : "";
+    if (state.phase !== last.phase || lot !== last.lot) {
+      last = { phase: state.phase, lot: lot };
+      reloading = true;
+      window.location.reload();
+    }
+  }
+
+  function check() {
+    fetch(stateUrl).then(function (r) { return r.json(); })
+      .then(maybeReload)
+      .catch(function () {});
+  }
+
+  const socket = io();
+  socket.on("state_update", function (payload) {
+    if (!payload || payload.season_id !== seasonId) return;
+    check();
+  });
+  /* Catch any change that happened between page render and socket connect. */
+  setTimeout(check, 1500);
+})();
+</script>
 {% endif %}
 {% endblock %}

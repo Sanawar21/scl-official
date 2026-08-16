@@ -731,6 +731,26 @@ bounced, season resolution broke.
 - Tests: `tests/test_season_delete.py` (5 tests) — cascade coverage, vault release,
   global identity preserved, manager unassign, unknown-season error.
 
+## Nav declutter + real-time auction — DONE (2026-08-16)
+
+- **Nav**: Scorer/Docs/Changelog moved into a `More ▾` dropdown (desktop) — the drawer keeps
+them flat on mobile. Pulsating **Live Auction** chip appears in the navbar when the user's
+(manager) or any (admin) season is in an auction phase (`_nav_auction` in `__init__.py`;
+not setup/complete/transfers). Anon never sees it.
+- **Scroll preservation**: `app.js` saves/restores `scrollY` per path+query in sessionStorage,
+so admin POST reloads (close lot, nominate…) land back where the admin was.
+- **Real-time websocket**: the socket.io client was NEVER loaded before (JS silently fell back
+to 4s polling). flask-socketio 5.3.6 doesn't bundle the client, so vendored
+`app/static/vendor/socket.io.min.js` (v4.8.1) and load it in base.html. All admin auction
+mutations now call `emit_state(season_id)` (admin.py). Manager dashboard updates live via
+socket (lot, budget, bid controls, trade requests) — phase badge is now live too
+(`#phase-badge` updated by `refreshManager`). Admin auction page subscribes to `state_update`,
+fetches `state_json`, and auto-reloads (scroll-preserved) only when phase or current lot
+changed — never on every bid.
+- `auction_service.get_phase(season_id)` — cheap phase lookup for the nav chip.
+- Tests: `tests/e2e/test_nav_realtime.py` (More dropdown + vendored client + manager chip +
+phase badge flips live with no reload).
+
 ## Ball-by-ball match view — DONE (2026-08-15)
 
 `/matches/<season>/<match>/balls` — play-by-play from the stored `delivery_log`: innings tabs

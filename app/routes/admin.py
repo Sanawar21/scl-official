@@ -3,7 +3,7 @@ import re
 
 from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, session, url_for
 
-from .. import rules as R
+from .. import emit_state, rules as R
 from ..authz import login_required
 from ..db import json_loads
 
@@ -279,6 +279,7 @@ def player_add(season_id):
         flash("Player added.", "success")
     except ValueError as exc:
         flash(str(exc), "error")
+    emit_state(season_id)
     return redirect(url_for("admin.auction", season=season_id))
 
 
@@ -296,6 +297,7 @@ def player_update(season_id, player_id):
         flash("Player updated.", "success")
     except ValueError as exc:
         flash(str(exc), "error")
+    emit_state(season_id)
     return redirect(url_for("admin.auction", season=season_id))
 
 
@@ -314,6 +316,7 @@ def team_manager_update(season_id, team_id):
         flash("Manager updated.", "success")
     except ValueError as exc:
         flash(str(exc), "error")
+    emit_state(season_id)
     return redirect(url_for("admin.auction", season=season_id))
 
 
@@ -326,6 +329,7 @@ def player_delete(season_id, player_id):
         flash("Player removed.", "success")
     except ValueError as exc:
         flash(str(exc), "error")
+    emit_state(season_id)
     return redirect(url_for("admin.auction", season=season_id))
 
 
@@ -342,6 +346,7 @@ def team_create(season_id):
         flash("Team created.", "success")
     except ValueError as exc:
         flash(str(exc), "error")
+    emit_state(season_id)
     return redirect(url_for("admin.auction", season=season_id))
 
 
@@ -354,6 +359,7 @@ def team_delete(season_id, team_id):
         flash("Team removed.", "success")
     except ValueError as exc:
         flash(str(exc), "error")
+    emit_state(season_id)
     return redirect(url_for("admin.auction", season=season_id))
 
 
@@ -372,6 +378,7 @@ def team_gift(season_id, team_id):
         flash("Gift applied.", "success")
     except ValueError as exc:
         flash(str(exc), "error")
+    emit_state(season_id)
     return redirect(url_for("admin.auction", season=season_id))
 
 
@@ -384,6 +391,7 @@ def phase_set(season_id):
         flash("Phase changed.", "success")
     except ValueError as exc:
         flash(str(exc), "error")
+    emit_state(season_id)
     return redirect(url_for("admin.auction", season=season_id))
 
 
@@ -396,6 +404,7 @@ def nominate(season_id):
         flash("Next player nominated.", "success")
     except ValueError as exc:
         flash(str(exc), "error")
+    emit_state(season_id)
     return redirect(url_for("admin.auction", season=season_id))
 
 
@@ -408,6 +417,7 @@ def previous(season_id):
         flash("Stepped back to previous lot.", "success")
     except ValueError as exc:
         flash(str(exc), "error")
+    emit_state(season_id)
     return redirect(url_for("admin.auction", season=season_id))
 
 
@@ -423,6 +433,7 @@ def close_lot(season_id):
             flash("Lot closed — no bid (player stays unsold).", "info")
     except ValueError as exc:
         flash(str(exc), "error")
+    emit_state(season_id)
     return redirect(url_for("admin.auction", season=season_id))
 
 
@@ -447,6 +458,7 @@ def complete(season_id):
             flash("Draft completed; incomplete teams filled with penalties.", "success")
     except ValueError as exc:
         flash(str(exc), "error")
+    emit_state(season_id)
     return redirect(url_for("admin.auction", season=season_id))
 
 
@@ -491,6 +503,7 @@ def takeover(season_id, team_id):
         flash("Team taken over by admin.", "success")
     except ValueError as exc:
         flash(str(exc), "error")
+    emit_state(season_id)
     return redirect(url_for("admin.auction", season=season_id))
 
 
@@ -503,6 +516,7 @@ def restore(season_id, team_id):
         flash("Control restored to manager.", "success")
     except ValueError as exc:
         flash(str(exc), "error")
+    emit_state(season_id)
     return redirect(url_for("admin.auction", season=season_id))
 
 
@@ -515,6 +529,7 @@ def publish(season_id):
         flash("Season published.", "success")
     except ValueError as exc:
         flash(str(exc), "error")
+    emit_state(season_id)
     return redirect(url_for("admin.auction", season=season_id))
 
 
