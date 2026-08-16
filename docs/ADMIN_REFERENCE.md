@@ -39,7 +39,16 @@ add players → create teams → run phases → complete draft (auto squad levy)
 
 ### 2.1 Season + ruleset
 - **Create season** (`/admin/season/create`): name → creates a season in `setup`
-  status with the default ruleset.
+  status with the default ruleset, then lands on the **Setup** page.
+- **Season setup** (`/admin/season/<id>/setup`, tab **Setup**): build the season
+  from the **global pool** (all players + teams from previous seasons):
+  - **Managers & teams**: tick the players who manage a team this season. If they
+    already own a team from a previous season it is **added automatically**;
+    otherwise enter a team name to create one. Unticking removes their team from
+    the season. Each team also has a **Change manager** dropdown.
+  - **Auction players**: tick which players are in this season's auction pool
+    (unticked players are removed). Edit name/tier afterwards on the Auction tab.
+  - Save applies everything; setup is locked once the auction starts.
 - **Ruleset** (`/admin/season/<id>/ruleset`): the per-season economy. Fields:
   - `phase_order` — comma-separated `platinum, gold, break, silver, phase_b`
   - Per tier (platinum/gold/silver): `base price`, `credits` (no purse in S2)

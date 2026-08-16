@@ -452,6 +452,177 @@ class AuctionService:
                       ref_team_id=team_id)
         return {"ok": True}
 
+    # ------------------------------------------------------------------
+    # season setup: pick managers + auction players from the global pool
+    # ------------------------------------------------------------------
+    def season_setup_context(self, season_id: str) -> dict:
+        """All global players + teams with their membership in this season.
+
+        Returns the data the setup page needs: every persistent player (with
+        whether they're in this season's auction and whether they manage a
+        team this season) and every persistent team (with whether it plays
+        this season)."""
+        with self.db.read() as conn:
+            season = conn.execute("SELECT * FROM seasons WHERE id = ?", (season_id,)).fetchone()
+            if not season:
+                return None
+            gps = rows_to_dicts(conn.execute(
+                "SELECT * FROM global_players ORDER BY name").fetchall())
+            gts = rows_to_dicts(conn.execute(
+                "SELECT * FROM global_teams ORDER BY name").fetchall())
+            season_players = rows_to_dicts(conn.execute(
+                "SELECT * FROM players WHERE season_id = ?", (season_id,)).fetchall())
+            season_teams = rows_to_dicts(conn.execute(
+                "SELECT * FROM teams WHERE season_id = ?", (season_id,)).fetchall())
+
+        gt_by_mgr = {gt["manager_player_id"]: gt for gt in gts if gt.get("manager_player_id")}
+        sp_by_gp = {sp["global_player_id"]: sp for sp in season_players
+                    if sp.get("global_player_id")}
+        st_by_mgr = {st["manager_player_id"]: st for st in season_teams
+                     if st.get("manager_player_id")}
+        st_by_gid = {(st.get("global_team_id") or "").strip(): st for st in season_teams}
+
+        for gp in gps:
+            gt = gt_by_mgr.get(gp["id"])
+            sp = sp_by_gp.get(gp["id"])
+            st = st_by_mgr.get(gp["id"])
+            gp["team"] = gt  # global team this player manages, if any
+            gp["in_auction"] = sp is not None
+            gp["season_player_id"] = sp["id"] if sp else None
+            gp["is_manager"] = st is not None
+            gp["season_team_id"] = st["id"] if st else None
+            gp["season_team_name"] = st["name"] if st else (gt["name"] if gt else "")
+        for gt in gts:
+            st = st_by_gid.get(gt["id"])
+            gt["in_season"] = st is not None
+            gt["season_team_id"] = st["id"] if st else None
+
+        return {
+            "season": row_to_dict(season),
+            "players": gps,
+            "teams": gts,
+            "season_players": season_players,
+            "season_teams": season_teams,
+        }
+
+    def sync_season_setup(self, season_id: str, auction_player_ids=(),
+                          manager_team_names=None) -> dict:
+        """Apply the setup form: which players are in the auction + managers.
+
+        ``auction_player_ids``: global player ids that will be in the auction
+        (per-season ``players`` rows are created from the global pool, reusing
+        the global identity; deselected players are removed from the season).
+        ``manager_team_names``: {global_player_id: team_name} — the manager
+        keeps their existing global team if they have one (added to the season
+        automatically), or a team is created for them with the given name.
+
+        Only valid during setup."""
+        manager_team_names = manager_team_names or {}
+        auction_player_ids = set(auction_player_ids or [])
+        with self.db.read() as conn:
+            season = conn.execute("SELECT status FROM seasons WHERE id = ?",
+                                  (season_id,)).fetchone()
+            if not season:
+                raise ValueError("Season not found")
+            if season["status"] != "setup":
+                raise ValueError("Setup can only be edited before the auction starts")
+            gps = {r["id"]: dict(r) for r in conn.execute(
+                "SELECT * FROM global_players").fetchall()}
+            gts = rows_to_dicts(conn.execute(
+                "SELECT * FROM global_teams").fetchall())
+        gt_by_mgr = {gt["manager_player_id"]: gt for gt in gts if gt.get("manager_player_id")}
+
+        # --- auction players ----------------------------------------------
+        existing = set()
+        with self.db.read() as conn:
+            existing = {r["global_player_id"] for r in conn.execute(
+                "SELECT global_player_id FROM players WHERE season_id = ?",
+                (season_id,)).fetchall() if r["global_player_id"]}
+        for gp_id in sorted(auction_player_ids - existing):
+            gp = gps.get(gp_id)
+            if not gp:
+                raise ValueError("Unknown player in auction selection")
+            self.add_player(season_id, gp["name"], gp["tier"],
+                            gp.get("speciality") or "ALL_ROUNDER",
+                            global_player_id=gp_id)
+        for gp_id in sorted(existing - auction_player_ids):
+            with self.db.read() as conn:
+                prow = conn.execute(
+                    "SELECT id FROM players WHERE season_id = ? AND global_player_id = ?",
+                    (season_id, gp_id)).fetchone()
+            if prow:
+                self.delete_player(season_id, prow["id"])
+
+        # --- managers / teams ---------------------------------------------
+        for gp_id, team_name in manager_team_names.items():
+            gp = gps.get(gp_id)
+            if not gp:
+                raise ValueError("Unknown manager selection")
+            with self.db.read() as conn:
+                already = conn.execute(
+                    "SELECT id FROM teams WHERE season_id = ? AND manager_player_id = ?",
+                    (season_id, gp_id)).fetchone()
+            if already:
+                continue
+            gt = gt_by_mgr.get(gp_id)
+            if gt:
+                # Existing team -> added to this season automatically.
+                self.create_team(season_id, gt["name"], gp_id,
+                                 global_team_id=gt["id"])
+            else:
+                name = (team_name or "").strip()
+                if not name:
+                    raise ValueError(f"Team name required for {gp['name']}")
+                self.create_team(season_id, name, gp_id)
+        # Deselected managers -> their team leaves this season's auction.
+        with self.db.read() as conn:
+            season_teams = rows_to_dicts(conn.execute(
+                "SELECT * FROM teams WHERE season_id = ?", (season_id,)).fetchall())
+        selected = set(manager_team_names.keys())
+        for st in season_teams:
+            if st.get("manager_player_id") and st["manager_player_id"] not in selected:
+                self.delete_team(season_id, st["id"])
+        return self.season_setup_context(season_id)
+
+    def reassign_team_manager(self, season_id: str, team_id: str,
+                              new_manager_player_id: str) -> dict:
+        """Change which player manages a team (setup only)."""
+        with self.db.write() as conn:
+            season = conn.execute("SELECT status FROM seasons WHERE id = ?",
+                                  (season_id,)).fetchone()
+            if not season or season["status"] != "setup":
+                raise ValueError("Managers can only be changed during setup")
+            team = conn.execute("SELECT * FROM teams WHERE id = ? AND season_id = ?",
+                                (team_id, season_id)).fetchone()
+            if not team:
+                raise ValueError("Team not found")
+            gp = conn.execute("SELECT * FROM global_players WHERE id = ?",
+                              (new_manager_player_id,)).fetchone()
+            if not gp:
+                raise ValueError("Manager player not found")
+            other = conn.execute(
+                "SELECT id FROM teams WHERE season_id = ? AND manager_player_id = ? AND id != ?",
+                (season_id, new_manager_player_id, team_id)).fetchone()
+            if other:
+                raise ValueError("This player already manages another team this season")
+            before = row_to_dict(team)
+            conn.execute("UPDATE teams SET manager_player_id = ?, manager_tier = ? "
+                         "WHERE id = ?",
+                         (new_manager_player_id, gp["tier"], team_id))
+            gid = (team["global_team_id"] or "").strip()
+            # Repoint the persistent team's manager too, if unowned.
+            if gid:
+                gt = conn.execute("SELECT * FROM global_teams WHERE id = ?",
+                                  (gid,)).fetchone()
+                if gt and not gt["manager_player_id"]:
+                    conn.execute("UPDATE global_teams SET manager_player_id = ? WHERE id = ?",
+                                 (new_manager_player_id, gid))
+            self._log(conn, season_id, "reassign_manager", "admin",
+                      before={"team_id": team_id, "old_manager": before["manager_player_id"]},
+                      after={"team_id": team_id, "new_manager": new_manager_player_id},
+                      ref_team_id=team_id)
+        return self._get_team(season_id, team_id)
+
     def gift_team(self, season_id: str, team_id: str, amount: int, operation: str,
                   comment: str = "", actor: str = "admin") -> dict:
         amount = int(amount)

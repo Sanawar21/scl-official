@@ -533,6 +533,21 @@ Key mechanics:
   support to `_inline` (rulebook uses it). Rulebook §3.1 now embeds the SCL
   wide banner + logo mark with captions; `scripts/generate_docs.py` re-run.
 
+## Season setup wizard — DONE (2026-08-16, +10 unit → 252 tests)
+
+- **`/admin/season/<id>/setup`** (new **Setup** tab): pick managers + auction
+  players from the GLOBAL pool (all players/teams from previous seasons).
+  Creating a season now redirects here instead of the auction room.
+- **Service** (`auction_service`): `season_setup_context` (every global player
+  with team ownership + in_auction/is_manager flags, every global team with
+  in_season), `sync_season_setup` (add/remove auction players by global id;
+  managers keep their existing team automatically or get a new one; deselected
+  managers' teams leave the season), `reassign_team_manager` (setup only; a
+  player can't manage two teams).
+- **Gotcha**: `_setup` test helper's team dict uses `global_team_id` (the
+  per-season `teams.id` ≠ global id) — tests must pass the global id to
+  `get_global_team`.
+
 ## SCL branding + team branding assets — DONE (2026-08-16, +11 unit +9 e2e → 226 tests)
 
 - **BrandingService** (`app/services/branding_service.py`): SCL asset registry

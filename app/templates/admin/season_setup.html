@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Admin · Setup {{ season.name }}{% endblock %}
+{% block content %}
+{% from "admin/_tabs.html" import tabs %}
+<div class="page-head">
+  <h1>Season setup — {{ season.name }}</h1>
+  <p class="page-sub">Choose the managers (their existing teams are added automatically, or create a
+    new team for them) and pick which players are in the auction pool. All players and teams from
+    previous seasons are shown — this season's selections are marked.</p>
+</div>
+{{ tabs('setup', season_id) }}
+
+{% if season.status != 'setup' %}
+  <div class="banner banner-warn">This season's setup is locked — the auction has started. Changes to
+    the auction pool and managers are no longer allowed here.</div>
+{% endif %}
+
+<form method="post" action="{{ url_for('admin.season_setup_save', season_id=season_id) }}">
+  <section class="card">
+    <div class="card-head">
+      <h2>1 · Managers &amp; teams ({{ season_teams | length }} in this season)</h2>
+      <button class="btn btn-primary btn-small" type="submit">Save setup</button>
+    </div>
+    <p class="muted small">Tick the players who manage a team this season. If they already have a team
+      from a previous season, it's added automatically; otherwise enter a team name to create one.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th></th><th>Player</th><th>Tier</th><th>Team this season</th></tr></thead>
+        <tbody>
+          {% for p in players %}
+            <tr>
+              <td>
+                <label class="check-line">
+                  <input type="checkbox" name="managers" value="{{ p.id }}"
+                         {% if p.is_manager %}checked{% endif %}>
+                </label>
+              </td>
+              <td><b>{{ p.name }}</b>{% if p.team %} <span class="chip chip-info">owns {{ p.team.name }}</span>{% endif %}</td>
+              <td><span class="tag">{{ p.tier }}</span></td>
+              <td>
+                {% if p.is_manager %}
+                  <span class="chip chip-success">✓ {{ p.season_team_name }}</span>
+                {% elif p.team %}
+                  <span class="muted small">added automatically when ticked</span>
+                {% else %}
+                  <input type="text" name="team_name_{{ p.id }}" placeholder="new team name"
+                         style="width:190px">
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if season_teams %}
+      <h3 style="margin:14px 0 6px">Teams in this season</h3>
+      <div class="row" style="flex-wrap:wrap;gap:8px">
+        {% for t in season_teams %}
+          <div class="team-box">
+            <div class="team-head"><strong>{{ t.name }}</strong></div>
+            <form method="post" action="{{ url_for('admin.season_team_manager', season_id=season_id, team_id=t.id) }}"
+                  class="row" style="gap:6px;margin-top:6px">
+              <select name="manager_player_id" style="width:auto">
+                {% for p in players %}
+                  <option value="{{ p.id }}" {% if p.id == t.manager_player_id %}selected{% endif %}>
+                    {{ p.name }}{% if p.is_manager and p.id != t.manager_player_id %} (already manages) {% endif %}
+                  </option>
+                {% endfor %}
+              </select>
+              <button class="btn btn-small" type="submit">Change manager</button>
+            </form>
+            <form method="post" action="{{ url_for('admin.team_delete', season_id=season_id, team_id=t.id) }}"
+                  style="margin-top:6px"
+                  onsubmit="return confirm('Remove {{ t.name }} from this season?')">
+              <button class="btn btn-small btn-danger" type="submit">Remove from season</button>
+            </form>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>2 · Auction players ({{ season_players | length }} in this season)</h2>
+      <button class="btn btn-primary btn-small" type="submit">Save setup</button>
+    </div>
+    <p class="muted small">Tick the players who will be in this season's auction. Players not ticked are
+      removed from the season. You can still edit a player's name/tier on the Auction tab afterwards.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th></th><th>Player</th><th>Tier</th><th>Speciality</th></tr></thead>
+        <tbody>
+          {% for p in players %}
+            <tr>
+              <td>
+                <label class="check-line">
+                  <input type="checkbox" name="auction_players" value="{{ p.id }}"
+                         {% if p.in_auction %}checked{% endif %}>
+                </label>
+              </td>
+              <td><b>{{ p.name }}</b></td>
+              <td><span class="tag">{{ p.tier }}</span></td>
+              <td>{{ p.speciality }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="row" style="margin:10px 0 24px">
+    <button class="btn btn-primary" type="submit">Save setup</button>
+    <a class="btn" href="{{ url_for('admin.auction', season=season_id) }}">Go to auction room →</a>
+  </div>
+</form>
+{% endblock %}

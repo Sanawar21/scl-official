@@ -4,6 +4,10 @@
      href="{{ url_for('admin.dashboard') }}">Overview</a>
   <a class="tag {% if active == 'auction' %}tag-active{% endif %}"
      href="{{ url_for('admin.auction', season=season_id) }}">Auction</a>
+  {% if season_id %}
+  <a class="tag {% if active == 'setup' %}tag-active{% endif %}"
+     href="{{ url_for('admin.season_setup', season_id=season_id) }}">Setup</a>
+  {% endif %}
   <a class="tag {% if active == 'teams' %}tag-active{% endif %}"
      href="{{ url_for('admin.teams_page') }}">Teams</a>
   <a class="tag {% if active == 'scorer' %}tag-active{% endif %}"

@@ -153,11 +153,64 @@ def season_create():
             request.form.get("name", ""),
             ruleset_overrides=_ruleset_form(),
         )
-        flash(f"Season '{season['name']}' created.", "success")
-        return redirect(url_for("admin.auction", season=season["id"]))
+        flash(f"Season '{season['name']}' created. Set up its managers and auction pool.", "success")
+        return redirect(url_for("admin.season_setup", season_id=season["id"]))
     except ValueError as exc:
         flash(str(exc), "error")
         return redirect(url_for("admin.dashboard"))
+
+
+@admin_bp.get("/season/<season_id>/setup")
+@login_required(role=R.ROLE_ADMIN)
+def season_setup(season_id):
+    auction = current_app.extensions["auction_service"]
+    ctx = auction.season_setup_context(season_id)
+    if not ctx:
+        flash("Season not found.", "error")
+        return redirect(url_for("admin.dashboard"))
+    ctx["seasons"] = auction.list_seasons()
+    ctx["season_id"] = season_id
+    ctx["active_admin_tab"] = "setup"
+    return render_template("admin/season_setup.html", **ctx)
+
+
+@admin_bp.post("/season/<season_id>/setup/save")
+@login_required(role=R.ROLE_ADMIN)
+def season_setup_save(season_id):
+    auction = current_app.extensions["auction_service"]
+    try:
+        auction.sync_season_setup(
+            season_id,
+            auction_player_ids=request.form.getlist("auction_players"),
+            manager_team_names=_manager_team_names(),
+        )
+        flash("Setup saved.", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("admin.season_setup", season_id=season_id))
+
+
+@admin_bp.post("/season/<season_id>/team/<team_id>/manager")
+@login_required(role=R.ROLE_ADMIN)
+def season_team_manager(season_id, team_id):
+    auction = current_app.extensions["auction_service"]
+    try:
+        auction.reassign_team_manager(
+            season_id, team_id,
+            (request.form.get("manager_player_id") or "").strip(),
+        )
+        flash("Team manager updated.", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("admin.season_setup", season_id=season_id))
+
+
+def _manager_team_names():
+    """Parse {global_player_id: team_name} from the setup form."""
+    result = {}
+    for gp_id in request.form.getlist("managers"):
+        result[gp_id] = (request.form.get(f"team_name_{gp_id}") or "").strip()
+    return result
 
 
 @admin_bp.post("/season/<season_id>/ruleset")
