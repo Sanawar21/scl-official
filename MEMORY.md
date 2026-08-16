@@ -438,6 +438,13 @@ Update this file whenever you learn something durable. Keep it current as the bu
   the new one couldn't bind :10001. `.env` IS read correctly by a fresh process
   (`Config.DB_PATH`). Now `run.py` pre-checks the port and prints the exact PID/kill
   command + the active DB path at startup, so a port conflict is loud, not silent.
+- **Reloader gotcha (2026-08-16, 3rd)**: `run.py` now runs `socketio.run(..., debug=True,
+  use_reloader=False)`. The debug reloader spawns child processes that re-run the
+  port pre-check, causing a bind race + self-stop on restart (and historically the
+  zombie trees). One process, one bind, no restart.
+- **Startup**: `./.venv/Scripts/python.exe run.py` prints the active DB path and stays
+  up. If it prints "Cannot bind port 10001", kill the old listener first:
+  `netstat -ano | grep :10001` → `taskkill //PID <pid> //F //T`.
 
 ## Balance reset + purse removal (2026-08-15)
 

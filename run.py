@@ -22,4 +22,7 @@ if __name__ == "__main__":
             print("  taskkill //PID <pid> //F //T")
             sys.exit(1)
     print(f"Serving on http://127.0.0.1:{PORT}  (DB: {app.config['DB_PATH']})")
-    socketio.run(app, host="0.0.0.0", port=PORT, debug=True)
+    # use_reloader=False: the debug reloader spawns child processes that inherit
+    # the socket and re-run this pre-check, causing a bind race on restart (and,
+    # historically, zombie servers holding the port). One process, one bind.
+    socketio.run(app, host="0.0.0.0", port=PORT, debug=True, use_reloader=False)
