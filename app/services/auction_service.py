@@ -153,6 +153,62 @@ class AuctionService:
             season["ruleset"] = self._get_ruleset(conn, season_id).as_dict()
             return season
 
+    def delete_season(self, season_id: str, actor: str = "admin") -> dict:
+        """Permanently delete a season and everything scoped to it.
+
+        Removes the per-season rows (players, teams, bids, trades, transfers,
+        action log, auction meta, snapshots, ruleset, wagers + bets, match
+        data, finance entries). Vault positions for the season are released
+        back to liquid cash first — money is never destroyed. Users assigned
+        as managers of this season's teams are unassigned (role back to
+        player, team cleared). Global players/teams are untouched: they
+        persist across seasons."""
+        with self.db.write() as conn:
+            season = conn.execute("SELECT * FROM seasons WHERE id = ?", (season_id,)).fetchone()
+            if not season:
+                raise ValueError("Season not found")
+            season_name = season["name"]
+
+            # Vault positions -> release any locked capital back to liquid.
+            positions = conn.execute(
+                "SELECT * FROM vault_positions WHERE season_id = ?", (season_id,)).fetchall()
+            for pos in positions:
+                locked = int(pos["locked_capital"])
+                if locked > 0 and self.bank is not None:
+                    self.bank.unlock_amount(
+                        pos["account_id"], season_id, locked, conn=conn,
+                        comment=f"Season {season_name} deleted — vault released")
+                conn.execute("DELETE FROM vault_positions WHERE id = ?", (pos["id"],))
+
+            # Children before parents (foreign keys are enforced).
+            conn.execute(
+                "DELETE FROM wager_bets WHERE wager_id IN "
+                "(SELECT id FROM wagers WHERE season_id = ?)", (season_id,))
+            conn.execute("DELETE FROM wagers WHERE season_id = ?", (season_id,))
+            conn.execute("DELETE FROM match_player_stats WHERE season_id = ?", (season_id,))
+            conn.execute("DELETE FROM match_team_stats WHERE season_id = ?", (season_id,))
+            conn.execute("DELETE FROM match_stats WHERE season_id = ?", (season_id,))
+            conn.execute("DELETE FROM match_registry WHERE season_id = ?", (season_id,))
+            conn.execute("DELETE FROM season_finance_entries WHERE season_id = ?", (season_id,))
+            conn.execute("DELETE FROM transfers WHERE season_id = ?", (season_id,))
+            conn.execute("DELETE FROM trade_requests WHERE season_id = ?", (season_id,))
+            conn.execute("DELETE FROM bids WHERE season_id = ?", (season_id,))
+            team_ids = [r["id"] for r in conn.execute(
+                "SELECT id FROM teams WHERE season_id = ?", (season_id,)).fetchall()]
+            conn.execute("DELETE FROM teams WHERE season_id = ?", (season_id,))
+            conn.execute("DELETE FROM players WHERE season_id = ?", (season_id,))
+            conn.execute("DELETE FROM auction_action_log WHERE season_id = ?", (season_id,))
+            conn.execute("DELETE FROM auction_meta WHERE season_id = ?", (season_id,))
+            conn.execute("DELETE FROM season_snapshots WHERE season_id = ?", (season_id,))
+            conn.execute("DELETE FROM rulesets WHERE season_id = ?", (season_id,))
+            if team_ids:
+                conn.execute(
+                    f"UPDATE users SET team_id = NULL, role = ? "
+                    f"WHERE team_id IN ({','.join('?' * len(team_ids))})",
+                    (R.ROLE_PLAYER, *team_ids))
+            conn.execute("DELETE FROM seasons WHERE id = ?", (season_id,))
+        return {"ok": True, "season_id": season_id, "name": season_name}
+
     def _get_ruleset(self, conn, season_id: str) -> Ruleset:
         row = conn.execute("SELECT * FROM rulesets WHERE season_id = ?", (season_id,)).fetchone()
         if not row:

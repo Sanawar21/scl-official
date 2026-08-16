@@ -144,6 +144,21 @@ def auction():
     return render_template("admin/dashboard.html", **context)
 
 
+@admin_bp.post("/season/<season_id>/delete")
+@login_required(role=R.ROLE_ADMIN)
+def season_delete(season_id):
+    """Permanently delete a season (players, teams, bids, matches, wagers…).
+    Vault money is released back to liquid; global players/teams are kept."""
+    auction_service = current_app.extensions["auction_service"]
+    try:
+        result = auction_service.delete_season(season_id)
+        flash(f"Season '{result['name']}' deleted. Vault money released to liquid, "
+              f"global players/teams kept.", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("admin.dashboard"))
+
+
 @admin_bp.post("/season/create")
 @login_required(role=R.ROLE_ADMIN)
 def season_create():
@@ -709,6 +724,8 @@ def _overview_context(season_id=None):
     if season_id not in {s["id"] for s in seasons}:
         season_id = seasons[0]["id"]
     context["season_id"] = season_id
+    current = next((s for s in seasons if s["id"] == season_id), seasons[0])
+    context["current_season_name"] = current["name"]
 
     state = auction.get_state(season_id)
     branding = current_app.extensions["branding_service"]

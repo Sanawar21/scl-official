@@ -690,6 +690,22 @@ Plan: `ECONOMY_PLAN.md` (locked decisions D1-D4). Inc 1 shipped:
   10k (`tx_type="funding"`) instead of relying on tier purses; e2e seed funds
   the manager too; `seed_demo.py` funds 10k per user.
 
+## Season delete + Season 2 reset — DONE (2026-08-16, +5 unit → 253 tests)
+
+- `auction.delete_season(season_id)` — one write-txn cascade: vault positions first
+  (releases locked capital back to liquid via `bank.unlock_amount`, money never
+  destroyed), then wager_bets/wagers, match stats/registry, finance entries,
+  transfers/trades/bids, teams (captures ids), players, action log, auction_meta,
+  snapshots, rulesets, then unassigns manager users (role→player, team_id→NULL)
+  for the deleted teams, then the season row. Global players/teams untouched.
+- Route `POST /admin/season/<id>/delete`; UI = "Danger zone" card on the admin
+  overview (`current_season_name` added to `_overview_context`), confirm() dialog.
+- **Used it**: Season 2 (`season-2`) deleted from `data/scl.db` — all its players,
+  teams, action log, and the 11 vault positions (10k each) released to liquid.
+  Season 1 intact (66 bids, 13 matches kept).
+- Tests: `tests/test_season_delete.py` (5 tests) — cascade coverage, vault release,
+  global identity preserved, manager unassign, unknown-season error.
+
 ## Ball-by-ball match view — DONE (2026-08-15)
 
 `/matches/<season>/<match>/balls` — play-by-play from the stored `delivery_log`: innings tabs

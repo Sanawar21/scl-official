@@ -132,5 +132,16 @@
   </ul>
 </section>
 
+<section class="card" style="border-color:var(--scl-danger, #c0392b)">
+  <div class="card-head"><h2>Danger zone</h2></div>
+  <p class="muted small">Permanently delete <b>{{ current_season_name }}</b> and everything scoped to it
+    (players, teams, bids, action log, matches, wagers, finance entries). Vault money is released
+    back to liquid; global players and teams are kept for future seasons. This cannot be undone.</p>
+  <form method="post" action="{{ url_for('admin.season_delete', season_id=season_id) }}"
+        onsubmit="return confirm('Delete {{ current_season_name }} forever? This cannot be undone.')">
+    <button class="btn btn-danger" type="submit">Delete {{ current_season_name }}</button>
+  </form>
+</section>
+
 {% endif %}
 {% endblock %}
