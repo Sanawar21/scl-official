@@ -54,11 +54,23 @@
             <td>{{ u.player_name or '—' }}</td>
             <td>{{ u.tier or '—' }}</td>
             <td>
-              {% if u.global_player_id %}
-                <form method="post" action="{{ url_for('auth.unlink_user', user_id=u.user_id) }}">
-                  <button class="btn btn-small btn-danger" type="submit">Unlink</button>
-                </form>
-              {% endif %}
+              <div class="row" style="gap:6px;flex-wrap:wrap">
+                {% if u.global_player_id %}
+                  <form method="post" action="{{ url_for('auth.unlink_user', user_id=u.user_id) }}">
+                    <button class="btn btn-small btn-danger" type="submit">Unlink</button>
+                  </form>
+                {% endif %}
+                <details>
+                  <summary class="btn btn-small" style="cursor:pointer">Reset password</summary>
+                  <form method="post" action="{{ url_for('auth.reset_password', user_id=u.user_id) }}"
+                        style="display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap">
+                    <input type="text" name="new_password" placeholder="New password"
+                           minlength="4" style="width:140px">
+                    <button class="btn btn-small btn-primary" type="submit" name="action" value="set">Set</button>
+                    <button class="btn btn-small" type="submit" name="action" value="generate">Generate</button>
+                  </form>
+                </details>
+              </div>
             </td>
           </tr>
         {% endfor %}

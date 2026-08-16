@@ -1,3 +1,5 @@
+import secrets
+
 from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, session, url_for
 
 from .. import rules as R
@@ -37,6 +39,30 @@ def login():
 def logout():
     session.clear()
     return redirect(url_for("viewer.home"))
+
+
+@auth_bp.get("/forgot")
+def forgot_page():
+    return render_template("auth/forgot.html")
+
+
+@auth_bp.post("/forgot")
+def forgot():
+    """Password recovery entry point. The app has no email system, so the flow
+    hands the player to the admin: the admin resets the password from the
+    admin link page and shares it out-of-band."""
+    auth_service = current_app.extensions["auth_service"]
+    username = (request.form.get("username", "") or "").strip()
+    user = auth_service.get_by_username(username) if username else None
+    if not user:
+        flash("No account found with that username. Double-check the spelling, or sign up.", "error")
+        return redirect(url_for("auth.forgot_page"))
+    if user["role"] == R.ROLE_ADMIN:
+        flash("The administrator account is managed through the server configuration (.env).", "info")
+        return redirect(url_for("auth.forgot_page"))
+    flash(f"Found the account '{user['username']}'. Ask the admin to reset its password "
+          "(Admin → Link accounts → Reset password), then log in with the new one.", "info")
+    return redirect(url_for("auth.forgot_page"))
 
 
 @auth_bp.get("/signup")
@@ -104,6 +130,27 @@ def link_user(user_id):
 def unlink_user(user_id):
     current_app.extensions["auth_service"].unlink_user(user_id)
     flash("Account unlinked.", "success")
+    return redirect(url_for("auth.link_page"))
+
+
+@auth_bp.post("/admin/reset-password/<user_id>")
+@login_required(role=R.ROLE_ADMIN)
+def reset_password(user_id):
+    """Admin sets (or generates) a new password for a player account."""
+    auth_service = current_app.extensions["auth_service"]
+    new_password = request.form.get("new_password", "")
+    action = request.form.get("action", "set")
+    try:
+        if action == "generate":
+            new_password = secrets.token_urlsafe(9)
+        user = auth_service.reset_password(user_id, new_password)
+        if action == "generate":
+            flash(f"Generated a new password for {user['username']}: {new_password} "
+                  "— share it with the player.", "success")
+        else:
+            flash(f"Password reset for {user['username']}.", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
     return redirect(url_for("auth.link_page"))
 
 

@@ -67,6 +67,27 @@ class AuthService:
             return None
         return user
 
+    def reset_password(self, user_id: str, new_password: str) -> dict:
+        """Admin-driven password reset (no self-service/email in the app).
+
+        The admin sets a new password (or one is generated) and shares it with
+        the player out-of-band. The admin account itself is excluded — its
+        credentials come from configuration (.env)."""
+        new_password = new_password or ""
+        if len(new_password) < 4:
+            raise ValueError("Password must be at least 4 characters")
+        with self.db.write() as conn:
+            user = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+            if not user:
+                raise ValueError("User not found")
+            if user["role"] == R.ROLE_ADMIN:
+                raise ValueError("Admin credentials are managed via configuration (.env)")
+            conn.execute(
+                "UPDATE users SET password_hash = ? WHERE id = ?",
+                (generate_password_hash(new_password), user_id),
+            )
+            return self.get_user(user_id)
+
     # --- linking / management ---------------------------------------------
     def link_user_to_player(self, user_id: str, global_player_id: str) -> dict:
         with self.db.write() as conn:

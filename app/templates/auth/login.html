@@ -18,6 +18,9 @@
       <button class="btn btn-primary btn-block" type="submit">Login</button>
     </div>
   </form>
+  <p class="small" style="margin:12px 0 0;text-align:center">
+    <a href="{{ url_for('auth.forgot_page') }}">Forgot password?</a>
+  </p>
   <div class="empty" style="margin-top:14px">
     <p class="small" style="margin:0">New here?
       <a href="{{ url_for('auth.signup_page') }}">Sign up</a> — an admin will link your account to

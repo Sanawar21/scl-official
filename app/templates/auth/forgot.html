@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Forgot Password{% endblock %}
+{% block content %}
+<div class="auth-card card">
+  <img src="{{ url_for('viewer.branding_asset', relpath='scl/logo-only-light-bg-square.JPG') }}"
+       alt="SCL" style="max-height:56px;border-radius:8px;margin-bottom:8px">
+  <p class="auth-sub">Section-C Cricket League</p>
+  <h1>Forgot password</h1>
+  <p class="muted small">SCL doesn't use email, so passwords are reset by the league admin.
+    Enter your username below to confirm your account, then ask the admin to reset your
+    password — they'll set (or generate) a new one and share it with you.</p>
+  <form method="post" action="{{ url_for('auth.forgot') }}">
+    <label for="forgot-username">Username</label>
+    <input id="forgot-username" type="text" name="username" required autofocus>
+    <div style="margin-top:14px">
+      <button class="btn btn-primary btn-block" type="submit">Confirm account</button>
+    </div>
+  </form>
+  <p class="small" style="margin:14px 0 0;text-align:center">
+    Remembered it? <a href="{{ url_for('auth.login_page') }}">Back to login</a>
+  </p>
+</div>
+{% endblock %}

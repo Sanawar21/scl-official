@@ -731,6 +731,16 @@ bounced, season resolution broke.
 - Tests: `tests/test_season_delete.py` (5 tests) — cascade coverage, vault release,
   global identity preserved, manager unassign, unknown-season error.
 
+## Password recovery (admin-reset) — DONE (2026-08-16)
+
+No email system exists in the app (accounts don't store emails), so recovery is
+admin-driven: `/auth/forgot` confirms the username (friendly messages for
+unknown users, admin accounts → .env) and points the player at the admin;
+`Admin → Link accounts` gained a per-account **Reset password** action (set a
+new password or Generate one — the generated one is flashed so the admin can
+copy it). `AuthService.reset_password()` excludes the admin account. Login page
+links to `/auth/forgot`. Tests: `tests/test_password_reset.py` (12).
+
 ## Nav declutter + real-time auction — DONE (2026-08-16)
 
 - **Nav**: Scorer/Docs/Changelog moved into a `More ▾` dropdown (desktop) — the drawer keeps
