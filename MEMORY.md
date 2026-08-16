@@ -425,6 +425,13 @@ Key mechanics:
   credits are per-tier (a platinum manager team starts with 5 credits — 3 spent on a
   platinum buy leaves 2, so later platinum bids fail).
 
+## S2 economy — COMPLETE (2026-08-16, 5 increments, 183 tests)
+
+All five increments shipped: persistent teams, no purse + 10k funding, universal
+250/match credit + auto mode, squad levy + three-section board, admin flows +
+docs. Reference docs (ADMIN/PLAYER_MANAGER/CLI) updated for the new economy.
+Backlog: wager polish (auto-resolve), fantasy entries.
+
 ## S2 economy — Increment 4 (squad levy + balance board) DONE (2026-08-16)
 
 - **Squad-cost levy**: `finance.apply_squad_levy(season_id)` — avg = Σ teams.spent

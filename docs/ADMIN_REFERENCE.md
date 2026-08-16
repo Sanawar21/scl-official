@@ -31,20 +31,22 @@ top-right to pick which season the counts refer to (`?season=<id>`).
 
 ## 2. Auction control — `/admin/auction?season=<id>`
 
-The auction is the draft: teams buy players tier by tier with tier purses (the
-**team purse IS the manager's wallet** — one bank account per manager), credits,
-and Phase B. Season setup order: **create season → configure ruleset → add players
-→ create teams → run phases → complete draft → publish**.
+The auction is the draft: teams buy players tier by tier with credits and Phase B.
+**S2 economy: there is NO tier purse** — every player gets the universal 10k
+funding and the **team's money IS the manager's wallet** (one bank account per
+manager). Season setup order: **create season → configure ruleset → fund players →
+add players → create teams → run phases → complete draft (auto squad levy) → publish**.
 
 ### 2.1 Season + ruleset
 - **Create season** (`/admin/season/create`): name → creates a season in `setup`
   status with the default ruleset.
 - **Ruleset** (`/admin/season/<id>/ruleset`): the per-season economy. Fields:
   - `phase_order` — comma-separated `platinum, gold, break, silver, phase_b`
-  - Per tier (platinum/gold/silver): `purse`, `base price`, `credits`
+  - Per tier (platinum/gold/silver): `base price`, `credits` (no purse in S2)
   - `total_credits`, `bid increment`, `phase_b price`, `credit refund rate`
   - `required_players` (bought players beyond the manager), `roster_size`
-  - `break_minutes`, `match_reward_amount` (fixed reward per finalized match)
+  - `break_minutes`, `match_reward_amount` (fixed credit to EVERY player wallet
+    per finalized match — default 250)
 
 ### 2.2 Players
 - **Add player** (`/admin/season/<id>/player/add`): name, tier, speciality.
@@ -53,8 +55,12 @@ and Phase B. Season setup order: **create season → configure ruleset → add p
 
 ### 2.3 Teams
 - **Create team** (`/admin/season/<id>/team/create`): name + manager player →
-  funds the manager's wallet with the tier purse.
-- **Delete team** (setup only): refunds any remaining purse.
+  creates/reuses the **persistent team profile** (`global_teams`) and registers it
+  for the season. No purse is funded — the team starts with the manager's own
+  wallet. Admin can create a team any time (outside setup it's a profile only,
+  not a season registration).
+- **Delete team** (setup only): removes the season row; **the manager's wallet is
+  never touched**.
 - **Gift / take** (`…/team/<tid>/gift`): amount + `Gift +`/`Take −` + comment —
   this is the **grants/fines/bonuses tool** (e.g. "credit saved" adjustments).
 - **Takeover / restore** (`…/team/<tid>/takeover` + `restore`): admin takes control
@@ -69,7 +75,8 @@ and Phase B. Season setup order: **create season → configure ruleset → add p
 - **Close lot** (`/admin/season/<id>/close`): sell to the current high bidder
   (charges wallet + credits) or mark unsold if no bid.
 - **Complete draft + penalties** (`/admin/season/<id>/complete`): end the auction;
-  applies Phase B/credit-refund penalties for incomplete teams.
+  applies Phase B/credit-refund penalties for incomplete teams, then **auto-applies
+  the squad-cost levy** (average squad cost charged to wallets that didn't spend).
 - **Publish snapshot** (`/admin/season/<id>/publish`): snapshots final squads +
   wallets to the public `/season/<slug>` page.
 - **Undo last action** (`/admin/season/<id>/undo`): rolls back the last
@@ -110,7 +117,9 @@ The catch-all money tool (used from the auction page's team boxes):
 
 ### 3.4 What finalizing a match does automatically
 On import, `finance_service.on_match_finalized` runs **idempotently**:
-- Pays the **match reward** (`match_reward_amount`) to each playing team's wallet.
+- Credits the **match reward** (`match_reward_amount`, default 250) to **EVERY
+  player wallet** (auto-vault accounts get it routed straight to the vault). One
+  marker ledger entry guards the whole batch; undo reverses all wallets.
 - **Catches up vault yield** (7% per match step, capped at Match 12) for all vault
   positions in the season.
 
@@ -124,11 +133,18 @@ On import, `finance_service.on_match_finalized` runs **idempotently**:
 ## 4. Finance admin — `/admin/finances?season=<id>`
 
 ### 4.1 Budget board
-Per-team: current wallet (liquid), locked (vault), credits, spent. Plus season
-totals (team wallets, vault, yield progress x/12) and the ledger feed (rewards,
-adds/removes, transfers, vault locks) with undo chips.
+Three sections (S2): **teams in this season → teams not in this season →
+individual players**, each row showing wallet (liquid) + locked (vault). Plus
+season totals (team wallets, vault, yield progress x/12) and the ledger feed
+(rewards, adds/removes, transfers, vault locks, squad levy) with undo chips.
 
 ### 4.2 Actions
+- **Fund all players** (`/admin/finances/fund-all`): credits every player's wallet
+  with the universal funding (default 10k) — **idempotent** (players who never
+  signed up get a wallet too; newly created wallets run on auto). This is the
+  "everyone gets 10k before the S2 auction" step.
+- **Squad levy** (`/admin/finances/levy`): manual fallback for the squad-cost levy
+  (auto-runs on draft complete) — idempotent.
 - **Adjust** (`/admin/finances/adjust`): add/remove funds for a team + comment.
 - **Transfer** (`/admin/finances/transfer`): move funds team-to-team + comment.
 - **Process pending** (`/admin/finances/process-pending`): backfills rewards +

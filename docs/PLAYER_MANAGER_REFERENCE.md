@@ -6,8 +6,10 @@ the money works. Two roles:
 - **Player** — an account (wallet + vault), wagers (propose markets, stake),
   and (optionally) the manager of a team.
 - **Manager** — a player who owns a team: sits in the auction and bids, runs the
-  squad, proposes trades. **The team's purse IS the manager's wallet** — there is
-  no separate team account; the manager's bank account is the team's money.
+  squad, proposes trades. **The team's money IS the manager's wallet** — there is
+  no separate team account; the manager's bank account is the team's money. In S2
+  there is **no tier purse**: every player is funded with the universal 10k before
+  the auction, and teams start from their manager's wallet.
 
 Quick demo of everything: `scripts/seed_demo.py` (separate `data/demo.db`; the
 real `data/scl.db` is never touched). Demo logins: `ayaan`/`bilal` (managers),
@@ -30,16 +32,30 @@ real `data/scl.db` is never touched). Demo logins: `ayaan`/`bilal` (managers),
 
 ### 2.1 Balance hero
 - **Liquid cash** — spendable money (deposits, wager payouts, vault unlocks,
-  match rewards if you're a manager).
+  match credits).
 - **Locked capital** — money locked in the vault for a season.
 - If you're a **manager**, a callout reminds you the wallet is the team's money.
 
-### 2.2 Deposit
-- **Deposit** form (`/account/deposit`): add funds to your liquid cash. (Real
-  payment integration is out of scope; the admin can also add balance and comment
-  why — e.g. "credit saved".)
+### 2.2 Auto mode (the hands-free option)
+- A toggle card on `/account`: **Auto mode ON** means everything that comes in
+  (deposits, grants, the universal 10k funding, the 250-per-match credit) goes
+  **straight into your vault** and compounds at 7% per match — you never have to
+  manage your liquid cash. Wallets created for players who never signed up are
+  auto by default; turn it off to manage manually (needed if you want to bid or
+  stake).
 
-### 2.3 Vault
+### 2.3 Start a team / My team
+- **Start a team** (`/account` card): create a **persistent team account** — your
+  team exists even if it's not playing this season. Its money is your wallet.
+- **My team**: edit the team's name, logo, and about section; see which seasons
+  it played. The admin registers it for a season when it's time to play.
+
+### 2.4 Deposit
+- **Deposit** form (`/account/deposit`): add funds to your liquid cash — or to
+  the vault if auto mode is on. (Real payment integration is out of scope; the
+  admin can also add balance and comment why — e.g. "credit saved".)
+
+### 2.5 Vault
 - **Lock** (`/account/vault/lock`): move liquid cash → locked capital for a
   chosen season. Position options:
   - **Compounding (default)**: yield is added to locked capital each match, so it
@@ -52,9 +68,9 @@ real `data/scl.db` is never touched). Demo logins: `ayaan`/`bilal` (managers),
   Positions unlock automatically once the season reaches 12 finalized matches
   (admin can force-unlock earlier).
 
-### 2.4 Transactions
+### 2.6 Transactions
 - Filterable table of every movement: deposits, vault locks, wager stakes +
-  payouts, match rewards, admin grants/fines.
+  payouts, the 250 match credits, admin grants/fines.
 
 ---
 
@@ -130,15 +146,20 @@ The dashboard renders the current lot + a **bid action bar** (JS-driven, live vi
 ## 6. Money model (read this once)
 
 - One bank account per **player** (`player` owner). For managers that account is
-  also the **team purse** — created + funded with the tier purse when the admin
-  creates the team.
-- **Liquid cash** moves: deposit (+), wager stake (−) / payout (+), match reward
-  (+), admin grants/fines (+/−), auction close (− for bought players), trades,
-  vault lock (−) / unlock (+).
+  also the **team's money** — there is no purse; the manager's funding is the
+  team's starting bank.
+- **S2 funding**: every player gets the **universal 10k** before the auction
+  (auto-created wallets default to auto mode → vaulted). No tier purse.
+- **Liquid cash** moves: deposit (+), wager stake (−) / payout (+), match credit
+  (+250 to every player per finalized match), admin grants/fines (+/−), auction
+  close (− for bought players), trades, vault lock (−) / unlock (+).
+- **Squad-cost levy**: when the draft completes, the average squad cost is
+  deducted from wallets that didn't spend in the auction (liquid first, then the
+  vault for auto accounts).
 - **Credits** are the draft budget (per-tier credits, total 8) — they only matter
   during the auction, not as money.
 - Vault: liquid → locked for a season; **7%/match compounding yield**, unlock at
-  12 finalized matches.
+  12 finalized matches. Auto mode routes everything incoming straight to it.
 
 ---
 

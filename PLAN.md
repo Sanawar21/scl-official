@@ -219,7 +219,7 @@ else top-1 (S2). 11 unit + 6 e2e tests (164 total: 99 unit + 65 e2e).
 2. ✅ S2 economy rules — tier purse removed from ruleset UI/defaults; 10k universal funding action + script — DONE (2026-08-16)
 3. ✅ Universal credit (250/match to every wallet) + auto-mode vault — DONE (2026-08-16)
 4. ✅ Squad-cost levy after the auction + three-section balance board — DONE (2026-08-16)
-5. Admin flows (fund-all, create/link anytime) + docs
+5. ✅ Admin flows (fund-all, create/link anytime) + docs — DONE (2026-08-16); S2 economy restructure COMPLETE (183 tests)
 
 ## Ball-by-ball match view — DONE (2026-08-15)
 

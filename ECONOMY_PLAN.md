@@ -70,7 +70,7 @@ Mirrors the existing `global_players` → `players` pattern:
 2. ✅ **S2 economy rules — DONE (2026-08-16)** — tier purse gone from ruleset UI + defaults (zeros); idempotent **10k funding** (`bank.fund_all_players`, admin "Fund all players" button on Finances, `scripts/fund_players.py`); admin grants kept. 172 tests green.
 3. ✅ **Universal credit + auto mode — DONE (2026-08-16)** — 250/match to EVERY player wallet (one marker ledger entry; undo reverses all); `auto_vault` flag (new wallets default auto, owners toggle on the account dashboard); `bank.credit()` routes deposits/grants/funding/match credits to the vault when auto. 177 tests green.
 4. ✅ **Squad-cost levy + balance board — DONE (2026-08-16)** — `finance.apply_squad_levy()` runs automatically on draft complete (idempotent; liquid first, then vault for auto accounts; spenders exempt; manual fallback button on admin finances); `list_season_finances` returns three sections (playing → non-playing → players) rendered on `/finances` + admin. 183 tests green.
-5. **Admin flows + docs** — fund-all button, create/link anytime, finance ledger updates; docs + full suite.
+5. ✅ **Admin flows + docs — DONE (2026-08-16)** — fund-all button (Inc 2), create/link team anytime (Inc 1), finance ledger shows universal credits + squad levy; reference docs (ADMIN/PLAYER_MANAGER/CLI) updated for the S2 economy. **All 5 increments complete — 183 tests green.**
 
 ---
 

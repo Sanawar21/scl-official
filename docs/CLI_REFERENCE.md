@@ -134,6 +134,12 @@ PY
 $VENV scripts/reset_balances.py --db data/scl.db            # dry run (no write)
 $VENV scripts/reset_balances.py --db data/scl.db --yes      # actually reset
 
+# Fund every player with the universal 10k before the S2 auction (idempotent;
+# auto-creates wallets for players who never signed up). Same as the admin
+# "Fund all players" button on /admin/finances. REFUSES to write without --yes.
+$VENV scripts/fund_players.py --db data/scl.db                      # dry run (no write)
+$VENV scripts/fund_players.py --db data/scl.db --amount 10000 --yes # actually fund
+
 # Import deployed Season 1 data (prod-data/) into a fresh rebuild DB.
 # Refuses to run if the target DB already has imported rows (unless --force).
 $VENV scripts/import_prod.py [--data prod-data] [--db data/scl.db] [--force]

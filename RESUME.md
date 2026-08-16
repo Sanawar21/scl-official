@@ -1,7 +1,20 @@
 # SCL Rebuild — Session Resume Handoff
 
 Read this first in a new session, then `MEMORY.md` (living context + gotchas) and `PLAN.md`
-(feature plan). Last updated 2026-08-16 (S2 economy Increment 4 done; 183 tests).
+(feature plan). Last updated 2026-08-16 — **S2 economy restructure COMPLETE** (all 5
+increments; 183 tests).
+
+## S2 economy — COMPLETE (2026-08-16, 5 increments)
+
+1. Persistent teams (`global_teams`) + team accounts + no purse + delete keeps wallet
+2. Tier purse removed; idempotent universal 10k funding (admin button + script)
+3. 250/match credit to every wallet + auto-mode vault toggle on /account
+4. Squad-cost levy on draft complete + three-section balance board
+5. Admin flows polish + reference docs updated for the S2 economy
+
+What's next (backlog): wager polish (auto-resolve from match results), fantasy
+entries, ball-by-ball already shipped. Demo: `scripts/seed_demo.py` (funds via
+`fund_all_players`, 5 manual + 7 auto accounts).
 
 ## S2 economy — Increment 4 (squad levy + balance board) DONE (2026-08-16)
 
