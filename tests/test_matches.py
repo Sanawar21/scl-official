@@ -145,6 +145,26 @@ def test_team_profile_squad_shows_names_not_raw_ids(app, scorer):
     assert p1["id"] not in html and p2["id"] not in html
 
 
+def test_team_profile_squad_mentions_manager_name(app, scorer):
+    """Each season squad card shows the manager's name (resolved to a name,
+    not the raw player id)."""
+    season, teams = _teams(app)
+    svc = app.extensions["auction_service"]
+    team = teams[0]
+    gid = (team.get("global_team_id") or "").strip() or team["id"]
+    mgr_id = team["manager_player_id"]
+
+    profile = scorer.team_profile(team_profile_slug(gid, team["name"]))
+    squad = next(s for s in profile["squads"] if s["season_id"] == season["id"])
+    assert squad["manager_global_player_id"] == mgr_id
+    assert squad["manager_name"], "manager name must be resolved"
+
+    c = app.test_client()
+    html = c.get(f"/teams/{profile['team_slug']}").data.decode()
+    assert f"Manager: <b>{squad['manager_name']}</b>" in html
+    assert mgr_id not in html  # no raw id on the page
+
+
 # ----------------------------------------------------------------------
 # CSV import
 # ----------------------------------------------------------------------

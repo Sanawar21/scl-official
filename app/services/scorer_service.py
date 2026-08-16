@@ -1575,6 +1575,7 @@ class ScorerService:
                 "season_id": t["season_id"],
                 "name": t["name"],
                 "manager_global_player_id": t["manager_player_id"],
+                "manager_name": name_by_pid.get(t["manager_player_id"], ""),
                 "players": [_named(pid) for pid in json_loads(t["players"], [])],
                 "bench": [_named(pid) for pid in json_loads(t["bench"], [])],
             })

@@ -60,6 +60,9 @@
         <h2>{{ squad.season_id }} squad</h2>
         <span class="tag">{{ squad.name }}</span>
       </div>
+      {% if squad.manager_name %}
+        <p class="muted small" style="margin-top:6px">Manager: <b>{{ squad.manager_name }}</b></p>
+      {% endif %}
       {% if squad.players %}
         <div class="row">
           {% for p in squad.players %}
