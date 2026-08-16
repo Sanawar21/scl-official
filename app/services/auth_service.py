@@ -21,13 +21,24 @@ class AuthService:
         username = username or "admin"
         password = password or "admin123"
         with self.db.write() as conn:
-            row = conn.execute("SELECT id FROM users WHERE role = ?", (R.ROLE_ADMIN,)).fetchone()
+            row = conn.execute("SELECT id, username, password_hash FROM users WHERE role = ?",
+                               (R.ROLE_ADMIN,)).fetchone()
             if row is None:
                 conn.execute(
                     "INSERT INTO users (id, username, password_hash, role, display_name, created_at) "
                     "VALUES (?, ?, ?, ?, ?, ?)",
                     (secrets.token_hex(8), username, generate_password_hash(password),
                      R.ROLE_ADMIN, "Administrator", _now()),
+                )
+                return
+            # The admin already exists: sync credentials to the configured ones
+            # so .env is authoritative (a stale password from an earlier default
+            # otherwise makes admin login silently fail).
+            if (row["username"] != username
+                    or not check_password_hash(row["password_hash"], password)):
+                conn.execute(
+                    "UPDATE users SET username = ?, password_hash = ? WHERE id = ?",
+                    (username, generate_password_hash(password), row["id"]),
                 )
 
     # --- signup / login ---------------------------------------------------

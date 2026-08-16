@@ -499,6 +499,16 @@ Key mechanics:
   credits are per-tier (a platinum manager team starts with 5 credits — 3 spent on a
   platinum buy leaves 2, so later platinum bids fail).
 
+## Admin login stale-password fix — DONE (2026-08-16, +2 unit → 242 tests)
+
+- **Gotcha**: `seed_admin_if_missing` only created the admin if missing, so an
+  EXISTING admin row kept its old password while `.env` promised a new one —
+  admin login silently failed ("can't login as admin"). `data/scl.db`'s admin
+  had the old default `admin` while `.env` said `demo123`.
+- **Fix**: the seed now syncs username + password of an existing admin to the
+  configured values on every boot — `.env` is authoritative. Also: always use
+  `./.venv/Scripts/python.exe` (Anaconda `python` was serving again).
+
 ## PDF letterhead + home banner — DONE (2026-08-16, +2 unit +1 e2e → 240 tests)
 
 - **PDF letterhead**: every generated PDF (doc_service docs + scorecard) draws the

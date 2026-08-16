@@ -2,9 +2,40 @@
 import re
 
 import pytest
+from werkzeug.security import check_password_hash
 
 from tests.conftest import _setup
 from tests.test_wager import _linked_user
+
+
+@pytest.fixture()
+def auth(app):
+    return app.extensions["auth_service"]
+
+
+def test_seed_admin_syncs_stale_password(app, auth):
+    """An existing admin with an outdated password is updated to the configured
+    credentials on boot, so .env stays authoritative (the seed used to create
+    the admin only if missing, silently ignoring the configured password)."""
+    # Create the admin with a stale password (as if from an old default).
+    auth.seed_admin_if_missing("admin", "oldpass")
+    # Re-seed with the configured password: it must be updated, not skipped.
+    auth.seed_admin_if_missing("admin", "admin123")
+    user = auth.login("admin", "admin123")
+    assert user is not None and user["role"] == "admin"
+    assert auth.login("admin", "oldpass") is None
+    # Username change is synced too.
+    auth.seed_admin_if_missing("root", "admin123")
+    assert auth.login("root", "admin123") is not None
+
+
+def test_seed_admin_syncs_password_in_db(app, auth):
+    """The hash stored in the DB matches the configured password after boot."""
+    auth.seed_admin_if_missing("admin", "freshpw")
+    with app.extensions["db"].read() as conn:
+        row = conn.execute("SELECT password_hash FROM users WHERE role='admin'").fetchone()
+    assert check_password_hash(row["password_hash"], "freshpw")
+    assert not check_password_hash(row["password_hash"], "admin123")
 
 
 @pytest.fixture()
