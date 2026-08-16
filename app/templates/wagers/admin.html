@@ -97,6 +97,36 @@
       </div>
     {% endif %}
 
+    {% if w.bets %}
+      <h3>Bets ({{ w.bets | selectattr('status', 'equalto', 'open') | list | length }} open)</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>User</th><th>Side</th><th>Amount</th><th>Status</th><th>When</th><th></th></tr></thead>
+          <tbody>
+            {% for b in w.bets %}
+              <tr>
+                <td>{{ b.username }}</td>
+                <td>{{ b.side }}</td>
+                <td>{{ b.amount }}</td>
+                <td><span class="tag">{{ b.status }}</span></td>
+                <td class="muted">{{ b.created_at[:16] }}</td>
+                <td>
+                  {% if b.status == 'open' and w.status in ('proposed', 'calibrating', 'vetted', 'frozen') %}
+                    <form method="post" action="{{ url_for('wagers.admin_remove_bet', wager_id=w.id, bet_id=b.id) }}" class="row" style="justify-content:flex-end">
+                      <button class="btn btn-small btn-danger" type="submit"
+                              onclick="return confirm('Remove this stake (refund {{ b.amount }} to {{ b.username }})?')">
+                        Remove bet
+                      </button>
+                    </form>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+
     {% if w.status == 'resolved' %}
       <p class="muted small">Resolved {{ w.resolved_at[:16] }} — <b>{{ w.winning_side }}</b> won.</p>
     {% endif %}

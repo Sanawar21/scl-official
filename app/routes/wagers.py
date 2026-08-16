@@ -143,6 +143,8 @@ def bet(wager_id):
 def admin():
     svc = _wager_service()
     wagers = svc.list_wagers()
+    for w in wagers:
+        w["bets"] = svc.get_wager(w["id"])["bets"]
     house = svc.house_account()
     return render_template("wagers/admin.html", wagers=wagers, house=house)
 
@@ -209,6 +211,19 @@ def admin_unfreeze(wager_id):
     try:
         svc.unfreeze(wager_id, user.get("username") or "admin")
         flash("Pools reopened.", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("wagers.admin"))
+
+
+@wagers_bp.post("/admin/<wager_id>/bets/<bet_id>/remove")
+@login_required(role=R.ROLE_ADMIN)
+def admin_remove_bet(wager_id, bet_id):
+    svc = _wager_service()
+    user = session.get("user") or {}
+    try:
+        svc.remove_bet(wager_id, bet_id, user.get("username") or "admin")
+        flash("Bet removed; stake refunded.", "success")
     except ValueError as exc:
         flash(str(exc), "error")
     return redirect(url_for("wagers.admin"))

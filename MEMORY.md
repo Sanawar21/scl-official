@@ -147,6 +147,12 @@ Update this file whenever you learn something durable. Keep it current as the bu
   quota 3 matches else 1,500 fine at season end; Substitution Release Clause = 50% of the
   player's auction price; 500 fine to the manager whose player invades the field; 200 for
   sponsored match announcements (promote/trash talk). MDs for review → PDFs later.
+- [x] **Admin can remove single bets** (2026-08-16) — `wager_service.remove_bet(wager_id,
+  bet_id, actor)`: admin-only, open bets only, pre-resolution only (proposed/calibrating/
+  vetted/frozen); stake refunded 100% to the bettor's liquid cash, bet marked `refunded`
+  (kept in history), pools/pot/house coverage recompute live. Admin UI: bets table with
+  `Remove bet` buttons on `/wagers/admin` (open count header). Route:
+  `POST /wagers/admin/<id>/bets/<bet_id>/remove`. Suite now 197 (120 unit + 77 e2e).
 
 ## Participant docs — source of truth mapping
 - Rulebook/vault/wager sources are `rulebook.txt`, `vault.txt`, `wager.txt` in the repo root

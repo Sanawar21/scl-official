@@ -254,6 +254,79 @@ def test_route_board_and_admin_pages(app):
     assert c.get("/wagers/admin").status_code == 200
 
 
+def test_route_admin_remove_bet(app, wager):
+    """The admin endpoint removes a bet; non-admins are redirected away."""
+    season, players, _ = _setup(app, n_teams=2)
+    alice = _linked_user(app, "alice", players[0]["global_player_id"])
+    bob = _linked_user(app, "bob", players[1]["global_player_id"])
+    w = _open_market(app, wager, alice, side="Yes", amount=200, estimate=50)
+    w = wager.place_bet(bob, w["id"], "No", 100)
+    bet_id = next(b for b in w["bets"] if b["username"] == "bob")["id"]
+
+    c = app.test_client()
+    # Not logged in -> redirect.
+    r = c.post(f"/wagers/admin/{w['id']}/bets/{bet_id}/remove")
+    assert r.status_code == 302
+    # Admin removes it.
+    c.post("/auth/login", data={"username": "admin", "password": "admin123"})
+    r = c.post(f"/wagers/admin/{w['id']}/bets/{bet_id}/remove")
+    assert r.status_code == 302
+    fresh = wager.get_wager(w["id"])
+    assert fresh["pot"] == 200
+    assert sum(1 for b in fresh["bets"] if b["status"] == "open") == 1
+    # The admin page lists bets with a remove form for open ones.
+    body = c.get("/wagers/admin").data.decode()
+    assert "Remove bet" in body
+    assert "1 open" in body
+
+
+def test_remove_bet_refunds_stake_and_recomputes_pools(app, wager, bank):
+    """Admin can remove a single open bet; the stake is refunded and the
+    pools/pot/house coverage recompute immediately."""
+    season, players, _ = _setup(app, n_teams=2)
+    alice = _linked_user(app, "alice", players[0]["global_player_id"])
+    bob = _linked_user(app, "bob", players[1]["global_player_id"])
+    bob_before = _liquid(app, players[1]["global_player_id"])
+    w = _open_market(app, wager, alice, side="Yes", amount=200, estimate=25)
+    w = wager.place_bet(bob, w["id"], "No", 100)
+    assert w["pot"] == 300
+    bob_bet = next(b for b in w["bets"] if b["username"] == "bob")
+
+    w = wager.remove_bet(w["id"], bob_bet["id"], "admin")
+    assert w["pot"] == 200                       # bob's 100 left the pot
+    assert w["no_total"] == 0
+    assert sum(1 for b in w["bets"] if b["status"] == "open") == 1
+    assert _liquid(app, players[1]["global_player_id"]) == bob_before   # refunded
+    removed = next(b for b in w["bets"] if b["id"] == bob_bet["id"])
+    assert removed["status"] == "refunded"
+    assert removed["payout"] == 100
+    assert any(h["action"] == "remove_bet" for h in w["history"])
+
+    # Removing it again is rejected (already refunded).
+    with pytest.raises(ValueError):
+        wager.remove_bet(w["id"], bob_bet["id"], "admin")
+
+
+def test_remove_bet_guards(app, wager):
+    """Only open bets can be removed, and only before resolution/void."""
+    season, players, _ = _setup(app, n_teams=2)
+    alice = _linked_user(app, "alice", players[0]["global_player_id"])
+    bob = _linked_user(app, "bob", players[1]["global_player_id"])
+    w = _open_market(app, wager, alice, side="Yes", amount=200, estimate=25)
+    w = wager.place_bet(bob, w["id"], "No", 100)
+    bet_id = next(b for b in w["bets"] if b["username"] == "bob")["id"]
+    # Unknown bet id.
+    with pytest.raises(ValueError):
+        wager.remove_bet(w["id"], "nope", "admin")
+    # After resolution the market is closed to bet removal.
+    bank = app.extensions["bank_service"]
+    bank.get_or_create_account("house", "house")
+    bank.adjust(bank.get_or_create_account("house", "house")["id"], 5000, "house funds")
+    w = wager.resolve(w["id"], "admin", "Yes")
+    with pytest.raises(ValueError):
+        wager.remove_bet(w["id"], bet_id, "admin")
+
+
 def test_house_coverage_computed_live(app, wager, bank):
     """The automatic guarantee shows how much the House covers per side, and
     adjusts as stakes land on either side."""

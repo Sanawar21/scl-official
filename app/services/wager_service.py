@@ -353,6 +353,33 @@ class WagerService:
             self._history(conn, wager_id, "unfreeze", actor, "pools reopened")
         return self.get_wager(wager_id)
 
+    def remove_bet(self, wager_id: str, bet_id: str, actor: str) -> dict:
+        """Admin-only: remove a single open bet and refund its stake.
+
+        A correction tool for erroneous stakes — the bettor's liquid cash is
+        refunded 100% and the bet is marked `refunded`; pools/pot/house
+        coverage recompute automatically since they read live open bets.
+        Only allowed while the market is still open (not resolved/voided)
+        and only for bets still in `open` status.
+        """
+        with self.db.write() as conn:
+            wager = self._get_wager_row(conn, wager_id)
+            self._require_status(wager, (STATUS_PROPOSED, STATUS_CALIBRATING,
+                                         STATUS_VETTED, STATUS_FROZEN))
+            bet = conn.execute(
+                "SELECT * FROM wager_bets WHERE id = ? AND wager_id = ?",
+                (bet_id, wager_id)).fetchone()
+            if not bet:
+                raise ValueError("Bet not found on this wager")
+            if bet["status"] != BET_OPEN:
+                raise ValueError("Only open bets can be removed")
+            amount = int(bet["amount"])
+            self._credit(conn, bet, amount, "wager_refund",
+                         f"Bet removed by {actor} — refund of {amount}")
+            self._history(conn, wager_id, "remove_bet", actor,
+                          f"removed {bet['username']}'s {amount} stake on {bet['side']}")
+        return self.get_wager(wager_id)
+
     def inject_house(self, wager_id: str, actor: str, amount: int) -> dict:
         amount = int(amount or 0)
         if amount <= 0:
