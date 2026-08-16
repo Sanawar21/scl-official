@@ -179,8 +179,15 @@ def _draw_running_header(canvas, document, title):
     canvas.restoreState()
 
 
+LOGO_BG = HexColor("#F6F7EF")  # logo mark background (image is not transparent)
+
+
 def _logo_mark_flowable():
-    """The 16:9 SCL logo mark, only rendered on the first page."""
+    """The 16:9 SCL logo mark on its own background, first page only.
+
+    The JPG is not transparent, so it sits on a full-width band of its own
+    background color to blend in rather than floating on white.
+    """
     if not LOGO_MARK_PATH.exists():
         return None
     try:
@@ -191,7 +198,14 @@ def _logo_mark_flowable():
         img.drawWidth = LOGO_MARK_W
         img.drawHeight = LOGO_MARK_W * ih / iw  # preserve 16:9 aspect
         img.hAlign = "CENTER"
-        return img
+        band = Table([[img]], colWidths=[PAGE_W - 2 * MARGIN])
+        band.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), LOGO_BG),
+            ("TOPPADDING", (0, 0), (-1, -1), 8),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ]))
+        return band
     except Exception:
         return None
 

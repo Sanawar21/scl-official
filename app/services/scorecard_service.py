@@ -318,6 +318,8 @@ class ScorecardService:
         )
         story = []
         # Letterhead logo mark on the first page only (16:9, aspect preserved).
+        # The JPG is not transparent, so it sits on a band of its own
+        # background color to blend in.
         try:
             if LOGO_MARK_PATH.exists():
                 mark = Image(str(LOGO_MARK_PATH))
@@ -326,7 +328,14 @@ class ScorecardService:
                     mark.drawWidth = 80 * mm
                     mark.drawHeight = 80 * mm * ih / iw
                     mark.hAlign = "CENTER"
-                    story.append(mark)
+                    band = Table([[mark]], colWidths=[PAGE_W - 2 * MARGIN])
+                    band.setStyle(TableStyle([
+                        ("BACKGROUND", (0, 0), (-1, -1), HexColor("#F6F7EF")),
+                        ("TOPPADDING", (0, 0), (-1, -1), 8),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ]))
+                    story.append(band)
                     story.append(Spacer(1, 6 * mm))
         except Exception:
             pass
