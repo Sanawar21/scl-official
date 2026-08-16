@@ -84,6 +84,22 @@ def test_finances_fund_all_route(app):
     assert "fund all players" in body.lower()
 
 
+def test_finances_levy_route(app):
+    season, _, teams = _setup(app, n_teams=2)
+    finance = app.extensions["finance_service"]
+    with app.extensions["db"].write() as conn:
+        conn.execute("UPDATE teams SET spent = 2000 WHERE id = ?", (teams[0]["id"],))
+    client = _login(app)
+    r = client.post(f"/admin/finances/levy?season={season['id']}", data={})
+    assert r.status_code == 302
+    entries = finance.list_finance_entries(season["id"])
+    assert any(e["type"] == "squad_levy" for e in entries)
+    # Second run is a no-op.
+    r = client.post(f"/admin/finances/levy?season={season['id']}", data={})
+    assert r.status_code == 302
+    assert len([e for e in finance.list_finance_entries(season["id"]) if e["type"] == "squad_levy"]) == 1
+
+
 def test_overview_wager_card(app, wager):
     season, players, _ = _setup(app, n_teams=2)
     gp = players[0]["global_player_id"]

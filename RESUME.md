@@ -1,7 +1,21 @@
 # SCL Rebuild — Session Resume Handoff
 
 Read this first in a new session, then `MEMORY.md` (living context + gotchas) and `PLAN.md`
-(feature plan). Last updated 2026-08-16 (S2 economy Increment 3 done; 177 tests).
+(feature plan). Last updated 2026-08-16 (S2 economy Increment 4 done; 183 tests).
+
+## S2 economy — Increment 4 (squad levy + balance board) DONE (2026-08-16)
+
+- **Squad-cost levy** — `finance.apply_squad_levy()`: avg squad cost
+  (Σ teams.spent / n teams) deducted from wallets that didn't spend in the
+  auction; playing teams that spent are exempt; liquid first, then the vault
+  position (bank.seize) for auto accounts; idempotent per season (one marker
+  entry); auto-runs on draft complete + manual fallback button on
+  `/admin/finances`.
+- **Balance board** — `list_season_finances` returns rows with a `section`
+  (playing / non_playing / players); `/finances` + admin render three grouped
+  sections with wallet + locked.
+- Demo seed fix: the match-CSV section no longer overwrites
+  `teams.global_team_id` with random ids (it caused duplicate global teams).
 
 ## S2 economy — Increment 3 (universal credit + auto mode) DONE (2026-08-16)
 

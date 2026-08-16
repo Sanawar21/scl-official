@@ -189,6 +189,44 @@ class BankService:
             )
         return self.get_account(account_id)
 
+    def seize(self, account_id: str, season_id: str, amount: int, conn=None,
+              comment: str = "") -> int:
+        """Remove locked vault capital without moving liquid (squad-cost levy).
+
+        Takes from the season's vault position, capped at its locked capital.
+        Returns the amount actually seized."""
+        amount = int(amount)
+
+        def _impl(c):
+            position = c.execute(
+                "SELECT * FROM vault_positions WHERE account_id = ? AND season_id = ?",
+                (account_id, season_id),
+            ).fetchone()
+            if not position:
+                return 0
+            take = min(amount, int(position["locked_capital"]))
+            if take <= 0:
+                return 0
+            c.execute(
+                "UPDATE vault_positions SET locked_capital = ? WHERE id = ?",
+                (int(position["locked_capital"]) - take, position["id"]),
+            )
+            account = c.execute(
+                "SELECT * FROM bank_accounts WHERE id = ?", (account_id,)).fetchone()
+            c.execute(
+                "UPDATE bank_accounts SET locked_capital = ? WHERE id = ?",
+                (int(account["locked_capital"]) - take, account_id),
+            )
+            self._log(c, account_id, "squad_levy", -take,
+                      int(account["liquid_cash"]),
+                      comment or f"Squad cost levy {take} (from vault)")
+            return take
+
+        if conn is not None:
+            return _impl(conn)
+        with self.db.write() as c:
+            return _impl(c)
+
     def unlock_amount(self, account_id: str, season_id: str, amount: int, conn=None,
                       comment: str = "") -> int:
         """Release locked vault capital back to liquid, capped at what's locked.

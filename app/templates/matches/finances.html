@@ -19,19 +19,28 @@
   <div class="card-head">
     <h2>Budget board{% if season_id %} — {{ season_id }}{% endif %}</h2>
   </div>
-  <p class="muted small">Each team's manager account balance. This is the team's money:
-    match rewards, fines and transfers all move through it.</p>
+  <p class="muted small">A wallet is the owner's liquid cash (the team's money for
+    teams) and `locked` is what's sitting in the vault. Teams in this season come
+    first, then teams not playing, then individual players.</p>
   {% if board %}
-    <div class="grid">
-      {% for b in board %}
-        <div class="stat-tile">
-          <div class="stat-label">{{ b.team_name }}</div>
-          <div class="stat-value">{{ b.wallet }}</div>
-          <div class="small muted">{{ b.credits_remaining }} credits ·
-            {{ b.players_count }} players + {{ b.bench_count }} bench</div>
+    {% set sections = [('playing', 'Teams in this season'), ('non_playing', 'Teams not in this season'), ('players', 'Individual players')] %}
+    {% for key, label in sections %}
+      {% set group = board | selectattr('section', 'equalto', key) | list %}
+      {% if group %}
+        <h3 class="board-section">{{ label }}</h3>
+        <div class="grid">
+          {% for b in group %}
+            <div class="stat-tile">
+              <div class="stat-label">{{ b.name }}</div>
+              <div class="stat-value">{{ b.wallet }}</div>
+              <div class="small muted">{% if b.locked %}locked {{ b.locked }}{% else %}no vault{% endif %}
+                {% if b.credits_remaining is not none %} · {{ b.credits_remaining }} credits ·
+                  {{ b.players_count }} players + {{ b.bench_count }} bench{% endif %}</div>
+            </div>
+          {% endfor %}
         </div>
-      {% endfor %}
-    </div>
+      {% endif %}
+    {% endfor %}
   {% else %}
     <div class="empty"><div class="empty-title">No finance data yet</div>
       <p class="small">This season's budget board appears once teams exist.</p></div>

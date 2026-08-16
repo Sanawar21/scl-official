@@ -315,7 +315,14 @@ def complete(season_id):
     auction_service = current_app.extensions["auction_service"]
     try:
         auction_service.complete_draft(season_id)
-        flash("Draft completed; incomplete teams filled with penalties.", "success")
+        # S2: automatically apply the squad-cost levy to non-spenders.
+        finance = current_app.extensions["finance_service"]
+        levy = finance.apply_squad_levy(season_id)
+        if levy.get("applied"):
+            flash(f"Draft completed; squad-cost levy {levy['levy']:,} charged to "
+                  f"{levy['charged']} wallets ({levy['exempt']} exempt).", "success")
+        else:
+            flash("Draft completed; incomplete teams filled with penalties.", "success")
     except ValueError as exc:
         flash(str(exc), "error")
     return redirect(url_for("admin.auction", season=season_id))
@@ -480,7 +487,8 @@ def _overview_context(season_id=None):
         context["yield_progress"] = min(max_match, 12)  # vault yield caps at Match 12
 
     board = finance.list_season_finances(season_id)
-    context["wallet_total"] = sum(int(r["wallet"] or 0) for r in board)
+    context["wallet_total"] = sum(int(r["wallet"] or 0) for r in board
+                                   if r.get("kind") == "team")
     context["recent_finance"] = finance.list_finance_entries(season_id, limit=8)
 
     context["wagers"] = wager.list_wagers()
@@ -565,6 +573,24 @@ def finances_fund_all():
     except ValueError as exc:
         flash(str(exc), "error")
     return redirect(url_for("admin.finances", season=_season_id()))
+
+
+@admin_bp.post("/finances/levy")
+@login_required(role=R.ROLE_ADMIN)
+def finances_levy():
+    """Manual fallback for the squad-cost levy (auto-runs on draft complete)."""
+    finance = current_app.extensions["finance_service"]
+    season_id = (request.form.get("season_id") or _season_id() or "").strip().lower()
+    try:
+        result = finance.apply_squad_levy(season_id)
+        if result.get("applied"):
+            flash(f"Squad-cost levy {result['levy']:,} charged to {result['charged']} "
+                  f"wallets ({result['exempt']} exempt).", "success")
+        else:
+            flash("Squad levy already applied (or nothing to levy).", "info")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("admin.finances", season=season_id))
 
 
 @admin_bp.post("/finances/adjust")

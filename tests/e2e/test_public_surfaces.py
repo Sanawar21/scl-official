@@ -174,6 +174,18 @@ def test_finances_budget_board_cards(page, base_url):
     assert "credits" in body
 
 
+def test_finances_three_sections(page, base_url, seed):
+    """S2 board: teams in season, then individual players (non-playing teams
+    appear once one exists)."""
+    page.goto(base_url + "/finances")
+    body = page.locator("body").inner_text().lower()
+    assert "teams in this season" in body
+    assert "thunder" in body and "blaze" in body
+    # The two linked players (alice, cara) have wallets -> players section.
+    assert "individual players" in body
+    assert "alice" in body and "cara" in body
+
+
 # ----------------------------------------------------------------------
 # published season
 # ----------------------------------------------------------------------

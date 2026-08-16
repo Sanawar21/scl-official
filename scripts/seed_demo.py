@@ -158,12 +158,9 @@ def seed_demo(db_path: str) -> None:
     # ------------------------------------------------------------------
     # 5. One finalized match through the real scorer CSV path
     # ------------------------------------------------------------------
-    gids = {}
-    with app.extensions["db"].write() as conn:
-        for t in teams:
-            gid = secrets.token_hex(8)
-            gids[t["id"]] = gid
-            conn.execute("UPDATE teams SET global_team_id = ? WHERE id = ?", (gid, t["id"]))
+    # The teams already carry their real global_team_id (set by create_team);
+    # the scorer CSV references teams by that id.
+    gids = {t["id"]: (t["global_team_id"] or t["id"]) for t in teams}
     scorer.upsert_match_registry_entry(
         sid, "M1", match_number="Match 1", between="Lions vs Tigers",
         venue="Demo Ground", match_date="2026-08-10",

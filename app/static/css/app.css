@@ -223,6 +223,8 @@ h1, h2, h3 { line-height: 1.25; }
   margin: 10px 0;
 }
 .empty .empty-title { font-weight: 700; color: var(--text); margin-bottom: 4px; }
+.board-section { margin: 18px 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); }
+.board-section-row td { background: var(--surface-2, #f4f5f7); }
 
 /* stat tiles */
 .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 14px; }

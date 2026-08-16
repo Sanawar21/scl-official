@@ -329,6 +329,89 @@ def test_fund_all_players_custom_amount(app, svc):
 
 
 # ---------------------------------------------------------------------------
+# 3c. squad-cost levy + three-section budget board
+# ---------------------------------------------------------------------------
+def test_board_three_sections(app, svc, finance, bank):
+    """Playing teams -> non-playing teams -> individual players."""
+    season, players, teams = _setup(app, n_teams=2)
+    sid = season["id"]
+    # A persistent team NOT in this season (player-owned).
+    gp_np = players[2]["global_player_id"]
+    svc.create_team_account(gp_np, "Standing Team")
+    # An individual player with a wallet (not a manager).
+    gp_ind = players[4]["global_player_id"]
+    ind = bank.get_or_create_account("player", gp_ind)
+    bank.adjust(ind["id"], 500, "pocket money", tx_type="deposit")
+    # A non-playing manager with money in the vault (auto).
+    np_acct = bank.get_or_create_account("player", gp_np)
+    bank.set_auto(np_acct["id"], True)
+    bank.credit(np_acct["id"], 3000, "auto funding", season_id=sid)
+
+    board = finance.list_season_finances(sid)
+    sections = [r["section"] for r in board]
+    assert sections == sorted(sections, key={"playing": 0, "non_playing": 1, "players": 2}.get)
+    playing = [r for r in board if r["section"] == "playing"]
+    non_playing = [r for r in board if r["section"] == "non_playing"]
+    players_r = [r for r in board if r["section"] == "players"]
+    assert len(playing) == 2 and len(non_playing) == 1 and len(players_r) == 1
+    assert non_playing[0]["name"] == "Standing Team"
+    # The non-playing manager's 3k is locked in the vault (auto).
+    assert non_playing[0]["wallet"] == 0 and non_playing[0]["locked"] == 3000
+    assert players_r[0]["name"] == players[4]["name"]
+
+
+def test_squad_levy_charges_non_spenders_exempts_spenders(app, svc, finance, bank):
+    season, players, teams = _setup(app, n_teams=2)
+    sid = season["id"]
+    a, b = teams[0], teams[1]
+    # Team A spent 3000 in the auction; team B spent nothing.
+    with app.extensions["db"].write() as conn:
+        conn.execute("UPDATE teams SET spent = 3000 WHERE id = ?", (a["id"],))
+    # A non-manager player wallet.
+    gp = players[2]["global_player_id"]
+    acct = bank.get_or_create_account("player", gp)
+    bank.adjust(acct["id"], 2000, "funds", tx_type="deposit")
+
+    result = finance.apply_squad_levy(sid)
+    # avg = 3000 / 2 teams = 1500. Team A's manager exempt; team B + player charged.
+    assert result == {"applied": True, "levy": 1500, "charged": 2, "exempt": 1}
+    a_wallet = _wallet(bank, svc._get_team(sid, a["id"]))
+    b_wallet = _wallet(bank, svc._get_team(sid, b["id"]))
+    assert a_wallet == 10000          # spender exempt
+    assert b_wallet == 10000 - 1500   # non-spender charged from liquid
+    assert bank.get_account(acct["id"])["liquid_cash"] == 2000 - 1500
+    # Idempotent.
+    again = finance.apply_squad_levy(sid)
+    assert again["applied"] is False
+
+
+def test_squad_levy_takes_from_vault_for_auto_accounts(app, svc, finance, bank):
+    season, players, teams = _setup(app, n_teams=2)
+    sid = season["id"]
+    a, b = teams[0], teams[1]
+    with app.extensions["db"].write() as conn:
+        conn.execute("UPDATE teams SET spent = 3000 WHERE id = ?", (a["id"],))
+    # Auto account with everything in the vault.
+    gp = players[2]["global_player_id"]
+    acct = bank.get_or_create_account("player", gp)
+    bank.set_auto(acct["id"], True)
+    bank.credit(acct["id"], 5000, "auto funding", season_id=sid)
+
+    result = finance.apply_squad_levy(sid)
+    assert result["levy"] == 1500
+    acct = bank.get_account(acct["id"])
+    # Liquid untouched (0); 1500 seized from the vault.
+    assert acct["liquid_cash"] == 0
+    assert acct["locked_capital"] == 5000 - 1500
+
+
+def test_squad_levy_zero_spend_is_noop(app, finance):
+    season, _, _ = _setup(app, n_teams=2)
+    result = finance.apply_squad_levy(season["id"])
+    assert result["applied"] is False and result["levy"] == 0
+
+
+# ---------------------------------------------------------------------------
 # 4. on_match_finalized (auto reward + yield catch-up, idempotent)
 # ---------------------------------------------------------------------------
 def _register_finalized(app, scorer, season_id, match_id, match_number, team_a, team_b):

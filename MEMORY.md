@@ -425,6 +425,22 @@ Key mechanics:
   credits are per-tier (a platinum manager team starts with 5 credits — 3 spent on a
   platinum buy leaves 2, so later platinum bids fail).
 
+## S2 economy — Increment 4 (squad levy + balance board) DONE (2026-08-16)
+
+- **Squad-cost levy**: `finance.apply_squad_levy(season_id)` — avg = Σ teams.spent
+  / n teams; deducts from player wallets that didn't spend in the auction (teams
+  with spent > 0 are exempt). Liquid first, then `bank.seize()` takes from the
+  season's vault position for auto accounts. Idempotent via one
+  `season_finance_entries` type='squad_levy' marker. Triggered automatically in
+  the admin complete-draft route; manual button on `/admin/finances`.
+- **Budget board**: `list_season_finances` rows now carry `section`
+  (playing/non_playing/players), `name`, `wallet` (liquid), `locked` (vault).
+  Public `/finances` + admin finances render grouped sections. Overview
+  'Team wallets' sums only kind=='team' rows.
+- **Public finances URL is `/finances`** (the matches blueprint has no
+  url_prefix; routes include /matches explicitly). `/matches/finances` hits the
+  `<season_id>` route and 302s.
+
 ## S2 economy — Increment 3 (universal credit + auto mode) DONE (2026-08-16)
 
 - **Universal match credit**: `_apply_match_reward` credits EVERY player wallet

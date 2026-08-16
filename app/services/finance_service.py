@@ -45,26 +45,129 @@ class FinanceService:
     # reads
     # ------------------------------------------------------------------
     def list_season_finances(self, season_id: str) -> list:
-        """Budget Board: team + manager wallet (liquid) + credits + roster."""
+        """Budget Board, three sections (S2): teams in this season -> teams not
+        in this season -> individual players. Every row carries `section` and
+        `kind`; wallets are the manager's/player's liquid cash, `locked` the
+        vault capital."""
         season_id = (season_id or "").strip().lower()
         if not season_id:
             return []
         rows = []
         with self.db.read() as conn:
-            teams = conn.execute(
+            season_teams = conn.execute(
                 "SELECT * FROM teams WHERE season_id = ?", (season_id,)).fetchall()
-            for t in teams:
-                account = self.bank.account_for_owner("player", t["manager_player_id"])
+            global_teams = [dict(r) for r in conn.execute(
+                "SELECT * FROM global_teams").fetchall()]
+            in_season_gids = {t["global_team_id"] for t in season_teams
+                              if (t["global_team_id"] or "").strip()}
+            in_season_gids |= {t["id"] for t in season_teams}
+
+            def _wallet(owner_id):
+                acct = self.bank.account_for_owner("player", owner_id)
+                if not acct:
+                    return (0, 0)
+                return (int(acct["liquid_cash"]), int(acct["locked_capital"]))
+
+            # 1) teams playing this season
+            for t in season_teams:
+                wallet, locked = _wallet(t["manager_player_id"])
                 rows.append({
-                    "team_id": t["id"],
-                    "team_name": t["name"],
-                    "wallet": int(account["liquid_cash"]) if account else 0,
+                    "section": "playing", "kind": "team",
+                    "team_id": t["id"], "name": t["name"],
+                    "wallet": wallet, "locked": locked,
                     "credits_remaining": int(t["credits_remaining"] or 0),
                     "players_count": len(json_loads(t["players"], [])),
                     "bench_count": len(json_loads(t["bench"], [])),
                 })
-        rows.sort(key=lambda r: r["team_name"].lower())
+            # 2) persistent teams NOT in this season
+            for gt in global_teams:
+                if gt["id"] in in_season_gids:
+                    continue
+                if not gt.get("manager_player_id"):
+                    continue
+                wallet, locked = _wallet(gt["manager_player_id"])
+                rows.append({
+                    "section": "non_playing", "kind": "team",
+                    "team_id": gt["id"], "name": gt["name"],
+                    "wallet": wallet, "locked": locked,
+                    "credits_remaining": None, "players_count": 0, "bench_count": 0,
+                })
+            # 3) individual players (not managing any team)
+            manager_ids = {t["manager_player_id"] for t in season_teams}
+            manager_ids |= {gt["manager_player_id"] for gt in global_teams
+                            if gt.get("manager_player_id")}
+            for acct in conn.execute(
+                    "SELECT * FROM bank_accounts WHERE owner_type = 'player' "
+                    "ORDER BY liquid_cash DESC").fetchall():
+                if acct["owner_id"] in manager_ids:
+                    continue
+                gp = conn.execute(
+                    "SELECT name FROM global_players WHERE id = ?", (acct["owner_id"],)).fetchone()
+                rows.append({
+                    "section": "players", "kind": "player",
+                    "team_id": acct["owner_id"], "name": gp["name"] if gp else acct["owner_id"],
+                    "wallet": int(acct["liquid_cash"]), "locked": int(acct["locked_capital"]),
+                    "credits_remaining": None, "players_count": 0, "bench_count": 0,
+                })
+        order = {"playing": 0, "non_playing": 1, "players": 2}
+        rows.sort(key=lambda r: (order.get(r["section"], 9), r["name"].lower()))
         return rows
+
+    # ------------------------------------------------------------------
+    # squad-cost levy (S2: average squad cost charged to non-spenders)
+    # ------------------------------------------------------------------
+    def apply_squad_levy(self, season_id: str, actor: str = "admin") -> dict:
+        """Deduct the average squad cost of the season from wallets that didn't
+        spend in the auction (playing teams that spent are exempt). Liquid first,
+        then the vault position for auto accounts; never below zero. Idempotent
+        per season (one `squad_levy` marker entry)."""
+        season_id = (season_id or "").strip().lower()
+        with self.db.write() as conn:
+            already = conn.execute(
+                "SELECT 1 FROM season_finance_entries WHERE season_id = ? "
+                "AND type = 'squad_levy'", (season_id,)).fetchone()
+            if already:
+                return {"applied": False, "levy": 0, "charged": 0, "exempt": 0}
+            teams = conn.execute(
+                "SELECT * FROM teams WHERE season_id = ?", (season_id,)).fetchall()
+            if not teams:
+                return {"applied": False, "levy": 0, "charged": 0, "exempt": 0}
+            total_spent = sum(int(t["spent"] or 0) for t in teams)
+            if total_spent <= 0:
+                return {"applied": False, "levy": 0, "charged": 0, "exempt": len(teams)}
+            avg = round(total_spent / len(teams))
+            exempt = {t["manager_player_id"] for t in teams if int(t["spent"] or 0) > 0}
+            accounts = conn.execute(
+                "SELECT * FROM bank_accounts WHERE owner_type = 'player'").fetchall()
+            charged = exempt_count = 0
+            for acct in accounts:
+                if acct["owner_id"] in exempt:
+                    exempt_count += 1
+                    continue
+                self._levy_one(conn, acct, season_id, avg)
+                charged += 1
+            conn.execute(
+                "INSERT INTO season_finance_entries (id, season_id, match_id, team_id, "
+                "team_name, type, operation, amount, comment, created_by, before_wallet, "
+                "after_wallet, created_at) VALUES (?, ?, NULL, NULL, 'non-spenders', "
+                "'squad_levy', NULL, ?, ?, ?, NULL, NULL, ?)",
+                (secrets.token_hex(8), season_id, avg,
+                 f"Squad cost levy ({avg}) — {charged} charged, {exempt_count} exempt",
+                 actor, _now()))
+        return {"applied": True, "levy": avg, "charged": charged, "exempt": exempt_count}
+
+    def _levy_one(self, conn, account, season_id: str, amount: int) -> None:
+        """Deduct from liquid first, then from the season's vault position."""
+        remaining = int(amount)
+        liquid = int(account["liquid_cash"])
+        if liquid > 0:
+            take = min(remaining, liquid)
+            self.bank.adjust(account["id"], -take,
+                             f"Squad cost levy ({amount})", tx_type="squad_levy", conn=conn)
+            remaining -= take
+        if remaining > 0:
+            self.bank.seize(account["id"], season_id, remaining,
+                            conn=conn, comment=f"Squad cost levy ({amount})")
 
     def list_finance_entries(self, season_id: str, limit: int = 200) -> list:
         season_id = (season_id or "").strip().lower()
