@@ -1,5 +1,7 @@
 import pytest
 
+from tests.conftest import _setup
+
 
 @pytest.fixture()
 def bank(app):
@@ -19,6 +21,34 @@ def test_account_and_adjust(app, bank):
         bank.adjust(account["id"], -99999, "overdraft")
     txns = bank.transactions(account["id"])
     assert len(txns) == 1 and txns[0]["amount"] == 5000
+
+
+def test_linking_creates_wallet_in_manual_mode(app, bank):
+    """Linking an account to a player switches it to MANUAL (auto off): new
+    unlinked signups default to auto, but the link is the signal that the
+    player manages their own finances."""
+    auth = app.extensions["auth_service"]
+    season, players, _ = _setup(app, n_teams=2)
+    gp = players[2]["global_player_id"]  # non-manager player, no wallet yet
+    user = auth.signup("linkme", "pass1234", "Link Me")
+    auth.link_user_to_player(user["id"], gp)
+    acct = bank.account_for_owner("player", gp)
+    assert acct is not None, "linking should create the wallet"
+    assert acct["auto_vault"] == 0, "linked accounts are manual"
+    assert acct["liquid_cash"] == 0
+
+
+def test_linking_flips_existing_auto_account_to_manual(app, bank):
+    """A wallet that already exists in auto mode is flipped to manual when the
+    account gets linked to the player."""
+    auth = app.extensions["auth_service"]
+    season, players, _ = _setup(app, n_teams=2)
+    gp = players[2]["global_player_id"]
+    acct = bank.get_or_create_account("player", gp)
+    assert acct["auto_vault"] == 1  # new accounts default to auto
+    user = auth.signup("linkme2", "pass1234", "Link Me 2")
+    auth.link_user_to_player(user["id"], gp)
+    assert bank.account_for_owner("player", gp)["auto_vault"] == 0
 
 
 def test_fund_all_players_lands_in_liquid_not_vault(app, bank):

@@ -43,8 +43,10 @@ real `data/scl.db` is never touched). Demo logins: `ayaan`/`bilal` (managers),
   (admin grants, the universal 10k funding, the 250-per-match credit) goes
   **straight into your vault** and compounds at 7% per match — you never have to
   manage your liquid cash. Wallets created for players who never signed up are
-  auto by default; turn it off to manage manually (needed if you want to bid or
-  stake). Admin grants to an auto account land in the vault, not liquid.
+  auto by default; **the moment the admin links your account to your player,
+  auto is switched OFF** — linked accounts are manual, so you control your
+  liquid cash (needed to bid or stake). Turn auto back on anytime from the
+  toggle card. Admin grants to an auto account land in the vault, not liquid.
 
 ### 2.3 Start a team / My team
 - **Start a team** (`/account` card): create a **persistent team account** — your

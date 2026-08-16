@@ -83,37 +83,60 @@ def test_vault_position_card_and_reinvest(page, base_url, login, seed):
     assert page.locator(".js-reinvest").count() >= 1
 
 
-def test_auto_mode_default_on_and_grant_routing(page, base_url, login, seed):
-    """New accounts default to auto mode: admin grants route to the vault, and
-    the toggle can flip the account back to manual."""
+def test_linked_account_manual_and_grant_routing(page, base_url, login, seed):
+    """Accounts linked to players are MANUAL (auto off): admin grants land in
+    liquid. Flipping auto ON routes subsequent grants to the vault instead."""
+    alice_gp = seed["players"][0]["global_player_id"]
+
+    def tile_value(label):
+        return int(page.locator(".stat-tile", has_text=label)
+                   .locator(".stat-value").inner_text())
+
     login("alice", "alicepw")
+    page.goto(base_url + "/account")
     body = page.locator("body").inner_text().lower()
     assert "auto mode" in body
-    assert "on" in body  # new accounts default to auto mode
-    # An admin grant now routes to the vault (locked grows, liquid unchanged).
-    alice_gp = seed["players"][0]["global_player_id"]
+    assert "turn on auto mode" in body  # linked accounts default to MANUAL
+    liquid_before = tile_value("Liquid cash")
+    locked_before = tile_value("Locked (vault)")
+
+    # An admin grant lands in LIQUID for a manual account — vault unchanged.
     login("admin", "admin123")
     page.goto(base_url + "/admin/auction")
     page.select_option("section#bank select[name='account_id']", f"player:{alice_gp}")
     page.fill("section#bank input[name='amount']", "500")
+    page.fill("section#bank input[name='comment']", "manual grant")
+    with page.expect_navigation():
+        page.click("section#bank button[type='submit']")
+    page.wait_for_load_state("networkidle")
+    login("alice", "alicepw")
+    page.goto(base_url + "/account")
+    assert tile_value("Liquid cash") == liquid_before + 500, "grant must stay liquid"
+    assert tile_value("Locked (vault)") == locked_before
+
+    # Turn auto ON: the toggle flips to 'Switch to manual' after the reload,
+    # and a grant now routes to the vault instead.
+    page.click("#auto-form button[type='submit']")
+    page.wait_for_function(
+        "document.querySelector('#auto-form button')?.innerText.includes('Switch to manual')",
+        timeout=10000)
+    body = page.locator("body").inner_text().lower()
+    assert "switch to manual" in body  # auto is now ON
+    liquid_before = tile_value("Liquid cash")
+    locked_before = tile_value("Locked (vault)")
+    login("admin", "admin123")
+    page.goto(base_url + "/admin/auction")
+    page.select_option("section#bank select[name='account_id']", f"player:{alice_gp}")
+    page.fill("section#bank input[name='amount']", "300")
     page.fill("section#bank input[name='comment']", "auto grant")
     with page.expect_navigation():
         page.click("section#bank button[type='submit']")
     page.wait_for_load_state("networkidle")
-    # Back on alice's account: the grant sits in the vault, not liquid.
     login("alice", "alicepw")
     page.goto(base_url + "/account")
-    body = page.locator("body").inner_text().lower()
-    assert "auto mode" in body and "on" in body
-    assert "locked until m12" in body  # vault position created by the grant
-    # Turn auto OFF (the button label flips to 'Turn on auto mode'; note
-    # 'switch to manual harvest' on the vault card is a different thing).
-    page.click("#auto-form button[type='submit']")
-    page.wait_for_function(
-        "document.querySelector('#auto-form input[name=\"auto\"]')?.value === '1'",
-        timeout=10000)
-    body = page.locator("body").inner_text().lower()
-    assert "turn on auto mode" in body
+    assert tile_value("Locked (vault)") == locked_before + 300, \
+        "auto grant must route to the vault"
+    assert tile_value("Liquid cash") == liquid_before
 
 
 def test_transactions_filter(page, base_url, login):

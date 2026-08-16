@@ -731,6 +731,16 @@ bounced, season resolution broke.
 - Tests: `tests/test_season_delete.py` (5 tests) — cascade coverage, vault release,
   global identity preserved, manager unassign, unknown-season error.
 
+## Linking switches wallets to manual — DONE (2026-08-16)
+
+New signups still default to auto ON, but **`link_user_to_player` now forces
+the player's wallet to manual** (`auto_vault=0` — creating the wallet eagerly
+if it doesn't exist yet, in the same write transaction). Linked players
+manage their own liquid cash (needed to bid/stake); auto remains the default
+for never-linked wallets. E2E `test_linked_account_manual_and_grant_routing`
+asserts grants land liquid for linked accounts and route to the vault after
+toggling auto ON. Docs + account-page copy updated.
+
 ## Trade fixes — DONE (2026-08-16)
 
 - **Crash**: `get_trade_requests_for_team` built its player/team lookup maps

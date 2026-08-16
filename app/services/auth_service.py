@@ -101,6 +101,24 @@ class AuthService:
                 "UPDATE users SET global_player_id = ? WHERE id = ?",
                 (global_player_id, user_id),
             )
+            # Linking activates the player: their wallet is managed MANUALLY.
+            # New unlinked signups default to auto mode; the admin linking the
+            # account is the signal that the player runs their own finances.
+            acct = conn.execute(
+                "SELECT auto_vault FROM bank_accounts WHERE owner_type = 'player' "
+                "AND owner_id = ?", (global_player_id,),
+            ).fetchone()
+            if acct:
+                conn.execute(
+                    "UPDATE bank_accounts SET auto_vault = 0 "
+                    "WHERE owner_type = 'player' AND owner_id = ?", (global_player_id,),
+                )
+            else:
+                conn.execute(
+                    "INSERT INTO bank_accounts (id, owner_type, owner_id, liquid_cash, "
+                    "locked_capital, auto_vault, created_at) VALUES (?, 'player', ?, 0, 0, 0, ?)",
+                    (secrets.token_hex(8), global_player_id, _now()),
+                )
             return self.get_by_username(user["username"], conn=conn)
 
     def unlink_user(self, user_id: str):
