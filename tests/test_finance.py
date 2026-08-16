@@ -206,6 +206,52 @@ def test_delete_team_keeps_wallet(app, svc):
 
 
 # ---------------------------------------------------------------------------
+# 3b. universal funding (fund_all_players)
+# ---------------------------------------------------------------------------
+def test_fund_all_players_creates_wallets_and_is_idempotent(app, svc):
+    season, players, teams = _setup(app)
+    bank = app.extensions["bank_service"]
+    with app.extensions["db"].read() as conn:
+        n_players = conn.execute("SELECT COUNT(*) FROM global_players").fetchone()[0]
+        n_wallets = conn.execute(
+            "SELECT COUNT(*) FROM bank_accounts WHERE owner_type='player'").fetchone()[0]
+    # _setup only created wallets for the team managers.
+    assert n_wallets == 4
+
+    # The universal funding goes to everyone (the 4 managers already had wallets
+    # from _setup's `funding` tx — that's a different marker, so they're not
+    # exempt; grants/manual funding never exempt anyone from the 10k).
+    result = bank.fund_all_players(10000)
+    assert result["funded"] == n_players
+    assert result["skipped"] == 0
+    # Every player now has a wallet; managers have 10000 (funded) + 10000.
+    with app.extensions["db"].read() as conn:
+        rows = conn.execute(
+            "SELECT a.liquid_cash FROM bank_accounts a "
+            "JOIN global_players g ON g.id = a.owner_id "
+            "WHERE a.owner_type='player'").fetchall()
+        assert len(rows) == n_players
+        assert all(int(r[0]) in (10000, 20000) for r in rows)
+
+    # Idempotent: a second run funds nobody.
+    again = bank.fund_all_players(10000)
+    assert again["funded"] == 0
+    assert again["skipped"] == n_players
+
+
+def test_fund_all_players_custom_amount(app, svc):
+    season, players, _ = _setup(app, n_teams=2)
+    bank = app.extensions["bank_service"]
+    result = bank.fund_all_players(500)
+    assert result["funded"] >= 10  # the two managers already had wallets
+    with app.extensions["db"].read() as conn:
+        rows = conn.execute(
+            "SELECT liquid_cash FROM bank_accounts WHERE owner_type='player'").fetchall()
+    # Managers got 10000 (from _setup) + 500; everyone else exactly 500.
+    assert all(int(r[0]) in (10500, 500) for r in rows)
+
+
+# ---------------------------------------------------------------------------
 # 4. on_match_finalized (auto reward + yield catch-up, idempotent)
 # ---------------------------------------------------------------------------
 def _register_finalized(app, scorer, season_id, match_id, match_number, team_a, team_b):

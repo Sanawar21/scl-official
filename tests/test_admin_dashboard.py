@@ -64,6 +64,26 @@ def test_overview_numbers(app):
     assert "Wagers" in body
 
 
+def test_finances_fund_all_route(app):
+    season, players, _ = _setup(app, n_teams=2)
+    bank = app.extensions["bank_service"]
+    with app.extensions["db"].read() as conn:
+        n_players = conn.execute("SELECT COUNT(*) FROM global_players").fetchone()[0]
+    client = _login(app)
+    r = client.post(f"/admin/finances/fund-all?season={season['id']}",
+                    data={"amount": "10000"})
+    assert r.status_code == 302
+    # Everyone (incl. the two managers) got funded once.
+    with app.extensions["db"].read() as conn:
+        n = conn.execute(
+            "SELECT COUNT(*) FROM bank_transactions t JOIN bank_accounts a ON a.id = t.account_id "
+            "WHERE a.owner_type='player' AND t.type='season_funding'").fetchone()[0]
+    assert n == n_players
+    # The button is visible on the finances page.
+    body = client.get(f"/admin/finances?season={season['id']}").data.decode()
+    assert "fund all players" in body.lower()
+
+
 def test_overview_wager_card(app, wager):
     season, players, _ = _setup(app, n_teams=2)
     gp = players[0]["global_player_id"]

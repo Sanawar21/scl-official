@@ -1,8 +1,15 @@
 # SCL Rebuild — Session Resume Handoff
 
 Read this first in a new session, then `MEMORY.md` (living context + gotchas) and `PLAN.md`
-(feature plan). Last updated 2026-08-16 at the end of the session that started the
-**S2 economy restructure** (ECONOMY_PLAN.md, Increment 1 done; 169 tests).
+(feature plan). Last updated 2026-08-16 (S2 economy Increment 2 done; 172 tests).
+
+## S2 economy — Increment 2 (economy rules) DONE (2026-08-16)
+
+Tier purse removed (ruleset defaults zeroed, UI inputs gone, `create_team` never
+funds). Universal funding: `bank.fund_all_players(amount)` — idempotent
+(`season_funding` tx marker), auto-creates wallets for players who never signed
+up; admin "Fund all players" button on `/admin/finances`; `scripts/fund_players.py`
+(dry run unless `--yes`). Demo seed + tests now fund via this path.
 
 ## S2 economy — Increment 1 (persistent teams) DONE (2026-08-16)
 

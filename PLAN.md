@@ -216,7 +216,7 @@ else top-1 (S2). 11 unit + 6 e2e tests (164 total: 99 unit + 65 e2e).
 ## S2 economy restructure (in progress) — plan: ECONOMY_PLAN.md
 
 1. ✅ Persistent team identity (`global_teams` + no purse + delete-keeps-wallet + team accounts) — DONE (2026-08-16)
-2. S2 economy rules — remove tier purse from ruleset UI/defaults; 10k universal funding action
+2. ✅ S2 economy rules — tier purse removed from ruleset UI/defaults; 10k universal funding action + script — DONE (2026-08-16)
 3. Universal credit (250/match to every wallet) + auto-mode vault
 4. Squad-cost levy after the auction + three-section balance board
 5. Admin flows (fund-all, create/link anytime) + docs

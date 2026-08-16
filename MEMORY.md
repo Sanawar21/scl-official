@@ -425,6 +425,17 @@ Key mechanics:
   credits are per-tier (a platinum manager team starts with 5 credits — 3 spent on a
   platinum buy leaves 2, so later platinum bids fail).
 
+## S2 economy — Increment 2 (economy rules) DONE (2026-08-16)
+
+- **No tier purse**: `DEFAULT_TIER_PURSES` = zeros; purse inputs removed from the
+  ruleset UI (S1 ruleset rows keep their stored values). `create_team` never funds.
+- **Universal funding**: `bank.fund_all_players(amount=10000)` — idempotent via a
+  `season_funding` bank-transaction marker (manual `funding`/grants never exempt
+  anyone; re-runs skip only `season_funding` recipients). Wallets are auto-created
+  for players who never signed up. Admin button on `/admin/finances`; script
+  `scripts/fund_players.py --db ... --yes`.
+- Demo seed + test harness fund through `fund_all_players` (12/12 wallets in demo).
+
 ## S2 economy — Increment 1 (persistent teams) DONE (2026-08-16)
 
 Plan: `ECONOMY_PLAN.md` (locked decisions D1-D4). Inc 1 shipped:

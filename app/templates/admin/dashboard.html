@@ -46,7 +46,8 @@
         {% for tier in ['platinum', 'gold', 'silver'] %}
           <div class="tier-box">
             <h4>{{ tier|capitalize }}</h4>
-            <label>Purse <input type="number" name="tier_purses_{{ tier }}_purse" value="{{ ruleset.tier_purses[tier] }}"></label>
+            <p class="small muted">No purse in S2 — teams are funded by the
+              universal 10k + admin grants.</p>
             <label>Base price <input type="number" name="tier_base_prices_{{ tier }}_base" value="{{ ruleset.tier_base_prices[tier] }}"></label>
             <label>Credits <input type="number" name="tier_credits_{{ tier }}_credit" value="{{ ruleset.tier_credits[tier] }}"></label>
           </div>

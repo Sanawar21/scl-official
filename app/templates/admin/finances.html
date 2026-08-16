@@ -25,6 +25,11 @@
 <div class="grid">
   <section class="card">
     <h2>Budget Board</h2>
+    <form method="post" action="{{ url_for('admin.finances_fund_all') }}" class="row" style="margin-bottom:10px">
+      <label class="small" for="fund-amount">Fund all players</label>
+      <input id="fund-amount" type="number" name="amount" value="10000" min="1" style="width:110px">
+      <button class="btn btn-small btn-primary" type="submit">Credit everyone (idempotent)</button>
+    </form>
     <div class="table-wrap">
       <table>
         <thead><tr><th>Team</th><th>Wallet</th><th>Credits</th><th>Roster</th></tr></thead>

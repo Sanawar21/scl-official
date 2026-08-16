@@ -94,6 +94,36 @@ class BankService:
             return _impl(c)
 
     # --- vault ----------------------------------------------------------------
+    # --- universal funding --------------------------------------------------
+    def fund_all_players(self, amount: int = 10000, comment: str = "") -> dict:
+        """Credit every global player's wallet once (S2 universal funding).
+
+        Wallets are auto-created — players who never signed up get one too (in
+        auto mode later, it routes straight to the vault). Idempotent: an
+        account that already received `season_funding` is skipped on re-runs.
+        Returns {"funded": n, "skipped": n}.
+        """
+        amount = int(amount)
+        if amount <= 0:
+            raise ValueError("Amount must be positive")
+        comment = comment or f"{amount:,} universal funding"
+        with self.db.read() as conn:
+            pids = [r["id"] for r in conn.execute(
+                "SELECT id FROM global_players ORDER BY name").fetchall()]
+        funded = skipped = 0
+        with self.db.write() as conn:
+            for pid in pids:
+                acct = self.get_or_create_account("player", pid, conn=conn)
+                already = conn.execute(
+                    "SELECT 1 FROM bank_transactions WHERE account_id = ? "
+                    "AND type = 'season_funding'", (acct["id"],)).fetchone()
+                if already:
+                    skipped += 1
+                    continue
+                self.adjust(acct["id"], amount, comment, tx_type="season_funding", conn=conn)
+                funded += 1
+        return {"funded": funded, "skipped": skipped}
+
     def lock_to_vault(self, account_id: str, season_id: str, amount: int, reinvest: bool = True) -> dict:
         amount = int(amount)
         if amount <= 0:

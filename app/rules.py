@@ -8,7 +8,9 @@ ruleset row; these constants are the defaults used when a season is created.
 # "break" and "phase_b" are special phases in the flow.
 DEFAULT_PHASE_ORDER = ["platinum", "gold", "break", "silver", "phase_b"]
 
-DEFAULT_TIER_PURSES = {"platinum": 9000, "gold": 10000, "silver": 11000}
+# S2: no per-tier purse — teams live on the manager's own funding (universal
+# 10k) plus admin grants. Kept as zeros for S1 ruleset-row compatibility.
+DEFAULT_TIER_PURSES = {"platinum": 0, "gold": 0, "silver": 0}
 DEFAULT_TIER_BASE_PRICES = {"platinum": 3000, "gold": 2000, "silver": 1000}
 DEFAULT_TIER_CREDITS = {"platinum": 3, "gold": 2, "silver": 1}
 

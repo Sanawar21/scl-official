@@ -146,9 +146,8 @@ def _ruleset_form():
         order = [item.strip().lower() for item in order_raw.split(",") if item.strip()]
         if order:
             overrides["phase_order"] = order
-    purses = _tier_json_form("tier_purses", "purse")
-    if purses:
-        overrides["tier_purses"] = purses
+    # S2: no per-tier purse — the field is gone from the UI; S1 ruleset rows
+    # keep their stored purses untouched.
     bases = _tier_json_form("tier_base_prices", "base")
     if bases:
         overrides["tier_base_prices"] = bases
@@ -549,6 +548,23 @@ def _finance_context(season_id=None):
 @login_required(role=R.ROLE_ADMIN)
 def finances():
     return render_template("admin/finances.html", **_finance_context(_season_id()))
+
+
+@admin_bp.post("/finances/fund-all")
+@login_required(role=R.ROLE_ADMIN)
+def finances_fund_all():
+    bank = current_app.extensions["bank_service"]
+    try:
+        amount = int(request.form.get("amount") or 10000)
+        result = bank.fund_all_players(amount)
+        if result["funded"]:
+            flash(f"Funded {result['funded']} players with {amount:,} each "
+                  f"({result['skipped']} already funded).", "success")
+        else:
+            flash(f"All {result['skipped']} players already funded — nothing to do.", "info")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("admin.finances", season=_season_id()))
 
 
 @admin_bp.post("/finances/adjust")

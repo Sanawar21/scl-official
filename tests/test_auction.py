@@ -9,7 +9,8 @@ from .conftest import _setup
 def test_season_defaults_are_s2(app, svc):
     season = svc.create_season("Season Two")
     rs = season["ruleset"]
-    assert rs["tier_purses"] == {"platinum": 9000, "gold": 10000, "silver": 11000}
+    # S2: no per-tier purse (all zeros).
+    assert rs["tier_purses"] == {"platinum": 0, "gold": 0, "silver": 0}
     assert rs["tier_base_prices"] == {"platinum": 3000, "gold": 2000, "silver": 1000}
     assert rs["tier_credits"] == {"platinum": 3, "gold": 2, "silver": 1}
     assert rs["phase_order"][0] == "platinum"
