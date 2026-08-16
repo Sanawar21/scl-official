@@ -1,8 +1,49 @@
-from flask import Blueprint, abort, current_app, jsonify, render_template, request, url_for
+from flask import Blueprint, abort, current_app, jsonify, render_template, request, send_file, url_for
 
 from ..db import json_loads
+from ..services.doc_service import DOCS, DOCS_ROOT, md_to_html, read_doc
+from ..services import doc_service
 
 viewer_bp = Blueprint("viewer", __name__)
+
+
+@viewer_bp.get("/changelog")
+def changelog():
+    entries = current_app.extensions["changelog_service"].list_entries()
+    for e in entries:
+        e["body_html"] = md_to_html(e["body"])
+    return render_template("viewer/changelog.html", entries=entries, active="changelog")
+
+
+@viewer_bp.get("/docs")
+def docs_index():
+    return render_template("viewer/docs.html", docs=DOCS, active="docs")
+
+
+@viewer_bp.get("/docs/<slug>")
+def doc_detail(slug):
+    md = read_doc(slug)
+    if md is None:
+        abort(404)
+    doc = next((d for d in DOCS if d["slug"] == slug), None)
+    return render_template("viewer/doc_detail.html", doc=doc, html=md_to_html(md),
+                           active="docs")
+
+
+@viewer_bp.get("/docs/<slug>/pdf")
+def doc_pdf(slug):
+    path = DOCS_ROOT.parent / "app" / "static" / "docs" / f"{slug}.pdf"
+    if not path.exists():
+        # Regenerate on demand if the static copy is missing.
+        md = read_doc(slug)
+        if md is None:
+            abort(404)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        doc = next((d for d in DOCS if d["slug"] == slug), {})
+        path.write_bytes(doc_service.md_to_pdf(md, doc.get("title", slug),
+                                               "Official SCL Season 2 document"))
+    return send_file(path, mimetype="application/pdf", as_attachment=False,
+                     download_name=f"SCL-{slug}.pdf")
 
 
 @viewer_bp.get("/")

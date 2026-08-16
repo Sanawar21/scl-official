@@ -44,9 +44,14 @@ to reset (the demo DB is deleted and rebuilt).
 $VENV scripts/seed_demo.py                      # -> data/demo.db
 $VENV scripts/seed_demo.py data/other.db        # custom path
 
-# 2. Run the app against the demo DB
+# 2. (Re)generate the participant document PDFs (served from /docs)
+$VENV scripts/generate_docs.py                 # all four -> app/static/docs/*.pdf
+$VENV scripts/generate_docs.py rulebook       # just one (rulebook|vault|wagers|economy)
+
+# 3. Run the app against the demo DB
 SCL_DB_PATH=data/demo.db $VENV run.py
 #   -> http://localhost:10001
+#   /docs + /docs/<slug> + /docs/<slug>/pdf, /changelog (public), /admin/changelog
 ```
 
 ### Demo logins (all password `demo123`)

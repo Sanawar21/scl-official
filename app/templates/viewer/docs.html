@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Documents — SCL{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Official Documents</h1>
+  <p class="page-sub">The rule book and operational guides every player and manager should read.
+    View them here or download the PDF.</p>
+</div>
+
+<div class="grid">
+  {% for d in docs %}
+    <section class="card">
+      <div class="card-head">
+        <h2><a href="{{ url_for('viewer.doc_detail', slug=d.slug) }}">{{ d.title }}</a></h2>
+      </div>
+      <p class="muted small">{{ d.summary }}</p>
+      <div class="row" style="gap:8px">
+        <a class="btn btn-primary btn-small" href="{{ url_for('viewer.doc_detail', slug=d.slug) }}">View</a>
+        <a class="btn btn-small" href="{{ url_for('viewer.doc_pdf', slug=d.slug) }}">PDF ↓</a>
+      </div>
+    </section>
+  {% endfor %}
+</div>
+
+<p class="muted small" style="margin-top:12px">
+  Rule and platform changes are tracked in the
+  <a href="{{ url_for('viewer.changelog') }}">change log</a>.
+</p>
+{% endblock %}

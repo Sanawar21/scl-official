@@ -590,3 +590,19 @@ summary { cursor: pointer; color: var(--primary); font-weight: 600; }
   .hero h1 { font-size: 25px; }
   .page-head h1 { font-size: 21px; }
 }
+
+/* rendered documents (docs + changelog) */
+.doc-body { line-height: 1.55; }
+.doc-body h1, .doc-body h2, .doc-body h3 { color: var(--brand, #18857c); margin: 0.9em 0 0.35em; }
+.doc-body h1 { font-size: 22px; }
+.doc-body h2 { font-size: 18px; border-bottom: 1px solid var(--line, #e5e7eb); padding-bottom: 4px; }
+.doc-body h3 { font-size: 15px; }
+.doc-body p { margin: 0.5em 0; }
+.doc-body ul, .doc-body ol { margin: 0.5em 0 0.5em 1.4em; }
+.doc-body li { margin: 0.25em 0; }
+.doc-body blockquote { border-left: 3px solid var(--brand, #18857c); margin: 0.6em 0; padding: 0.1em 0 0.1em 0.9em; color: var(--muted, #6b7280); }
+.doc-body code { background: var(--bg-soft, #f3f4f6); padding: 1px 5px; border-radius: 4px; font-size: 0.92em; }
+.doc-body hr { border: none; border-top: 1px solid var(--line, #e5e7eb); margin: 1em 0; }
+.doc-body table { width: 100%; border-collapse: collapse; margin: 0.6em 0; }
+.doc-body th, .doc-body td { border: 1px solid var(--line, #e5e7eb); padding: 6px 9px; text-align: left; font-size: 0.94em; }
+.doc-body th { background: var(--bg-soft, #f3f4f6); }

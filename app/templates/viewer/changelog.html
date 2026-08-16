@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Change Log — SCL{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Change Log</h1>
+  <p class="page-sub">Every rule and platform change, tracked so nothing slips by.
+    Newest first.</p>
+</div>
+
+{% for e in entries %}
+  <section class="card">
+    <div class="card-head">
+      <h2>{{ e.title }}</h2>
+      <span class="tag tag-info">{{ e.change_date }}</span>
+    </div>
+    <div class="small muted" style="margin-bottom:6px">by {{ e.author }}</div>
+    <div class="doc-body">{{ e.body_html | safe }}</div>
+  </section>
+{% else %}
+  <div class="empty"><div class="empty-title">No changes logged yet</div>
+    <p class="small">The first change log entry will appear here.</p></div>
+{% endfor %}
+{% endblock %}

@@ -366,4 +366,14 @@ CREATE TABLE IF NOT EXISTS season_finance_entries (
   created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_finance_season ON season_finance_entries(season_id);
+
+CREATE TABLE IF NOT EXISTS changelog (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  change_date TEXT NOT NULL,
+  author TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_changelog_date ON changelog(change_date);
 """

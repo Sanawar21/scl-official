@@ -64,6 +64,16 @@ def _seed(app):
 
     _seed_match(app, season, players, teams)
     auction.publish(sid, "Test Season")  # published snapshot page
+
+    # A couple of change-log entries so the public /changelog page has content.
+    changelog = app.extensions["changelog_service"]
+    changelog.add_entry("Player deposits removed",
+                        "Players can no longer add balance themselves — only the admin can.",
+                        "2026-08-16", "admin")
+    changelog.add_entry("Automatic house guarantee",
+                        "Wagers show live house coverage per side.",
+                        "2026-08-15", "admin")
+
     return {"season": season, "players": players, "teams": teams,
             "users": users, "wager": market}
 

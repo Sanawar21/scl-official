@@ -209,7 +209,27 @@ def seed_demo(db_path: str) -> None:
     auction.publish(sid, "Demo Season", actor="demo")
 
     # ------------------------------------------------------------------
-    # 7. Print the tour
+    # 7. Change log entries (public /changelog audit trail)
+    # ------------------------------------------------------------------
+    changelog = app.extensions["changelog_service"]
+    for title, body, date in [
+        ("S2 rule book v2.0 published",
+         "The official **rule book, vault guide, wagers guide and economy guide** are live under /docs. Key changes: no tier purse (universal 10k funding), 3-match umpiring quota (1,500 fine), substitution release clause (50%% of auction price), 500 field-invasion fine, 200 sponsored match announcements.",
+         "2026-08-16"),
+        ("Player deposits removed",
+         "Players can no longer add balance themselves. **Only the admin can** — via bank adjust on the admin dashboard (grants with a comment, e.g. \"credit saved\").",
+         "2026-08-16"),
+        ("Automatic house guarantee",
+         "Wager markets now show the **live house coverage per side** (\"House covers: Yes win → N · No win → M\"). The House automatically tops up so winners always get at least fair odds — no manual injection needed.",
+         "2026-08-16"),
+        ("Admin can remove single bets",
+         "Admins can now remove an individual open bet from a wager (**Remove bet** on the wager admin page); the stake is refunded to the bettor and pools recompute.",
+         "2026-08-16"),
+    ]:
+        changelog.add_entry(title, body, date, "admin")
+
+    # ------------------------------------------------------------------
+    # 8. Print the tour
     # ------------------------------------------------------------------
     print("=" * 72)
     print("Demo environment ready.")

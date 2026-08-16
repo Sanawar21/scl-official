@@ -17,6 +17,8 @@
   <a href="{{ url_for('matches.leaderboards') }}">Top</a>
   <a href="{{ url_for('matches.finances_index') }}">Finances</a>
   <a href="{{ url_for('matches.scorer_page') }}">Scorer</a>
+  <a href="{{ url_for('viewer.docs_index') }}">Docs</a>
+  <a href="{{ url_for('viewer.changelog') }}">Changelog</a>
   {% if role == 'manager' %}
     <a href="{{ url_for('manager.dashboard') }}">My Team</a>
   {% endif %}

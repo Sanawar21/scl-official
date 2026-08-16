@@ -89,6 +89,42 @@ def _assignable_users():
         return [dict(r) for r in rows]
 
 
+@admin_bp.get("/changelog")
+@login_required(role=R.ROLE_ADMIN)
+def changelog():
+    from ..services.doc_service import md_to_html
+    entries = current_app.extensions["changelog_service"].list_entries()
+    for e in entries:
+        e["body_html"] = md_to_html(e["body"])
+    return render_template("admin/changelog.html", entries=entries,
+                           active_admin_tab="changelog")
+
+
+@admin_bp.post("/changelog/add")
+@login_required(role=R.ROLE_ADMIN)
+def changelog_add():
+    user = session.get("user") or {}
+    try:
+        current_app.extensions["changelog_service"].add_entry(
+            request.form.get("title", ""),
+            request.form.get("body", ""),
+            request.form.get("change_date", ""),
+            user.get("username") or "admin",
+        )
+        flash("Change log entry added.", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("admin.changelog"))
+
+
+@admin_bp.post("/changelog/<entry_id>/delete")
+@login_required(role=R.ROLE_ADMIN)
+def changelog_delete(entry_id):
+    current_app.extensions["changelog_service"].delete_entry(entry_id)
+    flash("Change log entry removed.", "success")
+    return redirect(url_for("admin.changelog"))
+
+
 @admin_bp.get("")
 @login_required(role=R.ROLE_ADMIN)
 def dashboard():

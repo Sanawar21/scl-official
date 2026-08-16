@@ -12,6 +12,35 @@ pytestmark = pytest.mark.e2e
 # ----------------------------------------------------------------------
 # live auction board
 # ----------------------------------------------------------------------
+def test_docs_index_lists_all_documents(page, base_url):
+    page.goto(base_url + "/docs")
+    body = page.locator("body").inner_text()
+    for label in ("Rule Book", "Vault — S2 Guide", "Wager & Risk Management",
+                  "Economy — S2 Guide", "PDF"):
+        assert label in body
+
+
+def test_doc_detail_renders_markdown_and_pdf(page, base_url):
+    page.goto(base_url + "/docs/rulebook")
+    body = page.locator("body").inner_text()
+    assert "Official Rule Book" in body
+    assert "umpiring" in body.lower()  # rendered markdown content
+    assert "Substitution Release Clause" in body
+    # PDF downloads
+    resp = page.request.get(base_url + "/docs/rulebook/pdf")
+    assert resp.ok
+    assert resp.headers.get("content-type", "").startswith("application/pdf")
+    assert resp.body()[:4] == b"%PDF"
+
+
+def test_changelog_shows_seeded_entries(page, base_url):
+    page.goto(base_url + "/changelog")
+    body = page.locator("body").inner_text()
+    assert "Change Log" in body
+    assert "Player deposits removed" in body  # seeded in the e2e seed
+    assert "2026-08-16" in body
+
+
 def test_live_board_renders_stepper_and_budget(page, base_url):
     page.goto(base_url + "/live")
     assert page.locator("#phase-stepper").is_visible()

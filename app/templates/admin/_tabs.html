@@ -12,5 +12,7 @@
      href="{{ url_for('wagers.admin') }}">Wagers</a>
   <a class="tag {% if active == 'link' %}tag-active{% endif %}"
      href="{{ url_for('auth.link_page') }}">Link</a>
+  <a class="tag {% if active == 'changelog' %}tag-active{% endif %}"
+     href="{{ url_for('admin.changelog') }}">Changelog</a>
 </nav>
 {% endmacro %}

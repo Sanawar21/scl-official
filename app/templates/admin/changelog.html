@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Admin · Change Log{% endblock %}
+{% block content %}
+{% from "admin/_tabs.html" import tabs %}
+<div class="page-head">
+  <h1>Admin · Change Log</h1>
+  <p class="muted">Record rule and platform changes so they can be audited. Entries appear
+    on the public <a href="{{ url_for('viewer.changelog') }}">change log</a> page.</p>
+</div>
+{{ tabs('changelog') }}
+
+<section class="card">
+  <div class="card-head"><h2>Add entry</h2></div>
+  <form method="post" action="{{ url_for('admin.changelog_add') }}" style="display:grid;gap:8px;max-width:560px">
+    <div class="row">
+      <input type="text" name="title" placeholder="Title (e.g. S2 rule book v2.1)" required style="flex:1">
+      <input type="date" name="change_date" value="{{ '%Y-%m-%d' }}" style="width:auto">
+    </div>
+    <textarea name="body" rows="5" placeholder="What changed (markdown ok)…" required></textarea>
+    <button class="btn btn-primary" type="submit" style="width:fit-content">Add entry</button>
+  </form>
+</section>
+
+{% for e in entries %}
+  <section class="card">
+    <div class="card-head">
+      <h2>{{ e.title }}</h2>
+      <span class="tag tag-info">{{ e.change_date }}</span>
+    </div>
+    <div class="small muted" style="margin-bottom:6px">by {{ e.author }} · {{ e.created_at[:16] }}</div>
+    <div class="doc-body">{{ e.body_html | safe }}</div>
+    <form method="post" action="{{ url_for('admin.changelog_delete', entry_id=e.id) }}" style="margin-top:8px">
+      <button class="btn btn-small btn-danger" type="submit"
+              onclick="return confirm('Delete this change log entry?')">Delete</button>
+    </form>
+  </section>
+{% else %}
+  <div class="card"><p class="muted">No entries yet.</p></div>
+{% endfor %}
+{% endblock %}

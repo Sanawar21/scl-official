@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}{{ doc.title }} — SCL{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="row">
+    <h1 style="margin:0">{{ doc.title }}</h1>
+    <a class="btn" href="{{ url_for('viewer.doc_pdf', slug=doc.slug) }}">PDF ↓</a>
+  </div>
+  <p class="page-sub"><a href="{{ url_for('viewer.docs_index') }}">All documents</a></p>
+</div>
+
+<article class="card doc-body">
+  {{ html | safe }}
+</article>
+{% endblock %}

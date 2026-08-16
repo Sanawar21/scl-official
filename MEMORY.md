@@ -153,6 +153,15 @@ Update this file whenever you learn something durable. Keep it current as the bu
   (kept in history), pools/pot/house coverage recompute live. Admin UI: bets table with
   `Remove bet` buttons on `/wagers/admin` (open count header). Route:
   `POST /wagers/admin/<id>/bets/<bet_id>/remove`. Suite now 197 (120 unit + 77 e2e).
+- [x] **Participant PDFs + website docs + changelog** (2026-08-16) — `scripts/generate_docs.py`
+  builds the four docs into PDFs at `app/static/docs/*.pdf` via new
+  `app/services/doc_service.py` (markdown → HTML for the site + reportlab PDF renderer;
+  `md_to_html`/`md_to_pdf`/DOCS registry). Website: public `/docs` index, `/docs/<slug>`
+  rendered view, `/docs/<slug>/pdf` download; `/changelog` public audit trail page +
+  `/admin/changelog` (add/delete entries, markdown bodies) backed by new `changelog` table
+  + `ChangelogService`. Nav links Docs + Changelog; admin tab Changelog; demo + e2e seeds
+  include sample entries. HARDENED the flaky vault-lock e2e (wait for the reloaded
+  transaction row instead of a pre-reload marker). Suite now 206 (126 unit + 80 e2e).
 
 ## Participant docs — source of truth mapping
 - Rulebook/vault/wager sources are `rulebook.txt`, `vault.txt`, `wager.txt` in the repo root

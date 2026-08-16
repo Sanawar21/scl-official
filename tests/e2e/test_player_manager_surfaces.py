@@ -70,12 +70,16 @@ def test_vault_position_card_and_reinvest(page, base_url, login, seed):
     login("alice", "alicepw")
     page.select_option("#vault-lock-form select[name='season_id']", seed["season"]["id"])
     page.fill("#vault-lock-form input[name='amount']", "1000")
+    # The lock posts via fetch then reloads the page; the new transaction row
+    # ("Locked 1000 in vault") only exists after the reload, so it doubles as a
+    # settle marker that can't match the pre-reload DOM.
     page.click("#vault-lock-form button[type='submit']")
-    page.wait_for_selector("text=Locked until M12", timeout=10000)
+    page.wait_for_function(
+        "document.body.innerText.includes('Locked 1000 in vault')", timeout=10000)
     body = page.locator("body").inner_text().lower()
     assert "vault positions" in body
     assert "compound" in body  # reinvest mode shown
-    # the reinvest toggle button exists
+    # the reinvest toggle button exists (one per vault position)
     assert page.locator(".js-reinvest").count() >= 1
 
 
