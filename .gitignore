@@ -3,7 +3,16 @@ __pycache__/
 *.pyc
 .pytest_cache/
 instance/
-data/
+
+# Runtime data: DBs, uploads, logs, screenshots — never commit.
+# Exception: data/brandings/scl/ holds the league's brand assets, which ARE
+# part of the repo and must ship with every deploy. Team uploads
+# (data/brandings/teams/) stay ignored.
+data/*
+!data/brandings/
+data/brandings/*
+!data/brandings/scl/
+
 *.db
 *.sqlite3
 .DS_Store
