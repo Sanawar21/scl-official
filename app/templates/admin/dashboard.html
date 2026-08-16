@@ -145,6 +145,28 @@
           {% if team.control_status == 'admin_takeover' %}
             <span class="tag tag-danger">ADMIN CONTROL</span>
           {% endif %}
+          <details class="inline-details" style="margin-left:auto">
+            <summary class="tag">Edit manager</summary>
+            <form method="post"
+                  action="{{ url_for('admin.team_manager_update', season_id=season_id, team_id=team.id) }}"
+                  class="col" style="gap:6px;padding:8px 0">
+              <label class="small">Manager name
+                <input type="text" name="name" value="{{ team.manager_name }}" style="width:170px"></label>
+              <label class="small">Tier
+                <select name="tier" style="width:auto">
+                  {% for tier in ['platinum', 'gold', 'silver'] %}
+                    <option value="{{ tier }}" {% if team.manager_tier == tier %}selected{% endif %}>{{ tier }}</option>
+                  {% endfor %}
+                </select></label>
+              <label class="small">Speciality
+                <select name="speciality" style="width:auto">
+                  {% for spec in ['ALL_ROUNDER', 'BATTER', 'BOWLER'] %}
+                    <option {% if team.manager_speciality == spec %}selected{% endif %}>{{ spec }}</option>
+                  {% endfor %}
+                </select></label>
+              <button class="btn btn-small btn-primary" type="submit">Save manager</button>
+            </form>
+          </details>
         </div>
         <div class="team-stats">
           <span>Purse: <strong>{{ team.wallet }}</strong></span>

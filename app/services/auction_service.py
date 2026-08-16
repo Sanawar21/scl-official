@@ -260,6 +260,63 @@ class AuctionService:
                       ref_player_id=player_id)
         return self._get_player(season_id, player_id)
 
+    def update_manager(self, season_id: str, team_id: str, name: str = None,
+                       tier: str = None, speciality: str = None) -> dict:
+        """Edit a team's manager player (their name/tier/speciality).
+
+        Managers are their own team's roster slot — they are NOT in the season's
+        auction pool, so they can't be edited through update_player. Their tier
+        feeds the team's credits (manager_tier), so changing it recalculates
+        the team's remaining credits."""
+        with self.db.write() as conn:
+            season = conn.execute("SELECT status FROM seasons WHERE id = ?",
+                                  (season_id,)).fetchone()
+            if not season:
+                raise ValueError("Season not found")
+            if season["status"] != "setup":
+                raise ValueError("Managers can only be modified before the auction starts")
+            team = conn.execute("SELECT * FROM teams WHERE id = ? AND season_id = ?",
+                                (team_id, season_id)).fetchone()
+            if not team:
+                raise ValueError("Team not found")
+            mgr_id = team["manager_player_id"]
+            if not mgr_id:
+                raise ValueError("This team has no manager")
+            gp = conn.execute("SELECT * FROM global_players WHERE id = ?", (mgr_id,)).fetchone()
+            if not gp:
+                raise ValueError("Manager player not found")
+            before_gp = row_to_dict(gp)
+            updates = {}
+            if name is not None:
+                updates["name"] = (name or "").strip() or before_gp["name"]
+            if speciality is not None:
+                updates["speciality"] = (speciality or "").strip().upper() or before_gp["speciality"]
+            tier_changed = False
+            if tier is not None:
+                tier = tier.strip().lower()
+                if tier not in R.TIERS:
+                    raise ValueError("Tier must be platinum, gold or silver")
+                if tier != before_gp["tier"]:
+                    updates["tier"] = tier
+                    tier_changed = True
+            if updates:
+                sets = ", ".join(f"{k} = ?" for k in updates)
+                conn.execute(f"UPDATE global_players SET {sets} WHERE id = ?",
+                             (*updates.values(), mgr_id))
+            if tier_changed:
+                ruleset = self._get_ruleset(conn, season_id)
+                conn.execute("UPDATE teams SET manager_tier = ? WHERE id = ?",
+                             (tier, team_id))
+                players_list = json_loads(team["players"], [])
+                conn.execute("UPDATE teams SET credits_remaining = ? WHERE id = ?",
+                             (self._recalculate_team_credits(conn, season_id, team_id,
+                                                              players_list), team_id))
+            self._log(conn, season_id, "update_manager", "admin",
+                      before={"team_id": team_id, "row": before_gp},
+                      after={"team_id": team_id, "global_player_id": mgr_id},
+                      ref_team_id=team_id)
+        return self._get_team(season_id, team_id)
+
     def delete_player(self, season_id: str, player_id: str) -> dict:
         with self.db.write() as conn:
             season = conn.execute("SELECT status FROM seasons WHERE id = ?", (season_id,)).fetchone()
@@ -1447,6 +1504,7 @@ class AuctionService:
                     "players": json_loads(team["players"], []),
                     "bench": json_loads(team["bench"], []),
                     "manager_name": manager_gp["name"] if manager_gp else "-",
+                    "manager_speciality": manager_gp["speciality"] if manager_gp else "",
                     "wallet": int(acct_row["liquid_cash"]) if acct_row else 0,
                     "player_labels": player_labels,
                     "bench_labels": bench_labels,

@@ -169,6 +169,55 @@ def test_reassign_manager(app, auction):
 
 
 # ----------------------------------------------------------------------
+# manager editing (managers are roster slots, not auction players)
+# ----------------------------------------------------------------------
+def test_update_manager_changes_tier_and_credits(app, auction):
+    season, players, teams = _setup(app, n_teams=2)
+    sid = _fresh_season(auction)["id"]
+    ctx = auction.season_setup_context(sid)
+    gps = ctx["players"]
+    teamless = next(p for p in gps if not p["team"])
+    auction.sync_season_setup(sid, auction_player_ids=[],
+                              manager_team_names={teamless["id"]: "Own Squad"})
+    st = auction.season_setup_context(sid)["season_teams"]
+    tid = st[0]["id"]
+    before = auction._get_team(sid, tid)
+    # Flip the tier to something different: credits recalc must follow.
+    other_tier = "gold" if before["manager_tier"] != "gold" else "silver"
+    auction.update_manager(sid, tid, tier=other_tier, speciality="BOWLER")
+    after = auction._get_team(sid, tid)
+    assert after["manager_tier"] == other_tier
+    assert after["credits_remaining"] != before["credits_remaining"]
+    # global player row reflects the change too.
+    with app.extensions["db"].read() as conn:
+        gp = conn.execute("SELECT tier, speciality FROM global_players WHERE id = ?",
+                          (after["manager_player_id"],)).fetchone()
+    assert gp["tier"] == other_tier and gp["speciality"] == "BOWLER"
+
+
+def test_update_manager_route(app, auction):
+    season, players, teams = _setup(app, n_teams=2)
+    sid = _fresh_season(auction)["id"]
+    ctx = auction.season_setup_context(sid)
+    gps = ctx["players"]
+    teamless = next(p for p in gps if not p["team"])
+    auction.sync_season_setup(sid, auction_player_ids=[],
+                              manager_team_names={teamless["id"]: "Route Squad"})
+    st = auction.season_setup_context(sid)["season_teams"]
+    c = app.test_client()
+    c.post("/auth/login", data={"username": "admin", "password": "admin123"})
+    r = c.post(f"/admin/season/{sid}/team/{st[0]['id']}/manager/update",
+               data={"name": "Renamed Mgr", "tier": "platinum", "speciality": "BATTER"})
+    assert r.status_code == 302
+    t = auction._get_team(sid, st[0]["id"])
+    assert t["manager_tier"] == "platinum"
+    with app.extensions["db"].read() as conn:
+        gp = conn.execute("SELECT name FROM global_players WHERE id = ?",
+                          (t["manager_player_id"],)).fetchone()
+    assert gp["name"] == "Renamed Mgr"
+
+
+# ----------------------------------------------------------------------
 # routes
 # ----------------------------------------------------------------------
 def test_setup_route_and_save(app, auction):

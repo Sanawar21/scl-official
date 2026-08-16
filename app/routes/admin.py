@@ -298,6 +298,24 @@ def player_update(season_id, player_id):
     return redirect(url_for("admin.auction", season=season_id))
 
 
+@admin_bp.post("/season/<season_id>/team/<team_id>/manager/update")
+@login_required(role=R.ROLE_ADMIN)
+def team_manager_update(season_id, team_id):
+    """Edit the team's manager player (name/tier/speciality)."""
+    auction_service = current_app.extensions["auction_service"]
+    try:
+        auction_service.update_manager(
+            season_id, team_id,
+            name=request.form.get("name") or None,
+            tier=(request.form.get("tier") or "").strip() or None,
+            speciality=(request.form.get("speciality") or "").strip().upper() or None,
+        )
+        flash("Manager updated.", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("admin.auction", season=season_id))
+
+
 @admin_bp.post("/season/<season_id>/player/<player_id>/delete")
 @login_required(role=R.ROLE_ADMIN)
 def player_delete(season_id, player_id):
