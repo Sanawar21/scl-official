@@ -81,6 +81,22 @@
     }
   }
 
+  function playerStatsHtml(p) {
+    const s = p && p.stats;
+    if (!s) return "";
+    const fmt = function (v, d) { return (v === undefined || v === null || v === 0) ? d : v; };
+    const two = function (v) { return v ? Number(v).toFixed(2) : "—"; };
+    return '<div class="lot-stats stat-row">' +
+      '<div class="stat-tile"><div class="stat-label">Matches</div><div class="stat-value">' + esc(s.matches) + "</div></div>" +
+      '<div class="stat-tile"><div class="stat-label">Runs</div><div class="stat-value">' + esc(s.runs) + "</div></div>" +
+      '<div class="stat-tile"><div class="stat-label">Avg</div><div class="stat-value">' + two(s.batting_average) + "</div></div>" +
+      '<div class="stat-tile"><div class="stat-label">SR</div><div class="stat-value">' + two(s.strike_rate) + "</div></div>" +
+      '<div class="stat-tile"><div class="stat-label">Wkts</div><div class="stat-value">' + esc(s.wickets) + "</div></div>" +
+      '<div class="stat-tile"><div class="stat-label">Econ</div><div class="stat-value">' + two(s.economy) + "</div></div>" +
+      '<div class="stat-tile"><div class="stat-label">Fantasy</div><div class="stat-value">' + esc(s.fantasy_score) + "</div></div>" +
+      "</div>";
+  }
+
   function renderLot(state) {
     const box = el("current-lot");
     if (!box) return;
@@ -93,6 +109,7 @@
       '<div class="lot-name">' + esc(p.name) + " <span class='tag tag-active'>" + esc(p.tier) + "</span></div>" +
       '<div class="lot-bid">Current bid: <strong>' + esc(p.current_bid) + "</strong>" + bidder + "</div>" +
       '<div class="lot-base">Base: ' + esc(p.base_price) + " · Credits: " + esc(p.credits) + "</div>" +
+      playerStatsHtml(p) +
       "</div>";
   }
 
@@ -539,6 +556,7 @@
             '<div class="lot-name">' + esc(p.name) + " <span class='tag'>" + esc(p.tier) + "</span></div>" +
             '<div class="lot-bid">Current bid: <strong>' + esc(p.current_bid) + "</strong>" + bidder + "</div>" +
             '<div class="lot-base">Base: ' + esc(p.base_price) + "</div>" +
+            playerStatsHtml(p) +
             "</div>";
         } else {
           lotBox.innerHTML = '<p class="muted">No player nominated.</p>';

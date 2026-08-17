@@ -28,6 +28,42 @@ def _fmt_bid_time(ts: str) -> str:
         return ts
 
 
+def _career_stats(conn, global_player_id: str):
+    """Aggregate a player's career stats from match_player_stats.
+
+    match_player_stats.player_id is the GLOBAL player id (the scorer
+    normalizes local ids at import), so auction players are matched via
+    players.global_player_id. Returns None when the player has no stats
+    (newcomers / no matches played yet).
+    """
+    if not global_player_id:
+        return None
+    rows = conn.execute(
+        "SELECT matches, runs, balls_faced, dismissed, wickets, balls_bowled, "
+        "runs_conceded, fours, sixes, fantasy_score FROM match_player_stats "
+        "WHERE player_id = ?", (global_player_id,)).fetchall()
+    if not rows:
+        return None
+    agg = {"matches": 0, "runs": 0, "balls_faced": 0, "dismissed": 0,
+           "wickets": 0, "balls_bowled": 0, "runs_conceded": 0,
+           "fours": 0, "sixes": 0, "fantasy_score": 0}
+    for r in rows:
+        agg["matches"] += r["matches"] or 1
+        agg["runs"] += r["runs"] or 0
+        agg["balls_faced"] += r["balls_faced"] or 0
+        agg["dismissed"] += r["dismissed"] or 0
+        agg["wickets"] += r["wickets"] or 0
+        agg["balls_bowled"] += r["balls_bowled"] or 0
+        agg["runs_conceded"] += r["runs_conceded"] or 0
+        agg["fours"] += r["fours"] or 0
+        agg["sixes"] += r["sixes"] or 0
+        agg["fantasy_score"] += r["fantasy_score"] or 0
+    agg["strike_rate"] = round(agg["runs"] * 100.0 / agg["balls_faced"], 2) if agg["balls_faced"] else 0.0
+    agg["batting_average"] = round(agg["runs"] / agg["dismissed"], 2) if agg["dismissed"] else 0.0
+    agg["economy"] = round(agg["runs_conceded"] * 6.0 / agg["balls_bowled"], 2) if agg["balls_bowled"] else 0.0
+    return agg
+
+
 class AuctionService:
     def __init__(self, db, bank_service=None):
         self.db = db
@@ -1582,6 +1618,9 @@ class AuctionService:
                     current_player = dict(current_player)
                     bidder = teams_by_id.get(current_player["current_bidder_team_id"]) if current_player["current_bidder_team_id"] else None
                     current_player["current_bidder_team_name"] = bidder["name"] if bidder else "-"
+                    # Career stats (from the scorer) so the called-up player's
+                    # record is visible right on the lot.
+                    current_player["stats"] = _career_stats(conn, current_player.get("global_player_id"))
 
             prefix_map = {"gold": "(G)", "silver": "(S)", "platinum": "(P)"}
             enriched_teams = []

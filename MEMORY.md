@@ -848,3 +848,15 @@ Fall of Wickets + Partnerships callouts. Backend: `ScorerService.ball_by_ball()`
 unbroken `current` stand when the innings ends). Summary page links through via
 `matches.match_balls`. S1's 13 matches have no `delivery_log` → the page shows a
 "ball-by-ball not available" state (go-forward for S2).
+
+## Called-up player stats on the auction lot — DONE (2026-08-17)
+
+`get_state` now enriches `current_player` with `stats` (aggregated career record from
+`match_player_stats`, matched via `players.global_player_id` — the scorer stores GLOBAL
+player ids there). Helper `_career_stats(conn, global_player_id)` at module level in
+`auction_service.py`; returns `None` when the player has no matches (UI hides the strip).
+Strip shows Matches / Runs / Avg / SR / Wkts / Econ / Fantasy (`.lot-stats` compact variant
+of `.stat-tile`). Rendered in: manager + viewer lot box (`playerStatsHtml()` in `app.js`,
+shared by `renderLot` + `renderAdminLive`), and the admin's server-rendered lot box
+(`admin/dashboard.html`). Tests: 2 unit (aggregation math incl. SR/avg/econ; stats=None for
+newcomers) in `tests/test_auction.py` — registry rows needed first (FK on match_key).

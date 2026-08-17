@@ -331,6 +331,11 @@ h1, h2, h3 { line-height: 1.25; }
 .stat-tile .stat-label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; }
 .stat-tile .stat-value { font-size: 22px; font-weight: 800; margin-top: 2px; }
 
+/* compact stats strip inside the auction lot box */
+.lot-stats { margin: 12px 0 2px; }
+.lot-stats .stat-tile { padding: 7px 10px; }
+.lot-stats .stat-value { font-size: 15px; font-weight: 700; }
+
 /* quick actions */
 .quick-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
 .quick-actions a {

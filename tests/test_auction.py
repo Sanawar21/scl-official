@@ -473,3 +473,63 @@ def test_undo_nominate_and_phase(app, svc):
     assert svc.get_state(sid)["current_player"]["id"] == players[0]["id"]
     svc.undo_last_action(sid)  # undo nominate
     assert svc.get_state(sid)["current_player"] is None
+
+
+# ---------------------------------------------------------------------------
+# career stats on the current lot
+# ---------------------------------------------------------------------------
+def test_called_up_player_carries_career_stats(app, svc):
+    """The auction lot shows the called-up player's career stats."""
+    season, players, _ = _setup(app)
+    sid = season["id"]
+    gpid = players[0]["global_player_id"]  # Alice
+
+    with app.extensions["db"].write() as conn:
+        for mk in ("mk1", "mk2"):
+            conn.execute(
+                "INSERT INTO match_registry (match_key, season_id, match_id, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (mk, sid, mk, "2026-01-01", "2026-01-01"))
+        conn.execute(
+            "INSERT INTO match_player_stats (id, match_key, season_id, player_id, player_name, "
+            "team_id, team_name, matches, runs, balls_faced, dismissed, wickets, balls_bowled, "
+            "runs_conceded, fours, sixes, fantasy_score) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            ("mps1", "mk1", sid, gpid, "Alice", "t1", "Thunder",
+             3, 142, 95, 2, 5, 18, 26, 14, 4, 96),
+        )
+        conn.execute(
+            "INSERT INTO match_player_stats (id, match_key, season_id, player_id, player_name, "
+            "team_id, team_name, matches, runs, balls_faced, dismissed, wickets, balls_bowled, "
+            "runs_conceded, fours, sixes, fantasy_score) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            ("mps2", "mk2", sid, gpid, "Alice", "t1", "Thunder",
+             1, 58, 40, 0, 1, 6, 9, 6, 2, 40),
+        )
+
+    svc.set_phase(sid, "phase_a_platinum")
+    svc.nominate_next(sid)  # Alice
+    state = svc.get_state(sid)
+    stats = state["current_player"]["stats"]
+    assert stats is not None
+    assert stats["matches"] == 4
+    assert stats["runs"] == 200
+    assert stats["balls_faced"] == 135
+    assert stats["wickets"] == 6
+    assert stats["balls_bowled"] == 24
+    assert stats["runs_conceded"] == 35
+    assert stats["fours"] == 20
+    assert stats["sixes"] == 6
+    assert stats["fantasy_score"] == 136
+    assert round(stats["strike_rate"], 2) == round(200 * 100.0 / 135, 2)
+    # avg only over dismissed innings (2); econ over balls bowled.
+    assert stats["batting_average"] == 100.0
+    assert round(stats["economy"], 2) == round(35 * 6.0 / 24, 2)
+
+
+def test_called_up_player_without_stats_is_null(app, svc):
+    """Newcomers with no recorded matches get stats=None (UI hides the block)."""
+    season, players, _ = _setup(app)
+    sid = season["id"]
+    svc.set_phase(sid, "phase_a_platinum")
+    svc.nominate_next(sid)  # Alice, no stats rows
+    state = svc.get_state(sid)
+    assert state["current_player"]["stats"] is None

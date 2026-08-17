@@ -262,6 +262,17 @@
             <div class="lot-bid">Current bid: <strong>{{ state.current_player.current_bid }}</strong>
               <span class="muted">by {{ state.current_player.current_bidder_team_name }}</span></div>
             <div class="lot-base">Base: {{ state.current_player.base_price }}</div>
+            {% if state.current_player.stats %}
+              <div class="lot-stats stat-row">
+                <div class="stat-tile"><div class="stat-label">Matches</div><div class="stat-value">{{ state.current_player.stats.matches }}</div></div>
+                <div class="stat-tile"><div class="stat-label">Runs</div><div class="stat-value">{{ state.current_player.stats.runs }}</div></div>
+                <div class="stat-tile"><div class="stat-label">Avg</div><div class="stat-value">{{ '%.2f'|format(state.current_player.stats.batting_average) if state.current_player.stats.dismissed else '—' }}</div></div>
+                <div class="stat-tile"><div class="stat-label">SR</div><div class="stat-value">{{ '%.2f'|format(state.current_player.stats.strike_rate) if state.current_player.stats.balls_faced else '—' }}</div></div>
+                <div class="stat-tile"><div class="stat-label">Wkts</div><div class="stat-value">{{ state.current_player.stats.wickets }}</div></div>
+                <div class="stat-tile"><div class="stat-label">Econ</div><div class="stat-value">{{ '%.2f'|format(state.current_player.stats.economy) if state.current_player.stats.balls_bowled else '—' }}</div></div>
+                <div class="stat-tile"><div class="stat-label">Fantasy</div><div class="stat-value">{{ state.current_player.stats.fantasy_score }}</div></div>
+              </div>
+            {% endif %}
           </div>
         {% else %}
           <p class="muted">No player nominated.</p>
