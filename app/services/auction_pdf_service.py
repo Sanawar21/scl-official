@@ -120,7 +120,6 @@ class AuctionPdfService:
         season = state.get("season") or {}
         teams = state.get("teams") or []
         players = state.get("players") or []
-        bids = state.get("bids") or []
         ruleset = state.get("ruleset") or {}
         phase = state.get("phase") or ""
         total_credits = int(ruleset.get("total_credits") or 8)
@@ -260,26 +259,6 @@ class AuctionPdfService:
                     Paragraph(str(p.get("status") or "—"), S_CELL_C),
                     Paragraph(str(p.get("sold_to_team_name") or "—"), S_CELL_L),
                     Paragraph(str(p.get("sold_price") or 0) if sold else "—", S_CELL_C),
-                ])
-            tbl = Table(data, colWidths=cw, repeatRows=1)
-            tbl.setStyle(TableStyle(BASE_TBL_STYLE[:] + _alt_rows(data)))
-            story.append(tbl)
-            story.append(Spacer(1, 5 * mm))
-
-        # --- bid feed ---
-        if bids:
-            story.append(_subheader("BID FEED"))
-            story.append(Spacer(1, 3 * mm))
-            cols = ["Team", "Player", "Bid", "Time"]
-            cw = [0.28 * bw, 0.30 * bw, 0.22 * bw, 0.20 * bw]
-            data = [_hdr_row(cols)]
-            for b in bids[:60]:
-                label = "pass" if b.get("kind") == "pass" else str(b.get("amount"))
-                data.append([
-                    Paragraph(f"<b>{b.get('team_name') or '—'}</b>", S_CELL_B),
-                    Paragraph(str(b.get("player_name") or "—"), S_CELL_L),
-                    Paragraph(label, S_CELL_C),
-                    Paragraph(str(b.get("ts_display") or ""), S_CELL_C),
                 ])
             tbl = Table(data, colWidths=cw, repeatRows=1)
             tbl.setStyle(TableStyle(BASE_TBL_STYLE[:] + _alt_rows(data)))
