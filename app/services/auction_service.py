@@ -1462,7 +1462,10 @@ class AuctionService:
                     self._wallet_adjust(conn, from_team, price,
                                         note or f"Transfer of {player['name']}",
                                         tx_type="transfer")
-            conn.execute("UPDATE players SET sold_to_team_id = ? WHERE id = ?", (team_to, player_id))
+            player_status = player["status"]
+            conn.execute(
+                "UPDATE players SET sold_to_team_id = ?, status = 'sold' WHERE id = ?",
+                (team_to, player_id))
             transfer_id = secrets.token_hex(8)
             conn.execute(
                 "INSERT INTO transfers (id, season_id, team_from, team_to, player_id, price, "
@@ -1473,7 +1476,7 @@ class AuctionService:
             self._log(conn, season_id, "transfer", actor,
                       before={"transfer_id": transfer_id, "team_from": current_owner,
                               "team_to": team_to, "player_id": player_id, "price": price,
-                              "credits": credits},
+                              "credits": credits, "player_status": player_status},
                       after={"transfer_id": transfer_id},
                       ref_player_id=player_id, ref_team_id=team_to)
             return {"id": transfer_id, "ok": True}
@@ -1976,6 +1979,9 @@ def _undo_transfer(svc, conn, season_id, row):
     if before.get("transfer_id"):
         conn.execute("UPDATE transfers SET note = note || ' (undone)' WHERE id = ?",
                      (before["transfer_id"],))
+    prev_status = before.get("player_status")
+    if prev_status:
+        conn.execute("UPDATE players SET status = ? WHERE id = ?", (prev_status, player_id))
 
 
 def _undo_takeover(svc, conn, season_id, row):

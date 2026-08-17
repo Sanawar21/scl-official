@@ -872,3 +872,15 @@ and server-rendered under the admin's Nominate/Close controls (admin reloads
 on phase/lot change anyway). Tests: 4 unit (tier queue order, sold exclusion,
 empty outside auction, phase B pool) + e2e assertions in `test_nav_realtime.py`
 (upcoming lists Dave but never the live lot; survives the lot close live).
+
+## Record oral auction sales via admin transfer — DONE (2026-08-17)
+
+`admin_transfer` (post-draft, `complete`/`transfers_open`) is the escape hatch
+for bids made outside the UI. Fixes: the transfer dropdown now lists ALL
+players (sold → "(owner)", unsold → "(free agent)") instead of only sold ones,
+and `admin_transfer` now sets `status='sold'` (was leaving the player 'unsold'
+but owned — broke dropdown labels after a transfer). Undo restores the prior
+status via the logged `player_status`. NB: `complete_draft` forfeits the
+wallet of every incomplete team as a penalty, so record oral sales BEFORE
+completing the draft when possible (or use the bid→close path while the lot
+is live).

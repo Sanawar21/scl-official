@@ -583,3 +583,41 @@ def test_upcoming_queue_in_phase_b(app, svc):
     assert len(names) == len(players) - 1
     # Order follows rowid (Bob, Cara, Dave, ...).
     assert names[0] == "Bob"
+
+
+def test_admin_transfer_records_oral_sale_of_free_agent(app, svc):
+    """An unsold (orally-sold) player can be transferred to a team after the
+    draft completes: squad updated, price leaves the target wallet to treasury,
+    ownership recorded — the exact flow for bids made outside the UI."""
+    season, players, teams = _setup(app)
+    sid = season["id"]
+    # The transfer form only unlocks after completion; complete_draft's
+    # incomplete-team wallet forfeit is unrelated to this test, so mark the
+    # season completed directly.
+    with app.extensions["db"].write() as conn:
+        conn.execute("UPDATE seasons SET status = 'completed' WHERE id = ?", (sid,))
+
+    unsold = next(p for p in players if p["status"] == "unsold")
+    assert unsold["status"] == "unsold"
+    target_before = svc._get_team(sid, teams[1]["id"])  # Blaze, nothing bought
+    svc.admin_transfer(sid, team_to=teams[1]["id"], player_id=unsold["id"],
+                       price=1500, credits=0, note="oral bid")
+    assert svc._get_player(sid, unsold["id"])["sold_to_team_id"] == teams[1]["id"]
+    assert svc._get_player(sid, unsold["id"])["status"] == "sold"
+    squad = svc._get_team(sid, teams[1]["id"])
+    assert unsold["id"] in squad["players"]
+    # Price went to treasury: target wallet down by 1500, no source team paid.
+    assert squad["wallet"] == target_before["wallet"] - 1500
+    with app.extensions["db"].read() as conn:
+        row = conn.execute(
+            "SELECT * FROM transfers WHERE player_id = ? AND season_id = ?",
+            (unsold["id"], sid)).fetchone()
+    assert row is not None and row["price"] == 1500 and row["note"] == "oral bid"
+    # Undo restores the free agent: off the roster, status back to unsold,
+    # wallet refunded.
+    svc.undo_last_action(sid)
+    assert svc._get_player(sid, unsold["id"])["status"] == "unsold"
+    assert svc._get_player(sid, unsold["id"])["sold_to_team_id"] is None
+    squad = svc._get_team(sid, teams[1]["id"])
+    assert unsold["id"] not in squad["players"] + squad["bench"]
+    assert squad["wallet"] == target_before["wallet"]

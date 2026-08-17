@@ -315,8 +315,8 @@
       <div class="row">
         <select name="player_id" required>
           <option value="">— player —</option>
-          {% for p in state.players if p.status == 'sold' %}
-            <option value="{{ p.id }}">{{ p.name }} ({{ p.sold_to_team_name }})</option>
+          {% for p in state.players %}
+            <option value="{{ p.id }}">{% if p.status == 'sold' %}{{ p.name }} ({{ p.sold_to_team_name }}){% else %}{{ p.name }} (free agent){% endif %}</option>
           {% endfor %}
         </select>
         <select name="team_to" required>
