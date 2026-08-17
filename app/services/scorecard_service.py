@@ -87,15 +87,31 @@ def _subheader(text):
     return tbl
 
 
-def _team_header_bar(team_name, total_str):
+def _team_header_bar(team_name, total_str, logo_path=None):
+    """Innings header: team logo (if available) + name + total, on navy."""
+    logo_cell = None
+    if logo_path and Path(logo_path).is_file():
+        try:
+            logo = Image(str(logo_path))
+            iw, ih = logo.imageWidth, logo.imageHeight
+            if iw and ih:
+                logo.drawWidth = 11 * mm
+                logo.drawHeight = 11 * mm * ih / iw
+                logo_cell = logo
+        except Exception:
+            logo_cell = None
+    if logo_cell is None:
+        logo_cell = Paragraph("", _ps("le", fontSize=8))
+    name_col = PAGE_W - 2 * MARGIN - 60 * mm - 14 * mm
     data = [[
+        logo_cell,
         Paragraph(f"<b>{team_name.upper()}</b>",
                   _ps("tn", fontSize=14, fontName="Helvetica-Bold", textColor=C_WHITE)),
         Paragraph(f"<b>{total_str}</b>",
                   _ps("ts", fontSize=13, fontName="Helvetica-Bold",
                       textColor=C_WHITE, alignment=TA_RIGHT)),
     ]]
-    tbl = Table(data, colWidths=[PAGE_W - 2 * MARGIN - 60 * mm, 60 * mm])
+    tbl = Table(data, colWidths=[14 * mm, name_col, 60 * mm])
     tbl.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, -1), C_ACCENT),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
@@ -105,6 +121,37 @@ def _team_header_bar(team_name, total_str):
         ("RIGHTPADDING", (0, 0), (-1, -1), 10),
     ]))
     return tbl
+
+
+def _team_banner(banner_path):
+    """Wide team banner strip under the innings header (aspect preserved,
+    full content width, capped at ~32mm tall). Falls back to nothing when
+    the file is missing."""
+    if not banner_path or not Path(banner_path).is_file():
+        return None
+    try:
+        img = Image(str(banner_path))
+        iw, ih = img.imageWidth, img.imageHeight
+        if not iw or not ih:
+            return None
+        w = PAGE_W - 2 * MARGIN
+        h = w * ih / iw
+        if h > 32 * mm:
+            h = 32 * mm
+            w = h * iw / ih
+        img.drawWidth = w
+        img.drawHeight = h
+        img.hAlign = "CENTER"
+        band = Table([[img]], colWidths=[PAGE_W - 2 * MARGIN])
+        band.setStyle(TableStyle([
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("BACKGROUND", (0, 0), (-1, -1), C_WHITE),
+        ]))
+        return band
+    except Exception:
+        return None
 
 
 def _ov_str(valid_balls):
@@ -133,14 +180,20 @@ def _fall_of_wickets(delivery_log):
     return dict(fow)
 
 
-def _team_section(section, fow):
+def _team_section(section, fow, branding=None):
     elements = []
     team = section["team"]
     wides = int(team.get("wides_faced") or 0)
     noballs = int(team.get("noballs_faced") or 0)
     extras = wides + noballs
 
-    elements.append(_team_header_bar(section["team_name"], section["total"]))
+    branding = branding or {}
+    elements.append(_team_header_bar(
+        section["team_name"], section["total"],
+        logo_path=(branding.get("logo") or {}).get("path")))
+    banner = _team_banner((branding.get("banner") or {}).get("path"))
+    if banner:
+        elements.append(banner)
     elements.append(Spacer(1, 2 * mm))
 
     # batting (already in call-up order from match_summary)
@@ -274,8 +327,15 @@ def _revenue_section(entries):
 class ScorecardService:
     """Builds the official scorecard PDF from match data already in the DB."""
 
-    def build(self, summary: dict, finance_entries: list = None) -> bytes:
-        """summary: the dict from ScorerService.match_summary()."""
+    def build(self, summary: dict, finance_entries: list = None,
+              team_branding: dict = None) -> bytes:
+        """summary: the dict from ScorerService.match_summary().
+
+        team_branding: optional {team_id: {"logo": {"path": ...},
+        "banner": {"path": ...}}} — resolved logo/banner files per innings
+        team (the route resolves ids -> global teams -> asset files).
+        """
+        team_branding = team_branding or {}
         match_line = (
             f"{summary.get('between') or summary.get('result') or ''}  |  "
             f"Match ID: {summary.get('match_id') or ''}  |  "
@@ -358,7 +418,8 @@ class ScorecardService:
         else:
             fow = _fall_of_wickets(summary.get("delivery_log") or [])
             for section in summary.get("team_sections") or []:
-                story.extend(_team_section(section, fow))
+                branding = team_branding.get(section.get("team_id")) or {}
+                story.extend(_team_section(section, fow, branding))
 
         story.append(HRFlowable(width="100%", thickness=1.5, color=C_ACCENT, spaceAfter=5))
         story.extend(_fantasy_section(summary.get("fantasy_leaderboard")))

@@ -10,6 +10,7 @@ from .services.bank_service import BankService
 from .services.branding_service import BrandingService
 from .services.changelog_service import ChangelogService
 from .services.finance_service import FinanceService
+from .services.auction_pdf_service import AuctionPdfService
 from .services.scorer_service import ScorerService
 from .services.scorecard_service import ScorecardService
 from .services.scenario_service import ScenarioService
@@ -38,6 +39,7 @@ def create_app(config_object=None):
     scorer_service = ScorerService(db)
     finance_service = FinanceService(db, bank_service, auction_service)
     scorecard_service = ScorecardService()
+    auction_pdf_service = AuctionPdfService()
     scenario_service = ScenarioService(db, scorer_service)
     changelog_service = ChangelogService(db)
     branding_service = BrandingService()
@@ -53,6 +55,7 @@ def create_app(config_object=None):
     app.extensions["scorer_service"] = scorer_service
     app.extensions["finance_service"] = finance_service
     app.extensions["scorecard_service"] = scorecard_service
+    app.extensions["auction_pdf_service"] = auction_pdf_service
     app.extensions["scenario_service"] = scenario_service
     app.extensions["changelog_service"] = changelog_service
     app.extensions["branding_service"] = branding_service

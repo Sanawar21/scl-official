@@ -80,6 +80,43 @@ class BrandingService:
             "banner": BrandingService.team_banner(team),
         }
 
+    @staticmethod
+    def scl_file(kind: str):
+        """Local Path of an SCL asset (for PDF embedding)."""
+        name = SCL_ASSETS.get(kind)
+        if not name:
+            return None
+        path = SCL_DIR / name
+        return path if path.is_file() else None
+
+    @staticmethod
+    def asset_file(value: str):
+        """Resolve a stored asset value to a local file Path, or None.
+
+        Relative keys (``teams/<id>/logo.png``) resolve under BRANDING_ROOT
+        (path-traversal safe). External URLs return None (PDFs can't embed
+        them reliably) so callers can fall back to an SCL asset."""
+        value = (value or "").strip()
+        if not value or re.match(r"^https?://", value, re.IGNORECASE):
+            return None
+        value = value.lstrip("/")
+        target = (BRANDING_ROOT / value).resolve()
+        if not str(target).startswith(str(BRANDING_ROOT.resolve())):
+            return None
+        return target if target.is_file() else None
+
+    @staticmethod
+    def team_logo_file(team):
+        """Local Path of a team's logo, falling back to the SCL mark."""
+        return (BrandingService.asset_file((team or {}).get("logo"))
+                or BrandingService.scl_file("mark"))
+
+    @staticmethod
+    def team_banner_file(team):
+        """Local Path of a team's banner, falling back to the SCL banner."""
+        return (BrandingService.asset_file((team or {}).get("banner"))
+                or BrandingService.scl_file("banner"))
+
     # ------------------------------------------------------------------
     # uploads / removal
     # ------------------------------------------------------------------

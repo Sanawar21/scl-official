@@ -1028,3 +1028,25 @@ is live).
   latest-season default.
 - Suite: 212 unit (211 → 212, +1 test: all-seasons aggregation + sixes +
   latest-first ordering).
+
+## Auction PDF export + team branding in PDFs/pages (2026-08-17)
+
+- **Auction export PDF** — `app/services/auction_pdf_service.py` (reportlab,
+  SCL letterhead + running header/footer like the scorecard): phase hero,
+  auction performance table, final squads with team logos, all-players table,
+  bid feed. Route `GET /auction/export?season=...` → `{slug}-auction.pdf`;
+  "Export PDF" button on the public `/auction` page.
+- **Team logos/banners in PDFs + pages**:
+  - `BrandingService.asset_file(value)` resolves a stored asset value to a
+    local Path (path-traversal safe; external URLs → None so callers fall back
+    to an SCL asset); `scl_file(kind)`/`team_logo_file(team)`/
+    `team_banner_file(team)` give PDF-embeddable paths with SCL fallback.
+  - Scorecard PDF: each innings header now shows the team logo (11mm, next to
+    the name) + a wide banner strip under it (aspect preserved, ≤32mm tall).
+    `ScorecardService.build(summary, entries, team_branding=None)` — the route
+    resolves team ids → global teams → asset files (same id-space mapping as
+    `_attach_team_logos`). Missing local files (e.g. uploaded assets not yet
+    copied to a dev machine) fall back to the SCL mark/banner gracefully.
+  - Match summary page (`/matches/<season>/<match>`): each innings card now
+    shows the team banner + logo (`_attach_section_branding` in matches.py).
+- Suite: 215 unit (212 → 215: auction export service + route, summary branding).

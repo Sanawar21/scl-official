@@ -101,6 +101,7 @@ def match_summary(season_id, match_id):
         flash("Match not found.", "error")
         return redirect(url_for("matches.matches_index", season=season_id))
     stakes = _scenario_service().match_stakes(season_id, match_id)
+    _attach_section_branding(summary, current_app.extensions["branding_service"])
     return render_template("matches/summary.html", summary=summary, stakes=stakes)
 
 
@@ -118,7 +119,22 @@ def match_scorecard(season_id, match_id):
         return redirect(url_for("matches.match_summary", season_id=season_id, match_id=match_id))
     entries = [e for e in _finance_service().list_finance_entries(season_id)
                if e.get("match_id") == match_id and not e.get("undone_at")]
-    pdf = current_app.extensions["scorecard_service"].build(summary, entries)
+    branding = current_app.extensions["branding_service"]
+    team_branding = {}
+    with current_app.extensions["db"].read() as conn:
+        globals_by_id = {r["id"]: dict(r) for r in conn.execute("SELECT * FROM global_teams").fetchall()}
+        season_map = {}
+        for r in conn.execute("SELECT id, global_team_id FROM teams").fetchall():
+            season_map[r["id"]] = (r["global_team_id"] or "").strip() or r["id"]
+    for section in summary.get("team_sections") or []:
+        tid = section.get("team_id") or ""
+        gid = season_map.get(tid) or tid
+        gt = globals_by_id.get(gid) or {}
+        team_branding[tid] = {
+            "logo": {"path": branding.team_logo_file(gt)},
+            "banner": {"path": branding.team_banner_file(gt)},
+        }
+    pdf = current_app.extensions["scorecard_service"].build(summary, entries, team_branding)
     safe = re.sub(r"[^A-Za-z0-9._-]+", "-", match_id).strip("-") or "match"
     return send_file(BytesIO(pdf), mimetype="application/pdf", as_attachment=True,
                      download_name=f"{season_id}-{safe}-scorecard.pdf")
@@ -194,6 +210,24 @@ def _attach_team_logos(rows, branding):
         gid = season_map.get(tid) or tid
         gt = globals_by_id.get(gid)
         row["logo_url"] = branding.team_logo(gt) if gt else branding.scl_url("logo")
+
+
+def _attach_section_branding(summary, branding):
+    """Attach logo_url + banner_url to match_summary team sections."""
+    sections = (summary or {}).get("team_sections") or []
+    if not sections:
+        return
+    with current_app.extensions["db"].read() as conn:
+        globals_by_id = {r["id"]: dict(r) for r in conn.execute("SELECT * FROM global_teams").fetchall()}
+        season_map = {}
+        for r in conn.execute("SELECT id, global_team_id FROM teams").fetchall():
+            season_map[r["id"]] = (r["global_team_id"] or "").strip() or r["id"]
+    for section in sections:
+        tid = section.get("team_id") or ""
+        gid = season_map.get(tid) or tid
+        gt = globals_by_id.get(gid)
+        section["logo_url"] = branding.team_logo(gt) if gt else branding.scl_url("logo")
+        section["banner_url"] = branding.team_banner(gt) if gt else branding.scl_url("banner")
 
 
 @matches_bp.get("/table/scenarios/calc")

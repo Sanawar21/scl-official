@@ -1,3 +1,6 @@
+from io import BytesIO
+import re
+
 from flask import Blueprint, abort, current_app, jsonify, render_template, request, send_file, url_for
 
 from ..db import json_loads
@@ -137,6 +140,35 @@ def auction():
     for team in state.get("teams") or []:
         team["logo_url"] = branding.team_logo(team)
     return render_template("viewer/auction.html", state=state, seasons=seasons, season_id=season_id)
+
+
+@viewer_bp.get("/auction/export")
+def auction_export():
+    """PDF of the full auction details for a season (any phase)."""
+    auction_service = current_app.extensions["auction_service"]
+    branding = current_app.extensions["branding_service"]
+    seasons = auction_service.list_seasons()
+    season_id = (request.args.get("season") or "").strip().lower()
+    if not season_id or season_id not in {s["id"] for s in seasons}:
+        season_id = seasons[0]["id"] if seasons else None
+    if not season_id:
+        abort(404)
+    state = auction_service.get_state(season_id)
+    # Resolve each team's logo/banner to a local file path for PDF embedding.
+    with current_app.extensions["db"].read() as conn:
+        globals_by_id = {r["id"]: dict(r) for r in conn.execute("SELECT * FROM global_teams").fetchall()}
+        season_map = {}
+        for r in conn.execute("SELECT id, global_team_id FROM teams").fetchall():
+            season_map[r["id"]] = (r["global_team_id"] or "").strip() or r["id"]
+    for team in state.get("teams") or []:
+        gid = season_map.get(team.get("id")) or team.get("id") or ""
+        gt = globals_by_id.get(gid) or {}
+        team["logo_path"] = branding.team_logo_file(gt)
+        team["banner_path"] = branding.team_banner_file(gt)
+    pdf = current_app.extensions["auction_pdf_service"].build(state)
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "-", season_id).strip("-") or "auction"
+    return send_file(BytesIO(pdf), mimetype="application/pdf", as_attachment=True,
+                     download_name=f"{safe}-auction.pdf")
 
 
 @viewer_bp.get("/api/state")

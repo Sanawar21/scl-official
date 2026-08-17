@@ -51,7 +51,11 @@
 {% else %}
   {% for sec in summary.team_sections %}
     <section class="card">
+      {% if sec.banner_url %}
+        <img class="team-banner" src="{{ sec.banner_url }}" alt="{{ sec.team_name }} banner">
+      {% endif %}
       <div class="card-head">
+        {% if sec.logo_url %}<img class="team-logo-sm" src="{{ sec.logo_url }}" alt="{{ sec.team_name }}">{% endif %}
         <h2>{{ sec.team_name }}</h2>
         <span class="tag tag-active">{{ sec.total }}</span>
       </div>

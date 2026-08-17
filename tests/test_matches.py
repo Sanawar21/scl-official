@@ -424,6 +424,41 @@ def test_route_smoke(app, scorer):
     assert c.get("/players/nope").status_code == 302
 
 
+def test_summary_page_shows_team_branding(app, scorer):
+    """Match summary sections carry logo_url + banner_url (SCL fallback)."""
+    season, _, teams = _setup(app, n_teams=2)
+    a, b = (t["id"] for t in teams)
+    scorer.upsert_match_registry_entry(
+        season["id"], "M1", between="Thunder vs Blaze",
+        team_a_global_id=a, team_b_global_id=b)
+    with app.extensions["db"].write() as conn:
+        key = f"{season['id']}:m1"
+        conn.execute(
+            "INSERT INTO match_stats (match_key, season_id, match_id, result, winner_team_id) "
+            "VALUES (?, ?, 'M1', 'Thunder won', ?)", (key, season["id"], a))
+        conn.execute(
+            "INSERT INTO match_team_stats (id, match_key, season_id, team_id, team_name, "
+            "runs_scored, balls_faced, runs_conceded, balls_bowled, result, wins) "
+            "VALUES ('w1', ?, ?, ?, 'Thunder', 60, 36, 40, 36, 'win', 1)",
+            (key, season["id"], a))
+        conn.execute(
+            "INSERT INTO match_team_stats (id, match_key, season_id, team_id, team_name, "
+            "runs_scored, balls_faced, runs_conceded, balls_bowled, result, losses) "
+            "VALUES ('l1', ?, ?, ?, 'Blaze', 40, 36, 60, 36, 'loss', 1)",
+            (key, season["id"], b))
+        conn.execute(
+            "INSERT INTO match_player_stats (id, match_key, season_id, player_id, player_name, "
+            "team_id, team_name, runs, balls_faced, dismissed, wickets, balls_bowled, "
+            "runs_conceded, fantasy_score) "
+            "VALUES ('ps1', ?, ?, 'gp-alice', 'Alice', ?, 'Thunder', 60, 30, 0, 0, 0, 0, 40)",
+            (key, season["id"], a))
+    c = app.test_client()
+    html = c.get(f"/matches/{season['id']}/M1").get_data(as_text=True)
+    # Sections render the banner + logo (SCL fallback URLs).
+    assert "team-banner" in html
+    assert "team-logo-sm" in html
+
+
 def test_admin_scorer_requires_login(app):
     c = app.test_client()
     assert c.get("/admin/scorer").status_code == 302

@@ -621,3 +621,36 @@ def test_admin_transfer_records_oral_sale_of_free_agent(app, svc):
     squad = svc._get_team(sid, teams[1]["id"])
     assert unsold["id"] not in squad["players"] + squad["bench"]
     assert squad["wallet"] == target_before["wallet"]
+
+
+# ---------------------------------------------------------------------------
+# auction results PDF export
+# ---------------------------------------------------------------------------
+def test_auction_export_pdf(app, svc):
+    season, player_rows, teams = _setup(app, n_teams=2)
+    sid = season["id"]
+    state = svc.get_state(sid)
+    # Give teams a squad so the export has data to render.
+    with app.extensions["db"].write() as conn:
+        conn.execute("UPDATE players SET status='sold', sold_price=2500 "
+                     "WHERE season_id=? AND global_player_id=?",
+                     (sid, player_rows[2]["global_player_id"]))
+        conn.execute("UPDATE teams SET players=? WHERE id=?",
+                     ('["%s"]' % player_rows[2]["id"], teams[0]["id"]))
+    state = svc.get_state(sid)
+    pdf = app.extensions["auction_pdf_service"].build(state)
+    assert pdf[:4] == b"%PDF"
+    assert len(pdf) > 3000
+
+
+def test_auction_export_route(app, svc):
+    season, player_rows, teams = _setup(app, n_teams=2)
+    client = app.test_client()
+    r = client.get(f"/auction/export?season={season['id']}")
+    assert r.status_code == 200
+    assert r.data[:4] == b"%PDF"
+    assert "auction.pdf" in (r.headers.get("Content-Disposition") or "")
+    # /auction page renders and links the export
+    page = client.get(f"/auction?season={season['id']}")
+    assert page.status_code == 200
+    assert "Export PDF" in page.get_data(as_text=True)
