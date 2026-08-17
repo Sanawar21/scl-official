@@ -6,6 +6,7 @@ Vault mechanics (per S2 Vault guide):
 - Default (compounding): yield is added to locked capital, so it compounds.
 - Manual harvest: 7% is calculated on the initial principal only and paid out to liquid.
 """
+import re
 import secrets
 from datetime import datetime, timezone
 
@@ -147,17 +148,35 @@ class BankService:
                 (new_principal, new_locked, 1 if reinvest else 0, position["id"]),
             )
         else:
+            # New position: yield accrues only for matches AFTER the money
+            # entered the vault (a deposit after match N was finalized earns
+            # from match N+1 onward — no retroactive yield).
+            start_match = self._max_finalized_match_number(conn, season_id)
             position_id = secrets.token_hex(8)
             conn.execute(
                 "INSERT INTO vault_positions (id, account_id, season_id, principal, locked_capital, "
-                "reinvest, last_yield_match, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?)",
-                (position_id, account_id, season_id, amount, amount, 1 if reinvest else 0, _now()),
+                "reinvest, last_yield_match, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (position_id, account_id, season_id, amount, amount,
+                 1 if reinvest else 0, start_match, _now()),
             )
         conn.execute(
             "UPDATE bank_accounts SET liquid_cash = ?, locked_capital = ? WHERE id = ?",
             (new_liquid, int(account["locked_capital"]) + amount, account_id),
         )
         self._log(conn, account_id, "vault_lock", -amount, new_liquid, f"Locked {amount} in vault")
+
+    @staticmethod
+    def _max_finalized_match_number(conn, season_id: str) -> int:
+        """Highest finalized match number in the season (0 if none). Used to
+        start a new vault position's yield horizon after the latest played
+        match, so money locked mid-season never earns retroactive yield."""
+        nums = []
+        for r in conn.execute(
+                "SELECT match_id FROM match_stats WHERE season_id = ?", (season_id,)).fetchall():
+            m = re.search(r"\d+", str(r["match_id"] or ""))
+            if m:
+                nums.append(int(m.group(0)))
+        return max(nums) if nums else 0
 
     def lock_to_vault(self, account_id: str, season_id: str, amount: int, reinvest: bool = True) -> dict:
         amount = int(amount)

@@ -915,3 +915,18 @@ is live).
   wallet; adds respect auto mode (credit() → vault for auto accounts); removes come
   from liquid. Ledger stores owner refs; undo + `_team_name` resolve season team
   ids, global team ids, and owner ids. Legacy bare team-id refs still accepted.
+
+## Vault yield: no retroactive yield on mid-season deposits — DONE (2026-08-17)
+- Bug: new vault positions were created with last_yield_match=0, so the yield
+  catch-up backfilled 7% for EVERY finalized match regardless of when the money
+  was locked (Chandia CC locked 2000 after M1, got M1+M2 yield = 290; should
+  have been M2 only = 140).
+- Fix: `_lock_internal` seeds a NEW position's last_yield_match with the max
+  finalized match number at lock time (`_max_finalized_match_number` helper on
+  match_stats.match_id). Yield now accrues from the first match AFTER the
+  deposit. Existing positions untouched (last_yield_match preserved on
+  top-ups). Auto-routed match rewards for auto accounts also no longer earn
+  same-match yield (250 stays 250 until the next match).
+- Test: `test_vault_yield_starts_after_deposit_match` (locked after M1 -> only
+  M2 step, 2000 -> 2140, one vault_yield txn); updated
+  `test_auto_account_match_credit_goes_to_vault` (268 -> 250).

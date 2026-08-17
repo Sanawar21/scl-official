@@ -268,9 +268,42 @@ def test_auto_account_match_credit_goes_to_vault(app, svc, scorer, finance, bank
     finance.on_match_finalized(sid, "M1")
     acct = bank.get_account(auto_acct["id"])
     assert acct["liquid_cash"] == 0
-    # The 250 match credit was vaulted, then match-1 yield compounded on it
-    # (250 * 1.07 = 267.5 -> 268).
-    assert acct["locked_capital"] == 268
+    # The 250 match credit was vaulted when M1 finalized — it entered the vault
+    # AFTER match 1 was played, so it earns no retroactive M1 yield yet (it
+    # starts compounding from match 2 onward).
+    assert acct["locked_capital"] == 250
+
+
+def test_vault_yield_starts_after_deposit_match(app, svc, scorer, finance, bank):
+    """Money locked AFTER match 1 earns only match-2 yield, not match 1's.
+
+    Regression: positions were created with last_yield_match=0, so the yield
+    catch-up backfilled yield for every finalized match regardless of when the
+    deposit happened (Chandia CC got M1+M2 yield for a post-M1 deposit)."""
+    season, players, teams = _setup(app, n_teams=2)
+    sid = season["id"]
+    a, b = teams[0], teams[1]
+    _register_finalized(app, scorer, sid, "M1", "Match 1", a["id"], b["id"])
+    finance.on_match_finalized(sid, "M1")
+    # Deposit into the vault AFTER match 1 is done.
+    acct = bank.get_or_create_account("player", "late-depositor")
+    bank.set_auto(acct["id"], False)  # manual: deposit straight to vault
+    bank.adjust(acct["id"], 10000, "funds")
+    bank.lock_to_vault(acct["id"], sid, 2000, reinvest=True)
+    position = bank.vault_positions(acct["id"])[0]
+    # Position starts its horizon at match 1 (already played -> no yield for it).
+    assert position["last_yield_match"] == 1
+    assert position["locked_capital"] == 2000
+    # Match 2 finalizes -> catch-up applies ONLY the match-2 step (7% of 2000).
+    _register_finalized(app, scorer, sid, "M2", "Match 2", b["id"], a["id"])
+    finance.on_match_finalized(sid, "M2")
+    position = bank.vault_positions(acct["id"])[0]
+    assert position["last_yield_match"] == 2
+    assert position["locked_capital"] == 2140  # 2000 + 140, NOT 2000+140+150
+    txns = bank.transactions(acct["id"])
+    yields = [t for t in txns if t["type"] == "vault_yield"]
+    assert len(yields) == 1 and yields[0]["amount"] == 140
+    assert "Match 2" in yields[0]["comment"]
 
 
 # ---------------------------------------------------------------------------
