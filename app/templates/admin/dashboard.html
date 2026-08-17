@@ -74,6 +74,35 @@
   </details>
 </section>
 
+<section class="card">
+  <div class="card-head"><h2>Auction performance</h2>
+    <span class="tag">squad spend vs wallet</span></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr>
+        <th>Team</th><th>Manager</th><th>Squad</th><th>Spend</th>
+        <th>Avg price</th><th>Credits used</th><th>Credits left</th><th>Wallet left</th>
+      </tr></thead>
+      <tbody>
+        {% for t in state.teams | sort(attribute='spent', reverse=True) %}
+          <tr>
+            <td>{{ t.name }}{% if not t.is_active %} <span class="tag">inactive</span>{% endif %}</td>
+            <td>{{ t.manager_name }}</td>
+            <td>{{ t.players | length }} + {{ t.bench | length }}</td>
+            <td><strong>{{ t.spent }}</strong></td>
+            <td>{{ (t.spent / t.players | length) | round | int if t.players | length else '—' }}</td>
+            <td>{{ ruleset.total_credits - t.credits_remaining }}</td>
+            <td>{{ t.credits_remaining }}</td>
+            <td>{{ t.wallet }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="muted small" style="margin-bottom:0">Spend = total auction price paid · Squad = XI + bench ·
+    Credits used = {{ ruleset.total_credits }} − remaining (includes the manager's own credit).</p>
+</section>
+
 <div class="grid">
   <section class="card">
     <h2>Players ({{ state.players | length }})</h2>

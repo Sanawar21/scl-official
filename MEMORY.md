@@ -970,3 +970,20 @@ is live).
   per-season id — tests use season ids). `qualify_count` now dedupes teams.
 - S2 now shows "Top 1 qualify", 10 fixtures left, all teams in contention.
   S1 (fully played, has final) still shows "Season complete", top-2 qualify.
+
+## Vault yield reversal (data) — DONE (2026-08-17)
+- After the vault reset, the compounding gains (vault_yield txns) were still in
+  the liquid balances. Deducted ALL vault_yield amounts (11 accounts: 10 players
+  -268 each -> 1975, Sanawar -140 -> 3450), deleted the vault_yield txns, and
+  logged one `vault_yield_reversal` txn per account. Nothing locked remains;
+  yields will only accrue via the manual admin release going forward.
+
+## Auction performance table — DONE (2026-08-17)
+- Admin → Auction dashboard now has an "Auction performance" table above the
+  Players/Teams grid: team, manager, squad (XI+bench), total spend, avg price,
+  credits used (total_credits − remaining, includes manager credit), credits
+  left, wallet left. Sorted by spend desc. Data already lived in `teams.spent`
+  / `credits_remaining` / `wallet` — this only aggregates it in the template
+  (`app/templates/admin/dashboard.html`), no service change.
+- Verified on prod DB copy (Inferno 9600, Teeli 9000, MHK 7800, Chandia 7700);
+  42 unit tests green.
