@@ -24,6 +24,8 @@
     <label class="tab-label" for="lb-bowl">Wickets</label>
     <input class="tab-input" type="radio" name="lb" id="lb-fantasy">
     <label class="tab-label" for="lb-fantasy">Fantasy</label>
+    <input class="tab-input" type="radio" name="lb" id="lb-sixes">
+    <label class="tab-label" for="lb-sixes">Sixes</label>
     <input class="tab-input" type="radio" name="lb" id="lb-sr">
     <label class="tab-label" for="lb-sr">Strike rate</label>
     <input class="tab-input" type="radio" name="lb" id="lb-econ">
@@ -67,6 +69,20 @@
               <span class="rank-badge">{{ loop.index }}</span>
               <a href="{{ url_for('matches.player_detail', slug=b.slug) }}"><b>{{ b.player_name }}</b></a>
               <span class="muted">{{ b.fantasy_score }} pts</span>
+            </li>
+          {% endfor %}
+        </ol>
+      {% else %}<p class="muted small">—</p>{% endif %}
+    </div>
+
+    <div class="tab-panel" id="panel-sixes">
+      {% if boards.sixes %}
+        <ol class="feed podium-list">
+          {% for b in boards.sixes %}
+            <li class="{% if loop.index <= 3 %}podium{% endif %}">
+              <span class="rank-badge">{{ loop.index }}</span>
+              <a href="{{ url_for('matches.player_detail', slug=b.slug) }}"><b>{{ b.player_name }}</b></a>
+              <span class="muted">{{ b.sixes }} sixes · {{ b.runs }} runs · {{ b.matches }} matches</span>
             </li>
           {% endfor %}
         </ol>

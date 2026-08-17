@@ -1248,6 +1248,9 @@ class ScorerService:
             "bowlers": [{"rank": i + 1, **p, "slug": slug(p)}
                         for i, p in enumerate(top(players, lambda p: (p["wickets"], -p["economy"]),
                                                   predicate=lambda p: p["wickets"] > 0))],
+            "sixes": [{"rank": i + 1, **p, "slug": slug(p)}
+                      for i, p in enumerate(top(players, lambda p: (p["sixes"], p["runs"]),
+                                                predicate=lambda p: p["sixes"] > 0))],
             "fantasy": [{"rank": i + 1, **p, "slug": slug(p)}
                         for i, p in enumerate(top(players, lambda p: p["fantasy_score"]))],
             "strike_rates": [{"rank": i + 1, **p, "slug": slug(p)}

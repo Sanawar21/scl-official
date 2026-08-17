@@ -999,3 +999,8 @@ is live).
   Asad 1/2, Hassin 32/0, Hassan 13/0) beat Teeli 46/2 (Qambar 43/13, Ahmad 0
   out, Umar 0 out, Yousuf 1; Yousuf 9/0 bowling). `substitution_ins={'Yousuf'}`.
 - Data files are gitignored; user imports CSVs manually from Admin > Scorer.
+
+## Sixes leaderboard — DONE (2026-08-17)
+- `/leaderboards` gained a **Sixes** tab (scorer_service.leaderboards returns
+  `sixes` board: players with sixes > 0, sorted by sixes then runs; template
+  tab + panel added). E2E-safe: boards that are empty render "—".
