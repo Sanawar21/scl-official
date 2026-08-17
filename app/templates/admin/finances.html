@@ -2,6 +2,21 @@
 {% block title %}Finances Admin{% endblock %}
 {% block content %}
 {% from "admin/_tabs.html" import tabs %}
+{% set section_labels = {'playing': 'Teams in this season', 'non_playing': 'Teams not in this season', 'players': 'Individual players'} %}
+{% macro account_options() %}
+  {% set last_section = namespace(value='') %}
+  {% for b in board %}
+    {% if b.account_ref %}
+      {% if b.section != last_section.value %}
+        {% if not loop.first %}</optgroup>{% endif %}
+        <optgroup label="{{ section_labels.get(b.section, b.section) }}">
+        {% set last_section.value = b.section %}
+      {% endif %}
+      <option value="{{ b.account_ref }}">{{ b.name }}{% if b.manager_name %} · {{ b.manager_name }}{% endif %}{% if b.kind == 'player' %} (player){% endif %}</option>
+    {% endif %}
+  {% endfor %}
+  </optgroup>
+{% endmacro %}
 <div class="page-head">
   <div class="row">
     <h1 style="margin:0">Admin · Finances &amp; Vault</h1>
@@ -37,27 +52,26 @@
     <div class="table-wrap">
       <table>
         <thead><tr><th>Account</th><th>Wallet</th><th>Locked</th><th>Credits</th><th>Roster</th></tr></thead>
-        <tbody>
-          {% set last_section = namespace(value='') %}
-          {% for b in board %}
-            {% if b.section != last_section.value %}
-              <tr class="board-section-row">
-                <td colspan="5">
-                  <b>{{ {'playing': 'Teams in this season', 'non_playing': 'Teams not in this season', 'players': 'Individual players'}.get(b.section, b.section) }}</b>
-                </td>
+        <tbody>            {% set last_section = namespace(value='') %}
+            {% for b in board %}
+              {% if b.section != last_section.value %}
+                <tr class="board-section-row">
+                  <td colspan="5">
+                    <b>{{ section_labels.get(b.section, b.section) }}</b>
+                  </td>
+                </tr>
+                {% set last_section.value = b.section %}
+              {% endif %}
+              <tr>
+                <td>{{ b.name }}{% if b.manager_name %} <span class="muted">· {{ b.manager_name }}</span>{% endif %}{% if b.kind == 'team' and b.section == 'non_playing' %} <span class="tag">not playing</span>{% endif %}{% if b.kind == 'player' %} <span class="tag">player</span>{% endif %}{% if b.kind == 'team' and not b.manager_name %} <span class="tag">no manager</span>{% endif %}</td>
+                <td><b>{{ b.wallet }}</b></td>
+                <td class="muted">{{ b.locked }}</td>
+                <td>{{ b.credits_remaining if b.credits_remaining is not none else '—' }}</td>
+                <td class="muted">{% if b.players_count %}{{ b.players_count }} + {{ b.bench_count }} bench{% else %}—{% endif %}</td>
               </tr>
-              {% set last_section.value = b.section %}
-            {% endif %}
-            <tr>
-              <td>{{ b.name }}{% if b.kind == 'team' and b.section == 'non_playing' %} <span class="tag">not playing</span>{% endif %}</td>
-              <td><b>{{ b.wallet }}</b></td>
-              <td class="muted">{{ b.locked }}</td>
-              <td>{{ b.credits_remaining if b.credits_remaining is not none else '—' }}</td>
-              <td class="muted">{% if b.players_count %}{{ b.players_count }} + {{ b.bench_count }} bench{% else %}—{% endif %}</td>
-            </tr>
-          {% else %}
-            <tr><td colspan="5" class="muted">No accounts yet.</td></tr>
-          {% endfor %}
+            {% else %}
+              <tr><td colspan="5" class="muted">No accounts yet.</td></tr>
+            {% endfor %}
         </tbody>
       </table>
     </div>
@@ -68,8 +82,8 @@
     <form method="post" action="{{ url_for('admin.finances_adjust') }}" class="stack">
       <input type="hidden" name="season_id" value="{{ season_id }}">
       <div class="row">
-        <select name="team_id" required>
-          {% for b in board %}<option value="{{ b.team_id }}">{{ b.team_name }}</option>{% endfor %}
+        <select name="account_ref" required>
+          {{ account_options() }}
         </select>
         <select name="operation">
           <option value="add">Add</option>
@@ -77,24 +91,24 @@
         </select>
         <input type="number" name="amount" placeholder="amount" min="1" required style="width:110px">
       </div>
-      <input type="text" name="comment" placeholder="comment (fines, umpire duty…)" required>
+      <input type="text" name="comment" placeholder="comment (fines, umpire duty, credit saved…)" required>
       <button class="btn btn-small btn-primary" type="submit">Post adjustment</button>
     </form>
     <form method="post" action="{{ url_for('admin.finances_transfer') }}" class="stack">
       <input type="hidden" name="season_id" value="{{ season_id }}">
       <div class="row">
-        <select name="from_team_id" required>
+        <select name="from_ref" required>
           <option value="">— from —</option>
-          {% for b in board %}<option value="{{ b.team_id }}">{{ b.team_name }}</option>{% endfor %}
+          {{ account_options() }}
         </select>
-        <select name="to_team_id" required>
+        <select name="to_ref" required>
           <option value="">— to —</option>
-          {% for b in board %}<option value="{{ b.team_id }}">{{ b.team_name }}</option>{% endfor %}
+          {{ account_options() }}
         </select>
         <input type="number" name="amount" placeholder="amount" min="1" required style="width:110px">
       </div>
-      <input type="text" name="comment" placeholder="comment (sub cash…)" required>
-      <button class="btn btn-small" type="submit">Transfer between teams</button>
+      <input type="text" name="comment" placeholder="comment (sub cash, prize…)" required>
+      <button class="btn btn-small" type="submit">Transfer between accounts</button>
     </form>
     <p class="muted small">Match reward amount: <b>{{ match_reward_amount }}</b>
       (per ruleset, paid to both playing teams on finalize).</p>

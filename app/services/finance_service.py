@@ -62,6 +62,13 @@ class FinanceService:
                               if (t["global_team_id"] or "").strip()}
             in_season_gids |= {t["id"] for t in season_teams}
 
+            def _gp_name(gp_id):
+                if not gp_id:
+                    return None
+                row = conn.execute(
+                    "SELECT name FROM global_players WHERE id = ?", (gp_id,)).fetchone()
+                return row["name"] if row else gp_id
+
             def _wallet(owner_id):
                 acct = self.bank.account_for_owner("player", owner_id)
                 if not acct:
@@ -70,43 +77,47 @@ class FinanceService:
 
             # 1) teams playing this season
             for t in season_teams:
-                wallet, locked = _wallet(t["manager_player_id"])
+                mgr = (t["manager_player_id"] or "").strip()
+                wallet, locked = _wallet(mgr) if mgr else (0, 0)
                 rows.append({
                     "section": "playing", "kind": "team",
                     "team_id": t["id"], "name": t["name"],
+                    "manager_name": _gp_name(mgr),
+                    "account_ref": f"team:{t['id']}" if mgr else None,
                     "wallet": wallet, "locked": locked,
                     "credits_remaining": int(t["credits_remaining"] or 0),
                     "players_count": len(json_loads(t["players"], [])),
                     "bench_count": len(json_loads(t["bench"], [])),
                 })
-            # 2) persistent teams NOT in this season
+            # 2) persistent teams NOT in this season (even without a manager)
             for gt in global_teams:
                 if gt["id"] in in_season_gids:
                     continue
-                if not gt.get("manager_player_id"):
-                    continue
-                wallet, locked = _wallet(gt["manager_player_id"])
+                mgr = (gt.get("manager_player_id") or "").strip()
+                wallet, locked = _wallet(mgr) if mgr else (0, 0)
                 rows.append({
                     "section": "non_playing", "kind": "team",
                     "team_id": gt["id"], "name": gt["name"],
+                    "manager_name": _gp_name(mgr),
+                    "account_ref": f"team:{gt['id']}" if mgr else None,
                     "wallet": wallet, "locked": locked,
                     "credits_remaining": None, "players_count": 0, "bench_count": 0,
                 })
-            # 3) individual players (not managing any team)
-            manager_ids = {t["manager_player_id"] for t in season_teams}
-            manager_ids |= {gt["manager_player_id"] for gt in global_teams
-                            if gt.get("manager_player_id")}
-            for acct in conn.execute(
-                    "SELECT * FROM bank_accounts WHERE owner_type = 'player' "
-                    "ORDER BY liquid_cash DESC").fetchall():
-                if acct["owner_id"] in manager_ids:
+            # 3) individual players — EVERY global player not managing a team
+            manager_ids = {(t["manager_player_id"] or "").strip() for t in season_teams}
+            manager_ids |= {(gt.get("manager_player_id") or "").strip() for gt in global_teams}
+            for gp in conn.execute(
+                    "SELECT id, name FROM global_players ORDER BY name").fetchall():
+                if gp["id"] in manager_ids:
                     continue
-                gp = conn.execute(
-                    "SELECT name FROM global_players WHERE id = ?", (acct["owner_id"],)).fetchone()
+                acct = self.bank.account_for_owner("player", gp["id"])
                 rows.append({
                     "section": "players", "kind": "player",
-                    "team_id": acct["owner_id"], "name": gp["name"] if gp else acct["owner_id"],
-                    "wallet": int(acct["liquid_cash"]), "locked": int(acct["locked_capital"]),
+                    "team_id": gp["id"], "name": gp["name"],
+                    "manager_name": None,
+                    "account_ref": f"player:{gp['id']}",
+                    "wallet": int(acct["liquid_cash"]) if acct else 0,
+                    "locked": int(acct["locked_capital"]) if acct else 0,
                     "credits_remaining": None, "players_count": 0, "bench_count": 0,
                 })
         order = {"playing": 0, "non_playing": 1, "players": 2}
@@ -197,12 +208,99 @@ class FinanceService:
             entries.append(entry)
         return entries
 
-    def _team_name(self, team_id: str) -> str:
-        if not team_id:
+    def _team_name(self, ref: str) -> str:
+        """Resolve a team/owner reference to a display name.
+
+        Accepts season team ids (legacy ledger entries), global team ids, or
+        owner ids (global player ids) — the references the admin forms post.
+        """
+        ref = (ref or "").strip()
+        if not ref:
             return ""
+        if ":" in ref:
+            ref = ref.split(":", 1)[1]
         with self.db.read() as conn:
-            row = conn.execute("SELECT name FROM teams WHERE id = ?", (team_id,)).fetchone()
-            return row["name"] if row else team_id
+            for table in ("teams", "global_teams", "global_players"):
+                row = conn.execute(
+                    f"SELECT name FROM {table} WHERE id = ?", (ref,)).fetchone()
+                if row:
+                    return row["name"]
+        return ref
+
+    def _resolve_account(self, conn, ref):
+        """Resolve a form reference to (owner_id, display_name, account).
+
+        Accepts `team:<season-or-global-team-id>`, `player:<owner-id>`, or a
+        bare season team id (legacy forms/tests). The account is always a
+        player wallet (manager's wallet == team money).
+        """
+        ref = (ref or "").strip()
+        if not ref:
+            raise ValueError("Account is required")
+        owner_id = display = None
+        if ":" in ref:
+            prefix, value = ref.split(":", 1)
+            value = (value or "").strip()
+            if prefix == "team":
+                team = conn.execute(
+                    "SELECT * FROM teams WHERE id = ?", (value,)).fetchone()
+                if not team:
+                    team = conn.execute(
+                        "SELECT * FROM global_teams WHERE id = ?", (value,)).fetchone()
+                if not team:
+                    raise ValueError("Team not found")
+                if not team["manager_player_id"]:
+                    raise ValueError("Team has no manager to adjust")
+                owner_id = team["manager_player_id"]
+                display = team["name"]
+            elif prefix == "player":
+                owner_id = value
+                gp = conn.execute(
+                    "SELECT name FROM global_players WHERE id = ?", (owner_id,)).fetchone()
+                display = gp["name"] if gp else owner_id
+            else:
+                raise ValueError(f"Unknown account type '{prefix}'")
+        else:
+            team = conn.execute(
+                "SELECT * FROM teams WHERE id = ?", (ref,)).fetchone()
+            if team and team["manager_player_id"]:
+                owner_id = team["manager_player_id"]
+                display = team["name"]
+            else:
+                owner_id = ref
+                gp = conn.execute(
+                    "SELECT name FROM global_players WHERE id = ?", (owner_id,)).fetchone()
+                display = gp["name"] if gp else owner_id
+        account = self.bank.get_or_create_account("player", owner_id, conn=conn)
+        return owner_id, display, account
+
+    def _account_of(self, conn, ref):
+        """Resolve a stored ledger reference (owner id, `team:`/`player:` ref, or
+        legacy season team id) to a (owner_id, account) pair for undo."""
+        ref = (ref or "").strip()
+        if not ref:
+            raise ValueError("Missing account reference")
+        if ":" in ref:
+            prefix, value = ref.split(":", 1)
+            value = (value or "").strip()
+            if prefix == "team":
+                team = conn.execute(
+                    "SELECT * FROM teams WHERE id = ?", (value,)).fetchone()
+                if not team:
+                    team = conn.execute(
+                        "SELECT * FROM global_teams WHERE id = ?", (value,)).fetchone()
+                if not team or not team["manager_player_id"]:
+                    raise ValueError("Team no longer exists")
+                owner_id = team["manager_player_id"]
+            elif prefix == "player":
+                owner_id = value
+            else:
+                raise ValueError(f"Unknown account type '{prefix}'")
+        else:
+            team = conn.execute(
+                "SELECT * FROM teams WHERE id = ?", (ref,)).fetchone()
+            owner_id = team["manager_player_id"] if (team and team["manager_player_id"]) else ref
+        return owner_id, self.bank.get_or_create_account("player", owner_id, conn=conn)
 
     def credit_refund_hint(self, season_id: str) -> list:
         """Display-only: what unspent credits are worth at the ruleset rate."""
@@ -349,8 +447,11 @@ class FinanceService:
     # ------------------------------------------------------------------
     # manual finance (fines, umpire duty, sub cash)
     # ------------------------------------------------------------------
-    def post_adjust(self, season_id: str, team_id: str, operation: str, amount: int,
+    def post_adjust(self, season_id: str, account_ref: str, operation: str, amount: int,
                     comment: str, actor: str = "admin") -> dict:
+        """Add/remove funds on ANY wallet (playing team, non-playing team, or
+        individual player). Adds respect auto mode (credit() routes auto
+        accounts straight to the vault); removes always come from liquid cash."""
         season_id = (season_id or "").strip().lower()
         operation = (operation or "").strip().lower()
         amount = int(amount or 0)
@@ -361,65 +462,56 @@ class FinanceService:
         if not comment:
             raise ValueError("Comment is required")
         with self.db.write() as conn:
-            team = conn.execute(
-                "SELECT * FROM teams WHERE id = ? AND season_id = ?", (team_id, season_id)
-            ).fetchone()
-            if not team:
-                raise ValueError("Team not found")
-            account = self.bank.get_or_create_account("player", team["manager_player_id"],
-                                                      conn=conn)
+            owner_id, display, account = self._resolve_account(conn, account_ref)
             before = int(account["liquid_cash"])
-            delta = amount if operation == "add" else -amount
-            self.bank.adjust(account["id"], delta, comment, tx_type="match_finance", conn=conn)
-            after = before + delta
+            if operation == "add":
+                self.bank.credit(account["id"], amount, comment, tx_type="admin_adjust",
+                                 season_id=season_id, conn=conn)
+            else:
+                self.bank.adjust(account["id"], -amount, comment, tx_type="admin_adjust",
+                                 conn=conn)
+            after = int(conn.execute(
+                "SELECT liquid_cash FROM bank_accounts WHERE id = ?", (account["id"],)
+            ).fetchone()["liquid_cash"])
             conn.execute(
                 "INSERT INTO season_finance_entries (id, season_id, team_id, team_name, type, "
                 "operation, amount, comment, created_by, before_wallet, after_wallet, created_at) "
                 "VALUES (?, ?, ?, ?, 'adjust', ?, ?, ?, ?, ?, ?, ?)",
-                (secrets.token_hex(8), season_id, team_id, team["name"], operation, amount,
+                (secrets.token_hex(8), season_id, owner_id, display, operation, amount,
                  comment, actor, before, after, _now()))
-        return {"ok": True, "team_id": team_id, "operation": operation, "amount": amount}
+        return {"ok": True, "owner_id": owner_id, "operation": operation, "amount": amount}
 
-    def post_transfer(self, season_id: str, from_team_id: str, to_team_id: str, amount: int,
+    def post_transfer(self, season_id: str, from_ref: str, to_ref: str, amount: int,
                       comment: str, actor: str = "admin") -> dict:
+        """Move funds between any two wallets (teams or individual players)."""
         season_id = (season_id or "").strip().lower()
         amount = int(amount or 0)
         if amount <= 0:
             raise ValueError("Amount must be a positive integer")
-        if not from_team_id or not to_team_id:
-            raise ValueError("Both teams are required")
-        if from_team_id == to_team_id:
-            raise ValueError("Source and target teams must be different")
+        if not from_ref or not to_ref:
+            raise ValueError("Both accounts are required")
         if not comment:
             raise ValueError("Comment is required")
         with self.db.write() as conn:
-            from_team = conn.execute(
-                "SELECT * FROM teams WHERE id = ? AND season_id = ?", (from_team_id, season_id)
-            ).fetchone()
-            to_team = conn.execute(
-                "SELECT * FROM teams WHERE id = ? AND season_id = ?", (to_team_id, season_id)
-            ).fetchone()
-            if not from_team or not to_team:
-                raise ValueError("One or more teams not found")
-            from_account = self.bank.get_or_create_account("player", from_team["manager_player_id"],
-                                                           conn=conn)
-            to_account = self.bank.get_or_create_account("player", to_team["manager_player_id"],
-                                                         conn=conn)
+            f_owner, f_display, from_account = self._resolve_account(conn, from_ref)
+            t_owner, t_display, to_account = self._resolve_account(conn, to_ref)
+            if f_owner == t_owner:
+                raise ValueError("Source and target accounts must be different")
             from_before = int(from_account["liquid_cash"])
             to_before = int(to_account["liquid_cash"])
-            self.bank.adjust(from_account["id"], -amount, comment, tx_type="match_finance",
+            self.bank.adjust(from_account["id"], -amount, comment, tx_type="admin_adjust",
                              conn=conn)
-            self.bank.adjust(to_account["id"], amount, comment, tx_type="match_finance",
+            self.bank.adjust(to_account["id"], amount, comment, tx_type="admin_adjust",
                              conn=conn)
             conn.execute(
                 "INSERT INTO season_finance_entries (id, season_id, team_id, team_name, type, "
                 "operation, amount, comment, created_by, from_team_id, to_team_id, "
                 "before_wallet, after_wallet, created_at) VALUES (?, ?, ?, ?, 'transfer', NULL, "
                 "?, ?, ?, ?, ?, ?, ?, ?)",
-                (secrets.token_hex(8), season_id, from_team_id, from_team["name"], amount,
-                 comment, actor, from_team_id, to_team_id, from_before,
+                (secrets.token_hex(8), season_id, f_owner, f_display, amount,
+                 comment, actor, from_ref, to_ref, from_before,
                  from_before - amount, _now()))
-        return {"ok": True, "from_team_id": from_team_id, "to_team_id": to_team_id,
+        return {"ok": True, "from_ref": from_ref, "to_ref": to_ref,
                 "amount": amount}
 
     # ------------------------------------------------------------------
@@ -437,22 +529,20 @@ class FinanceService:
             ttype = entry.get("type")
             amount = int(entry.get("amount") or 0)
 
-            def wallet_of(team_id):
-                team = conn.execute("SELECT * FROM teams WHERE id = ?", (team_id,)).fetchone()
-                if not team:
-                    raise ValueError("Team no longer exists")
-                return team, self.bank.get_or_create_account("player", team["manager_player_id"],
-                                                             conn=conn)
+            def account_of(ref):
+                if not ref:
+                    raise ValueError("Account no longer exists")
+                return self._account_of(conn, ref)
 
             if ttype == "adjust":
-                team, account = wallet_of(entry["team_id"])
+                _, account = account_of(entry["team_id"])
                 delta = amount if entry.get("operation") == "remove" else -amount
                 if delta:
                     self.bank.adjust(account["id"], delta, f"Undo ({entry.get('comment') or ''})",
                                      tx_type="match_finance", conn=conn)
             elif ttype == "transfer":
-                from_team, from_account = wallet_of(entry["from_team_id"])
-                to_team, to_account = wallet_of(entry["to_team_id"])
+                _, from_account = account_of(entry["from_team_id"])
+                _, to_account = account_of(entry["to_team_id"])
                 self.bank.adjust(from_account["id"], amount, "Undo transfer",
                                  tx_type="match_finance", conn=conn)
                 self.bank.adjust(to_account["id"], -amount, "Undo transfer",
@@ -460,7 +550,7 @@ class FinanceService:
             elif ttype == "match_reward":
                 if entry.get("team_id"):
                     # Legacy per-team reward: reverse that manager's wallet.
-                    team, account = wallet_of(entry["team_id"])
+                    _, account = account_of(entry["team_id"])
                     self.bank.adjust(account["id"], -amount, "Undo match reward",
                                      tx_type="match_reward", conn=conn)
                 else:

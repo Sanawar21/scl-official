@@ -903,3 +903,15 @@ is live).
   39 auction/bank tests green.
 - Real-data smoke: season-2 scorer now lists managers (Ahmad, Hassan, Qambar,
   Sanawar) in their teams' rosters.
+
+## Admin finances board + account refs — DONE (2026-08-17)
+- Bug: `/admin/finances` "Match finance" dropdowns rendered EMPTY — template used
+  `b.team_name` but board rows carry `name`. Fixed + generalized:
+- `list_season_finances` rows now carry `manager_name` + `account_ref` and show
+  EVERYONE: playing teams (top), non-playing teams (incl. managerless, "no manager"
+  tag, not adjustable), and ALL global players (wallet 0 if none).
+- Adjust/transfer forms post `team:<id>` / `player:<id>` refs (optgroup dropdowns
+  "Team · Manager" / "Player (player)"). `post_adjust`/`post_transfer` resolve any
+  wallet; adds respect auto mode (credit() → vault for auto accounts); removes come
+  from liquid. Ledger stores owner refs; undo + `_team_name` resolve season team
+  ids, global team ids, and owner ids. Legacy bare team-id refs still accepted.

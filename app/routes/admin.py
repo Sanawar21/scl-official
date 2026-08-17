@@ -888,7 +888,7 @@ def finances_adjust():
     try:
         finance.post_adjust(
             season_id,
-            request.form.get("team_id", ""),
+            request.form.get("account_ref", ""),
             request.form.get("operation", "add"),
             _safe_int(request.form.get("amount"), 0),
             request.form.get("comment", ""),
@@ -908,8 +908,8 @@ def finances_transfer():
     try:
         finance.post_transfer(
             season_id,
-            request.form.get("from_team_id", ""),
-            request.form.get("to_team_id", ""),
+            request.form.get("from_ref", ""),
+            request.form.get("to_ref", ""),
             _safe_int(request.form.get("amount"), 0),
             request.form.get("comment", ""),
             actor=session.get("user", {}).get("username", "admin"),

@@ -333,12 +333,12 @@ def test_fund_all_players_custom_amount(app, svc):
 # 3c. squad-cost levy + three-section budget board
 # ---------------------------------------------------------------------------
 def test_board_three_sections(app, svc, finance, bank):
-    """Playing teams -> non-playing teams -> individual players."""
+    """Playing teams -> non-playing teams -> EVERY individual player."""
     season, players, teams = _setup(app, n_teams=2)
     sid = season["id"]
     # A persistent team NOT in this season (player-owned).
     gp_np = players[2]["global_player_id"]
-    svc.create_team_account(gp_np, "Standing Team")
+    gt = svc.create_team_account(gp_np, "Standing Team")
     # An individual player with a wallet (not a manager).
     gp_ind = players[4]["global_player_id"]
     ind = bank.get_or_create_account("player", gp_ind)
@@ -354,11 +354,45 @@ def test_board_three_sections(app, svc, finance, bank):
     playing = [r for r in board if r["section"] == "playing"]
     non_playing = [r for r in board if r["section"] == "non_playing"]
     players_r = [r for r in board if r["section"] == "players"]
-    assert len(playing) == 2 and len(non_playing) == 1 and len(players_r) == 1
+    assert len(playing) == 2 and len(non_playing) == 1
     assert non_playing[0]["name"] == "Standing Team"
+    # Manager names + account refs on every row.
+    assert non_playing[0]["manager_name"] == "Cara"
+    assert non_playing[0]["account_ref"] == f"team:{gt['id']}"
     # The non-playing manager's 3k is locked in the vault (auto).
     assert non_playing[0]["wallet"] == 0 and non_playing[0]["locked"] == 3000
-    assert players_r[0]["name"] == players[4]["name"]
+    for t in playing:
+        assert t["manager_name"] in ("Alice", "Bob")
+        assert t["account_ref"].startswith("team:")
+    # EVERY non-manager global player is visible, wallet or not.
+    assert len(players_r) == 9  # 12 players - Alice/Bob (season) - Cara (team)
+    assert {r["name"] for r in players_r} == {
+        "Dave", "Eve", "Fay", "Gil", "Hana", "Ivo", "Jay", "Kit", "Lia"}
+    eve = next(r for r in players_r if r["name"] == "Eve")
+    assert eve["wallet"] == 500
+    assert eve["account_ref"] == f"player:{gp_ind}"
+    assert all(r["account_ref"].startswith("player:") for r in players_r)
+
+
+def test_board_includes_managerless_team_and_zero_wallets(app, svc, finance):
+    """A global team with no manager still shows (not adjustable); players
+    without wallets show 0."""
+    season, players, teams = _setup(app, n_teams=2)
+    sid = season["id"]
+    with app.extensions["db"].write() as conn:
+        conn.execute(
+            "INSERT INTO global_teams (id, name, manager_player_id, created_at) "
+            "VALUES ('orphanteam000001', 'Orphan FC', NULL, ?)",
+            ("2026-01-01T00:00:00+00:00",))
+    board = finance.list_season_finances(sid)
+    orphan = [r for r in board if r["name"] == "Orphan FC"]
+    assert len(orphan) == 1
+    assert orphan[0]["section"] == "non_playing"
+    assert orphan[0]["manager_name"] is None
+    assert orphan[0]["account_ref"] is None  # nothing to adjust
+    # Every player with no wallet reads 0 and is still listed.
+    dave = next(r for r in board if r["name"] == "Dave")
+    assert dave["wallet"] == 0 and dave["locked"] == 0
 
 
 def test_squad_levy_charges_non_spenders_exempts_spenders(app, svc, finance, bank):
@@ -539,6 +573,46 @@ def test_post_transfer_and_ledger(app, svc, finance, bank):
     entries = finance.list_finance_entries(sid)
     assert entries[0]["type"] == "transfer"
     assert entries[0]["amount"] == 250
+
+
+def test_post_adjust_and_transfer_accept_player_and_team_refs(app, svc, finance, bank):
+    """The admin forms post `player:<id>` / `team:<id>` refs — anyone's wallet
+    (playing team, non-playing team, or individual player) is adjustable and
+    transferable, and the ledger + undo resolve them."""
+    season, players, teams = _setup(app, n_teams=2)
+    sid = season["id"]
+    # Non-playing team + an individual player.
+    gp_np = players[2]["global_player_id"]
+    gt = svc.create_team_account(gp_np, "Standing Team")
+    gp_ind = players[4]["global_player_id"]
+    bank.get_or_create_account("player", gp_ind)
+    bank.adjust(bank.account_for_owner("player", gp_ind)["id"], 1000, "seed", tx_type="deposit")
+
+    # Adjust the non-playing team's manager (auto account -> vault routing).
+    finance.post_adjust(sid, f"team:{gt['id']}", "add", 500, "credit saved")
+    np_acct = bank.get_or_create_account("player", gp_np)
+    # New auto account: the credit went straight to the vault.
+    assert np_acct["auto_vault"] == 1
+    assert np_acct["liquid_cash"] == 0 and np_acct["locked_capital"] == 500
+
+    # Adjust an individual player's wallet directly.
+    finance.post_adjust(sid, f"player:{gp_ind}", "remove", 200, "fine")
+    assert bank.account_for_owner("player", gp_ind)["liquid_cash"] == 800
+
+    # Transfer between the player and the non-playing manager (both refs).
+    p_before = bank.account_for_owner("player", gp_ind)["liquid_cash"]
+    finance.post_transfer(sid, f"player:{gp_ind}", f"team:{gt['id']}", 300, "sub cash")
+    assert bank.account_for_owner("player", gp_ind)["liquid_cash"] == p_before - 300
+    # Recipient is auto -> transfer lands liquid (bank.adjust, not credit).
+    assert bank.account_for_owner("player", gp_np)["liquid_cash"] == 300
+
+    # Ledger shows the display names; undo reverses the last (transfer).
+    entries = finance.list_finance_entries(sid)
+    assert entries[0]["type"] == "transfer"
+    assert "Eve" in entries[0]["summary"] and "Standing Team" in entries[0]["summary"]
+    finance.undo_last_finance_entry(sid)
+    assert bank.account_for_owner("player", gp_ind)["liquid_cash"] == p_before
+    assert bank.account_for_owner("player", gp_np)["liquid_cash"] == 0
 
 
 # ---------------------------------------------------------------------------
