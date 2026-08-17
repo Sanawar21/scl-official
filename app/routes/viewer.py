@@ -121,6 +121,24 @@ def live():
     return render_template("viewer/live.html", state=state, seasons=seasons, season_id=season_id)
 
 
+@viewer_bp.get("/auction")
+def auction():
+    """Public auction page — full draft details (squads, spend, players,
+    bid feed) for any phase; after completion it shows the final results."""
+    auction_service = current_app.extensions["auction_service"]
+    branding = current_app.extensions["branding_service"]
+    seasons = auction_service.list_seasons()
+    season_id = (request.args.get("season") or "").strip().lower()
+    if not season_id or season_id not in {s["id"] for s in seasons}:
+        season_id = seasons[0]["id"] if seasons else None
+    if not season_id:
+        return render_template("viewer/auction.html", state=None, seasons=[], season_id=None)
+    state = auction_service.get_state(season_id)
+    for team in state.get("teams") or []:
+        team["logo_url"] = branding.team_logo(team)
+    return render_template("viewer/auction.html", state=state, seasons=seasons, season_id=season_id)
+
+
 @viewer_bp.get("/api/state")
 def api_state():
     season_id = (request.args.get("season") or "").strip().lower()

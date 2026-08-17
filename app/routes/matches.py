@@ -216,7 +216,11 @@ def scenario_calc():
 @matches_bp.get("/leaderboards")
 def leaderboards():
     svc = _scorer_service()
-    season_id, match_seasons = _pick_season(_season_id())
+    requested = _season_id()
+    # "all" = aggregate across every season (season_id "" selects everything).
+    season_id, match_seasons = _pick_season(requested if requested != "all" else "")
+    if requested == "all":
+        season_id = ""
     boards = svc.leaderboards(season_id) if season_id else svc.leaderboards()
     return render_template("matches/leaderboard.html", season_id=season_id,
                            match_seasons=match_seasons, boards=boards)

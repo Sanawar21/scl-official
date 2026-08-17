@@ -5,6 +5,8 @@
   <h1>Leaderboards</h1>
   {% if match_seasons %}
     <div class="season-switch">
+      <a class="{% if not season_id %}active{% endif %}"
+         href="{{ url_for('matches.leaderboards', season='all') }}">All seasons</a>
       {% for s in match_seasons %}
         <a class="{% if s.slug == season_id %}active{% endif %}"
            href="{{ url_for('matches.leaderboards', season=s.slug) }}">{{ s.name }}</a>

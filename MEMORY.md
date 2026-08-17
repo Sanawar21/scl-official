@@ -1004,3 +1004,27 @@ is live).
 - `/leaderboards` gained a **Sixes** tab (scorer_service.leaderboards returns
   `sixes` board: players with sixes > 0, sorted by sixes then runs; template
   tab + panel added). E2E-safe: boards that are empty render "—".
+
+## Sixes tab fix + latest-season default + public Auction page + All-seasons filter (2026-08-17)
+
+- **Sixes leaderboard tab fixed**: the tab+panel existed but the pure-CSS tab
+  wiring was missing `#lb-sixes:checked ~ #panel-sixes { display: block; }` —
+  clicking Sixes showed nothing. Added the rule to app.css.
+- **Latest season is now the default everywhere**: `list_match_seasons` was
+  ordering by `season_id` (alphabetical → season-1 first), so `_pick_season`
+  defaulted to the OLDEST season. Now joins `seasons` and orders by
+  `created_at DESC` (latest first); `/matches`, `/table`, `/leaderboards`,
+  `/finances` all default to the latest season. `viewer.home`/`live` already
+  used `list_seasons()` (created_at DESC).
+- **Public `/auction` page + nav link**: new `viewer.auction` route renders
+  full draft details for any phase — phase hero, auction performance table
+  (team/manager/squad/spend/avg/credits/wallet), squad cards with logos,
+  all-players table with sold status + price + filters, and the bid feed.
+  Nav link "Auction" added to the desktop nav + mobile drawer + bottom bar.
+  Works after draft completion (shows final results).
+- **Leaderboards All-seasons filter**: `?season=all` aggregates across all
+  seasons (`leaderboards("")`); the season-switch now has an "All seasons"
+  link first, active when no season is selected. Other pages keep the
+  latest-season default.
+- Suite: 212 unit (211 → 212, +1 test: all-seasons aggregation + sixes +
+  latest-first ordering).

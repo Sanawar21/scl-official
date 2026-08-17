@@ -366,8 +366,9 @@ class ScorerService:
     def list_match_seasons(self) -> list:
         with self.db.read() as conn:
             rows = conn.execute(
-                "SELECT season_id, COUNT(*) AS matches FROM match_registry "
-                "GROUP BY season_id ORDER BY season_id"
+                "SELECT r.season_id, COUNT(*) AS matches, MAX(COALESCE(s.created_at, '')) AS created_at "
+                "FROM match_registry r LEFT JOIN seasons s ON s.id = r.season_id "
+                "GROUP BY r.season_id ORDER BY created_at DESC, r.season_id"
             ).fetchall()
             seasons = []
             for r in rows:

@@ -18,6 +18,7 @@
 {% macro nav_links(flat=false) %}
   <a href="{{ url_for('viewer.home') }}">Home</a>
   <a href="{{ url_for('viewer.live') }}">Live</a>
+  <a href="{{ url_for('viewer.auction') }}">Auction</a>
   <a href="{{ url_for('matches.matches_index') }}">Matches</a>
   <a href="{{ url_for('matches.league_table') }}">Table</a>
   <a href="{{ url_for('matches.leaderboards') }}">Top</a>
@@ -60,6 +61,7 @@
 {% macro bottom_items() %}
   <a href="{{ url_for('viewer.home') }}"><span class="bb-icon">🏠</span>Home</a>
   <a href="{{ url_for('viewer.live') }}"><span class="bb-icon">🔴</span>Live</a>
+  <a href="{{ url_for('viewer.auction') }}"><span class="bb-icon">🏏</span>Auction</a>
   {% if role == 'admin' %}
     <a href="{{ url_for('admin.dashboard') }}"><span class="bb-icon">⚙️</span>Admin</a>
   {% elif role == 'manager' %}

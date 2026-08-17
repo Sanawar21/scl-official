@@ -368,6 +368,39 @@ def test_leaderboards_rankings(app, scorer):
     assert boards["fantasy"][0]["player_name"] == "Cara"
     assert boards["batters"][0]["strike_rate"] == 200.0
     assert boards["bowlers"][0]["economy"] == 4.0
+    # Alice has 2 sixes (Cara has none) — sixes board lists her first.
+    assert boards["sixes"][0]["player_name"] == "Alice"
+    assert boards["sixes"][0]["sixes"] == 2
+
+
+def test_leaderboards_all_seasons_aggregate(app, scorer):
+    season, _, teams = _setup(app, n_teams=2)
+    a, b = (t["id"] for t in teams)
+    _seed_match(app, scorer, "M1", a, b)
+    sid = season["id"]
+    # A second season with its own match (same player ids are fine — the
+    # no-season aggregate sums across both registries).
+    with app.extensions["db"].write() as conn:
+        conn.execute("INSERT INTO seasons (id, name, status, created_at) "
+                     "VALUES ('s2', 'Season 2', 'active', '2099-01-02T00:00:00')")
+    scorer.upsert_match_registry_entry("s2", "M1", team_a_global_id=a, team_b_global_id=b)
+    with app.extensions["db"].write() as conn:
+        for mkey, sixes in ((f"{sid}:m1", 2), ("s2:m1", 1)):
+            conn.execute(
+                "INSERT INTO match_player_stats (id, match_key, season_id, player_id, player_name, "
+                "team_id, team_name, runs, balls_faced, fours, sixes, dismissed, wickets, "
+                "balls_bowled, runs_conceded, fantasy_score, innings_batted) "
+                "VALUES (?, ?, ?, 'gp-alice', 'Alice', ?, 'Thunder', 30, 15, 3, ?, 0, 0, 0, 0, 20, 1)",
+                (f"p-{sixes}", mkey, "s2" if mkey.startswith("s2") else sid, a, sixes))
+    all_boards = scorer.leaderboards("")
+    alice = next(p for p in all_boards["sixes"] if p["player_name"] == "Alice")
+    assert alice["sixes"] == 3  # 2 (season 1) + 1 (season 2)
+    per_season = scorer.leaderboards("s2")
+    alice_s2 = next(p for p in per_season["sixes"] if p["player_name"] == "Alice")
+    assert alice_s2["sixes"] == 1
+    # Latest season first (created_at DESC).
+    slugs = [s["slug"] for s in scorer.list_match_seasons()]
+    assert slugs == ["s2", season["id"]]
 
 
 # ----------------------------------------------------------------------
