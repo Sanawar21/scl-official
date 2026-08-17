@@ -956,3 +956,17 @@ is live).
 - Up-next feed: state exposes the exact nomination queue per phase (tier queue
   for phase_a_<tier>, all unsold for Phase B) shown on manager dashboard, public
   live viewer, and admin auction page.
+
+## Teams nav link + qualification scenarios fix — DONE (2026-08-17)
+- Navbar (`base.html` nav_links): added "Teams" -> `matches.teams_index` (/teams).
+- Qualification scenarios were broken for seasons whose admin only registered
+  the PLAYED matches (S2 showed "Season complete / Qualified / Eliminated"
+  with 2 of 12 matches played). Fix: `remaining_fixtures` now derives the
+  schedule from the season's TEAMS — full double round-robin (each pair × 2)
+  minus played — instead of unplayed registry entries. Registered unplayed
+  entries attach to slots when present (real match ids); otherwise placeholder
+  pairs (only the pairing matters for the math). `_season_team_ids` picks the
+  registry's id space (global ids when the registry references them, else the
+  per-season id — tests use season ids). `qualify_count` now dedupes teams.
+- S2 now shows "Top 1 qualify", 10 fixtures left, all teams in contention.
+  S1 (fully played, has final) still shows "Season complete", top-2 qualify.

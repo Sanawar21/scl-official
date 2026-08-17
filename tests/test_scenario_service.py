@@ -115,13 +115,37 @@ def test_scenarios_eliminated_and_safe(app, scenario, scorer):
     # C's max = 0 + 2*2 = 4, which A matches but doesn't beat → in contention
     # is not guaranteed; assert the safe invariants instead:
     assert by_name["Thunder"]["status"] in ("Safe", "In contention")
-    assert by_name["Thunder"]["remaining"] == 0
+    # The schedule is the full double round-robin over the 3 teams, so
+    # Thunder (A) still has its unregistered second match vs Falcon (C).
+    assert by_name["Thunder"]["remaining"] == 1
     # B vs C pair is capped at 2 scheduled matches (M3 played + M5 remaining).
     assert by_name["Blaze"]["remaining"] == 1
     assert by_name["Blaze"]["max_points"] == by_name["Blaze"]["points"] + 2
     # Falcon (C) can still reach 4pts but two teams already hold 4+; with
     # top-1 it must beat both on NRR — check the requirement is meaningful.
     assert by_name["Falcon"]["requirement"]
+
+
+def test_scenarios_remaining_derived_from_teams_not_registry(app, scenario, scorer):
+    """Regression: a season whose registry only holds the PLAYED matches must
+    still report the full qualification schedule (S2 showed 'Season complete'
+    with 2 of 12 matches played because the unplayed fixtures were never
+    registered)."""
+    season, _, teams = _setup(app, n_teams=4)
+    sid = season["id"]
+    a, b, c, d = (t["id"] for t in teams)
+    _seed_match(app, scorer, "M1", a, b)
+    _seed_match(app, scorer, "M2", c, d)
+    # Registry contains ONLY the played matches — no future fixtures.
+    sc = scenario.scenarios(sid)
+    assert sc["complete"] is False
+    # 4 teams → 6 pairs × 2 rounds = 12 scheduled; 2 played → 10 left.
+    assert len(sc["remaining"]) == 10
+    for r in sc["rows"]:
+        assert r["remaining"] == 5
+        assert r["max_points"] == r["points"] + 10
+        assert r["status"] in ("In contention", "Safe")
+        assert "Tournament complete" not in r["requirement"]
 
 
 def test_scenarios_eliminated_when_cut_unreachable(app, scenario, scorer):

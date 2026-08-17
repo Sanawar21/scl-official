@@ -9,11 +9,17 @@ tables instead of pasted JSON:
 - standings/NRR: aggregated from `match_team_stats` (reuses scorer_service's
   league_table for positions + display, then keeps exact run/ball totals for
   the margin math)
-- remaining fixtures: unplayed `match_registry` entries (each pair plays twice;
-  a season with extra knockout matches has a final → top-2 qualify, otherwise
-  top-1, i.e. S2 where the champion is the table topper)
+- remaining fixtures: the FULL double round-robin schedule over the season's
+  teams (each pair plays twice) MINUS played matches — derived from the teams
+  table, not from registered fixtures, so a season whose admin only registered
+  played matches still knows its upcoming fixtures. Registered unplayed
+  entries are attached when available (for match ids); extra knockout matches
+  (a final) are never part of the qualification schedule. A season with extra
+  knockout matches has a final → top-2 qualify, otherwise top-1, i.e. S2 where
+  the champion is the table topper.
 """
 
+import itertools
 from collections import Counter
 
 from ..db import row_to_dict, rows_to_dicts
@@ -78,32 +84,91 @@ class ScenarioService:
         round-robin count) have a final → top-2 qualify; otherwise top-1
         (S2: champion = table topper)."""
         registry = self._registry(season_id)
-        with self.db.read() as conn:
-            n_teams = conn.execute(
-                "SELECT COUNT(*) FROM teams WHERE season_id = ?", (season_id,)).fetchone()[0]
+        n_teams = len(self._season_team_ids(season_id))
         rr_matches = n_teams * (n_teams - 1)  # double round robin
         return 2 if len(registry) > rr_matches else 1
 
+    def _season_team_ids(self, season_id: str) -> list:
+        """Distinct participating team ids for the qualification schedule, in
+        the id space the season's registry uses (global ids when the registry
+        references them, otherwise the per-season team id — tests and legacy
+        data may use either)."""
+        registry_ids = set()
+        for e in self._registry(season_id):
+            for ref in (e.get("team_a_global_id"), e.get("team_b_global_id")):
+                ref = (ref or "").strip()
+                if ref:
+                    registry_ids.add(ref)
+        with self.db.read() as conn:
+            rows = conn.execute(
+                "SELECT id, global_team_id FROM teams WHERE season_id = ?",
+                (season_id,)).fetchall()
+        seen, ids = set(), []
+        for r in rows:
+            sid = (r["id"] or "").strip()
+            gid = (r["global_team_id"] or "").strip()
+            if gid and gid in registry_ids:
+                canonical = gid
+            elif sid and sid in registry_ids:
+                canonical = sid
+            else:
+                canonical = gid or sid
+            if canonical and canonical not in seen:
+                seen.add(canonical)
+                ids.append(canonical)
+        return ids
+
+    @staticmethod
+    def _pair_key(a, b):
+        a = (a or "").strip()
+        b = (b or "").strip()
+        if not a or not b:
+            return None
+        return tuple(sorted((a, b)))
+
     def remaining_fixtures(self, season_id: str) -> list:
-        """Unplayed registry matches, capped at one per pair per round
-        (extra knockout matches like S1's final are not part of the
-        qualification schedule)."""
+        """Unplayed fixtures of the qualification schedule.
+
+        The schedule is the full double round-robin over the season's teams
+        (every pair plays ROUNDS_PER_PAIR times) MINUS the played matches —
+        derived from the teams table rather than the registry, so a season
+        whose admin only registered the played fixtures still knows its
+        upcoming ones. A registered unplayed entry is attached to a slot when
+        one exists (keeps real match ids); otherwise a placeholder pair is
+        returned (only the pairing matters for the qualification math). Extra
+        knockout matches (e.g. a final) are never part of this schedule."""
         registry = self._registry(season_id)
         played = self._played_keys(season_id)
-        by_pair = {}
+        team_ids = self._season_team_ids(season_id)
+
+        played_per_pair = Counter()
+        reg_by_pair = {}
         for e in registry:
-            key = tuple(sorted(filter(None, [e.get("team_a_global_id"),
-                                             e.get("team_b_global_id")])))
-            by_pair.setdefault(key, []).append(e)
+            key = self._pair_key(e.get("team_a_global_id"), e.get("team_b_global_id"))
+            if not key:
+                continue
+            reg_by_pair.setdefault(key, []).append(e)
+            if e["match_key"] in played:
+                played_per_pair[key] += 1
+
         remaining = []
-        for pair_entries in by_pair.values():
-            played_in_pair = [e for e in pair_entries if e["match_key"] in played]
-            capacity = min(ROUNDS_PER_PAIR, len(pair_entries))
-            for e in pair_entries:
-                if len(played_in_pair) < capacity and e["match_key"] not in played:
-                    played_in_pair.append(e)
-                    remaining.append(e)
-        remaining.sort(key=lambda e: (e.get("match_number") or e["match_id"]).lower())
+        for pair in itertools.combinations(sorted(team_ids), 2):
+            played_n = played_per_pair.get(pair, 0)
+            for round_no in range(1, ROUNDS_PER_PAIR + 1):
+                if played_n >= round_no:
+                    continue
+                slot = next((e for e in reg_by_pair.get(pair, [])
+                             if e["match_key"] not in played), None)
+                if slot:
+                    reg_by_pair[pair].remove(slot)
+                    remaining.append(slot)
+                else:
+                    remaining.append({
+                        "match_key": None, "match_id": None, "match_number": None,
+                        "match_title": None, "between": None, "walkover": None,
+                        "team_a_global_id": pair[0], "team_b_global_id": pair[1],
+                    })
+        remaining.sort(key=lambda e: (e.get("match_number") or e.get("match_id") or "").lower())
         return remaining
 
     def scenarios(self, season_id: str) -> dict:
