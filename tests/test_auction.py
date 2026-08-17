@@ -533,3 +533,53 @@ def test_called_up_player_without_stats_is_null(app, svc):
     svc.nominate_next(sid)  # Alice, no stats rows
     state = svc.get_state(sid)
     assert state["current_player"]["stats"] is None
+
+
+# ---------------------------------------------------------------------------
+# upcoming players in the current phase
+# ---------------------------------------------------------------------------
+def test_upcoming_queue_in_tier_phase(app, svc):
+    """Phase A queue = unsold, un-nominated players of the tier, in rowid order,
+    excluding the live lot."""
+    season, players, _ = _setup(app)
+    sid = season["id"]
+    svc.set_phase(sid, "phase_a_platinum")
+    svc.nominate_next(sid)  # Alice (platinum, first by rowid)
+    state = svc.get_state(sid)
+    # Platinum players: Alice(rowid 1), Dave(4), Gil(7). Alice is live.
+    assert [p["name"] for p in state["upcoming"]] == ["Dave", "Gil"]
+    assert state["current_player"]["name"] == "Alice"
+
+
+def test_upcoming_queue_excludes_sold(app, svc):
+    """Closing a lot sold removes the player from the queue."""
+    season, players, teams = _setup(app)
+    sid = season["id"]
+    svc.set_phase(sid, "phase_a_platinum")
+    svc.nominate_next(sid)  # Alice
+    svc.place_bid(sid, teams[0]["id"], players[0]["base_price"])
+    svc.close_current(sid)
+    state = svc.get_state(sid)
+    assert "Alice" not in [p["name"] for p in state["upcoming"]]
+    # Dave next; Gil after him.
+    assert [p["name"] for p in state["upcoming"]] == ["Dave", "Gil"]
+
+
+def test_upcoming_queue_empty_outside_auction(app, svc):
+    season, _, _ = _setup(app)
+    sid = season["id"]
+    assert svc.get_state(sid)["upcoming"] == []  # setup phase
+
+
+def test_upcoming_queue_in_phase_b(app, svc):
+    """Phase B queue = every unsold player (all tiers), excluding the live lot."""
+    season, players, _ = _setup(app)
+    sid = season["id"]
+    svc.set_phase(sid, "phase_b")
+    svc.nominate_next(sid)  # Alice (first unsold by rowid)
+    state = svc.get_state(sid)
+    names = [p["name"] for p in state["upcoming"]]
+    assert "Alice" not in names
+    assert len(names) == len(players) - 1
+    # Order follows rowid (Bob, Cara, Dave, ...).
+    assert names[0] == "Bob"

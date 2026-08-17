@@ -134,6 +134,20 @@
     }).join("") || '<li class="muted">No bids on this lot yet.</li>';
   }
 
+  function renderUpcoming(state) {
+    const feed = el("upcoming-feed");
+    if (!feed) return;
+    const list = state.upcoming || [];
+    if (!list.length) {
+      feed.innerHTML = '<li class="muted">No players left in this phase.</li>';
+      return;
+    }
+    feed.innerHTML = list.map(function (p) {
+      return "<li><span class='chip'>" + esc(p.tier) + "</span> " + esc(p.name) +
+        ' <span class="muted">base ' + esc(p.base_price) + " · " + esc(p.credits) + " cr</span></li>";
+    }).join("");
+  }
+
   function phaseLabel(phase) {
     const m = phase.match(/^phase_a_(.+)$/);
     if (m) return m[1].charAt(0).toUpperCase() + m[1].slice(1);
@@ -173,6 +187,7 @@
     renderLot(state);
     renderFeed(state);
     renderLotBids(state);
+    renderUpcoming(state);
     renderPhase(state);
   }
 
@@ -195,6 +210,7 @@
   function refreshManager(state, myTeamId, urls) {
     renderLot(state);
     renderLotBids(state);
+    renderUpcoming(state);
     renderBudget(state);
     renderManagerControls(state, myTeamId, urls);
     renderTradeRequests(state, myTeamId, urls);

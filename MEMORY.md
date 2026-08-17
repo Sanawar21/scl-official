@@ -860,3 +860,15 @@ of `.stat-tile`). Rendered in: manager + viewer lot box (`playerStatsHtml()` in 
 shared by `renderLot` + `renderAdminLive`), and the admin's server-rendered lot box
 (`admin/dashboard.html`). Tests: 2 unit (aggregation math incl. SR/avg/econ; stats=None for
 newcomers) in `tests/test_auction.py` — registry rows needed first (FK on match_key).
+
+## Up-next feed (players remaining in the current phase) — DONE (2026-08-17)
+
+`get_state` adds `upcoming` — the exact queue `nominate_next` would walk: for
+`phase_a_<tier>` = unsold, un-nominated players of that tier by rowid; for
+`phase_b` = every unsold player; otherwise empty. Live lot excluded. Rendered
+as an "Up next in this phase" feed (`#upcoming-feed` + `renderUpcoming()` in
+`app.js`) on the manager dashboard, public live viewer (both live via socket),
+and server-rendered under the admin's Nominate/Close controls (admin reloads
+on phase/lot change anyway). Tests: 4 unit (tier queue order, sold exclusion,
+empty outside auction, phase B pool) + e2e assertions in `test_nav_realtime.py`
+(upcoming lists Dave but never the live lot; survives the lot close live).

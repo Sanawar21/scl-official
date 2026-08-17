@@ -243,6 +243,19 @@
           <button class="btn btn-primary" type="submit">Close lot</button>
         </form>
       </div>
+      <div style="margin-top:14px">
+        <h4 style="margin:0 0 6px">Up next in this phase</h4>
+        {% if state.upcoming %}
+          <ul class="feed">
+            {% for p in state.upcoming %}
+              <li><span class="chip">{{ p.tier }}</span> {{ p.name }}
+                <span class="muted">base {{ p.base_price }} · {{ p.credits }} cr</span></li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="muted small">No players left in this phase.</p>
+        {% endif %}
+      </div>
       {% if phase in ['phase_b', 'complete', 'transfers_open'] %}
         <form method="post" action="{{ url_for('admin.complete', season_id=season_id) }}">
           <button class="btn btn-danger" type="submit">Complete draft + penalties</button>

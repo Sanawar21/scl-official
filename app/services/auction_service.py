@@ -1661,6 +1661,28 @@ class AuctionService:
                 "SELECT * FROM season_snapshots WHERE season_id = ? ORDER BY published_at DESC",
                 (season_id,)).fetchall())
 
+            # Players still to be called up in the current phase, in the exact
+            # order nominate_next would pick them (unsold, not yet nominated).
+            upcoming = []
+            if R.is_tier_phase(meta["phase"]):
+                tier = R.phase_tier(meta["phase"])
+                upcoming_rows = conn.execute(
+                    "SELECT id, name, tier, speciality, base_price, credits FROM players "
+                    "WHERE season_id = ? AND status = 'unsold' AND tier = ? "
+                    "AND nominated_phase_a = 0 ORDER BY rowid",
+                    (season_id, tier)).fetchall()
+            elif meta["phase"] == R.PHASE_B:
+                upcoming_rows = conn.execute(
+                    "SELECT id, name, tier, speciality, base_price, credits FROM players "
+                    "WHERE season_id = ? AND status = 'unsold' ORDER BY rowid",
+                    (season_id,)).fetchall()
+            else:
+                upcoming_rows = []
+            upcoming = [row_to_dict(r) for r in upcoming_rows]
+            # The live lot isn't "upcoming" — drop it (phase B keeps unsold
+            # players in the pool, so the current one would otherwise show).
+            upcoming = [p for p in upcoming if p.get("id") != current_player_id]
+
             return {
                 "season": row_to_dict(season),
                 "ruleset": ruleset.as_dict(),
@@ -1676,6 +1698,7 @@ class AuctionService:
                 ],
                 "bids": enriched_bids,
                 "current_lot_bids": current_lot_bids,
+                "upcoming": upcoming,
                 "phase_b_readiness": {
                     "unsold_players": unsold_count,
                     "incomplete_fill_needed": incomplete_fill,

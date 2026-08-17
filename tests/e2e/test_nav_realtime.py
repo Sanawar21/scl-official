@@ -174,6 +174,11 @@ def test_squad_updates_live_after_lot_close(tmp_path_factory, page):
         expect(mgr.locator("#stat-wallet")).to_have_text("10000")
         # opponents' squads section lists the other team
         expect(mgr.locator("#opponents-box")).to_contain_text("Blaze")
+        # "Up next in this phase" lists the remaining platinum player (Dave),
+        # never the live lot (the nominated player)
+        upcoming = mgr.locator("#upcoming-feed")
+        expect(upcoming).to_contain_text("Dave")
+        expect(upcoming).not_to_contain_text(player_name)
 
         # place the minimum bid
         bid_btn = mgr.locator("#bid-controls button.btn-primary")
@@ -263,6 +268,9 @@ def test_squad_updates_live_after_lot_close(tmp_path_factory, page):
         assert wallet < 10000, "Wallet tile should reflect the deduction"
         # opponents' section stays live (Blaze still empty)
         expect(mgr.locator("#opponents-box")).to_contain_text("Blaze")
+        # the sold player is gone from the upcoming feed (live, no reload)
+        expect(upcoming).not_to_contain_text(player_name)
+        expect(upcoming).to_contain_text("Dave")
     finally:
         ctx.close()
 
