@@ -930,3 +930,29 @@ is live).
 - Test: `test_vault_yield_starts_after_deposit_match` (locked after M1 -> only
   M2 step, 2000 -> 2140, one vault_yield txn); updated
   `test_auto_account_match_credit_goes_to_vault` (268 -> 250).
+
+## Auto/manual rule + manual yield release — DONE (2026-08-17)
+- Auto mode rule: **auto ⟺ NOT linked** (linked = manual). `link_user_to_player`
+  already sets manual; `unlink_user` now restores auto. Data flipped to match
+  (Talha/Asad -> manual; Osama/Owais/Hashir -> auto).
+- **Vault yield decoupled from match uploads**: `on_match_finalized` no longer
+  applies yield (rewards only). Admin releases it manually on the finances page
+  (`release_yield`): sweeps EVERY auto account's full liquid into the season
+  vault, then applies the 7% compounding step(s) through match N; records a
+  `yield_release` ledger entry (refuses re-releasing through the same match).
+- `credit()` no longer auto-routes to the vault — all credits land LIQUID; the
+  vault sweep happens only at release (auto accounts) or manual lock.
+  `force_liquid`/`season_id` params kept for caller compat, unused.
+- New positions start at `_released_through` (ledger), so capital locked after
+  release N never earns steps 1..N retroactively.
+- **Data reset**: all 11 season-2 vault positions reversed to liquid (0 locked
+  remaining) per user request — clean slate before the first release.
+- Rewards (250/match/wallet) still auto-post on finalize, idempotent.
+
+## Called-up player stats — DONE (2026-08-17)
+- `_career_stats(conn, global_player_id)` in auction_service; lot box shows
+  Matches/Runs/Avg/SR/Wkts/Econ/Fantasy for the called-up player (manager,
+  admin, public viewer; live via socket). Newcomers show no strip.
+- Up-next feed: state exposes the exact nomination queue per phase (tier queue
+  for phase_a_<tier>, all unsold for Phase B) shown on manager dashboard, public
+  live viewer, and admin auction page.

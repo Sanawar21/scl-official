@@ -771,7 +771,7 @@ def _overview_context(season_id=None):
             m = re.search(r"\d+", text)
             if m and int(m.group(0)) > max_match:
                 max_match = int(m.group(0))
-        context["yield_progress"] = min(max_match, 12)  # vault yield caps at Match 12
+        context["yield_progress"] = min(finance.released_through(season_id), 12)  # released yield
 
     board = finance.list_season_finances(season_id)
     context["wallet_total"] = sum(int(r["wallet"] or 0) for r in board
@@ -824,6 +824,7 @@ def _finance_context(season_id=None):
             m = re.search(r"\d+", text)
             if m and int(m.group(0)) > max_match:
                 max_match = int(m.group(0))
+    released_through = finance.released_through(season_id)
     return {
         "seasons": seasons,
         "season_id": season_id,
@@ -833,6 +834,7 @@ def _finance_context(season_id=None):
         "vault_positions": [dict(v) for v in vault_positions],
         "finalized_count": finalized_count,
         "max_match": max_match,
+        "released_through": released_through,
         "match_reward_amount": ruleset.match_reward_amount,
         "registry": registry,
         "active_admin_tab": "finances",
@@ -933,12 +935,17 @@ def finances_process_pending():
 @admin_bp.post("/finances/yield")
 @login_required(role=R.ROLE_ADMIN)
 def finances_yield():
-    bank = current_app.extensions["bank_service"]
+    """Release the vault yield manually (decoupled from match uploads) so the
+    admin can notify managers before their vaults compound."""
+    finance = current_app.extensions["finance_service"]
     season_id = (request.form.get("season_id") or "").strip().lower()
     match_number = _safe_int(request.form.get("match_number"), 0)
     try:
-        results = bank.apply_match_yield(season_id, match_number)
-        flash(f"Yield applied for {len(results)} position-step(s).", "success")
+        result = finance.release_yield(season_id, match_number)
+        flash(f"Yield released through match {result['released_through']}: "
+              f"{result['steps']} position-step(s), {result['yield_total']:,} total yield; "
+              f"{result['swept']:,} swept into vaults across {result['swept_accounts']} auto account(s).",
+              "success")
     except ValueError as exc:
         flash(str(exc), "error")
     return redirect(url_for("admin.finances", season=season_id))

@@ -51,6 +51,21 @@ def test_linking_flips_existing_auto_account_to_manual(app, bank):
     assert bank.account_for_owner("player", gp)["auto_vault"] == 0
 
 
+def test_unlink_restores_auto_mode(app, bank):
+    """Unlinking an account restores AUTO mode — the only accounts that run on
+    auto are the ones NOT linked to a player."""
+    auth = app.extensions["auth_service"]
+    season, players, _ = _setup(app, n_teams=2)
+    gp = players[2]["global_player_id"]
+    acct = bank.get_or_create_account("player", gp)
+    assert acct["auto_vault"] == 1  # new accounts default to auto
+    user = auth.signup("unlinkme", "pass1234", "Unlink Me")
+    auth.link_user_to_player(user["id"], gp)
+    assert bank.account_for_owner("player", gp)["auto_vault"] == 0  # linked = manual
+    auth.unlink_user(user["id"])
+    assert bank.account_for_owner("player", gp)["auto_vault"] == 1  # unlinked = auto
+
+
 def test_fund_all_players_lands_in_liquid_not_vault(app, bank):
     """Universal funding must be spendable (liquid) — managers need it to bid.
     New accounts default to auto mode, but funding lands liquid regardless;

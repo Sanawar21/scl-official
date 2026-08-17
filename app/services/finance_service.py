@@ -353,14 +353,13 @@ class FinanceService:
                 teams.append(row_to_dict(row))
         return teams
 
-    def _max_finalized_match_number(self, season_id: str) -> int:
+    def released_through(self, season_id: str) -> int:
+        """Highest match whose vault yield has been released (0 if none)."""
+        season_id = (season_id or "").strip().lower()
+        if not season_id:
+            return 0
         with self.db.read() as conn:
-            rows = conn.execute(
-                "SELECT r.match_number, r.match_id FROM match_stats s "
-                "JOIN match_registry r ON r.match_key = s.match_key "
-                "WHERE s.season_id = ?", (season_id,)).fetchall()
-        numbers = [_match_number_int(r["match_number"], r["match_id"]) for r in rows]
-        return max(numbers) if numbers else 0
+            return self.bank._released_through(conn, season_id)
 
     def _apply_match_reward(self, season_id: str, match_id: str, actor: str) -> bool:
         """Credit EVERY player wallet with the per-match reward (S2 economy).
@@ -399,29 +398,21 @@ class FinanceService:
                  f"Match reward ({match_id}) — {count} players", actor, _now()))
         return True
 
-    def _apply_yield_catchup(self, season_id: str) -> int:
-        n = self._max_finalized_match_number(season_id)
-        if n < 1:
-            return 0
-        results = self.bank.apply_match_yield(season_id, min(n, MAX_YIELD_MATCH))
-        return len(results)
-
     def on_match_finalized(self, season_id: str, match_id: str, actor: str = "system") -> dict:
-        """Idempotent: reward both playing teams + catch up vault yield.
+        """Idempotent: reward every player wallet for a finalized match.
 
         Called after a match result is recorded (CSV import / walkover). Safe to
-        call repeatedly — rewards are skipped once, yield is guarded by
-        last_yield_match.
-        """
+        call repeatedly — rewards are skipped once. Vault yield is NOT applied
+        here: it is decoupled from match uploads and released manually by the
+        admin (see `release_yield`)."""
         key = self._match_key(season_id, match_id)
         with self.db.read() as conn:
             finalized = conn.execute(
                 "SELECT 1 FROM match_stats WHERE match_key = ?", (key,)).fetchone()
         if not finalized:
-            return {"finalized": False, "rewarded": False, "yield_applied": 0}
+            return {"finalized": False, "rewarded": False}
         rewarded = self._apply_match_reward(season_id, match_id, actor)
-        yield_applied = self._apply_yield_catchup(season_id)
-        return {"finalized": True, "rewarded": rewarded, "yield_applied": yield_applied}
+        return {"finalized": True, "rewarded": rewarded}
 
     def process_pending(self, season_id: str, actor: str = "admin") -> list:
         """Backfill: run on_match_finalized for every finalized match."""
@@ -437,12 +428,44 @@ class FinanceService:
             key = self._match_key(season_id, r["match_id"])
             if key in finalized:
                 outcome = self.on_match_finalized(season_id, r["match_id"], actor=actor)
-                # Report only matches where something was actually done (reward
-                # newly posted, or yield newly applied), so the backfill button
-                # shows meaningful counts and re-runs report nothing.
-                if outcome.get("rewarded") or outcome.get("yield_applied"):
+                if outcome.get("rewarded"):
                     results.append({"match_id": r["match_id"], **outcome})
         return results
+
+    def release_yield(self, season_id: str, match_number: int, actor: str = "admin") -> dict:
+        """Manually release the vault yield through `match_number`.
+
+        Decoupled from match uploads so the admin can notify managers first.
+        Order of operations:
+          1. every AUTO account's full liquid balance is swept into its season
+             vault position (auto mode = the vault holds all their money),
+          2. the 7% yield step(s) are applied (compounding) for matches
+             last-released+1 .. match_number,
+          3. a `yield_release` ledger entry records the release (idempotency +
+             audit; positions created later start after this release).
+        """
+        season_id = (season_id or "").strip().lower()
+        match_number = int(match_number or 0)
+        if match_number < 1:
+            raise ValueError("Match number must be >= 1")
+        with self.db.read() as conn:
+            released = self.bank._released_through(conn, season_id)
+        if match_number <= released:
+            raise ValueError(f"Yield already released through match {released}")
+        swept = self.bank.lock_auto_after_auction(season_id)
+        results = self.bank.apply_match_yield(season_id, match_number)
+        total = sum(int(r["yield"]) for r in results)
+        with self.db.write() as conn:
+            conn.execute(
+                "INSERT INTO season_finance_entries (id, season_id, match_id, team_id, "
+                "team_name, type, operation, amount, comment, created_by, before_wallet, "
+                "after_wallet, created_at) VALUES (?, ?, ?, NULL, 'all vault positions', "
+                "'yield_release', NULL, ?, ?, ?, NULL, NULL, ?)",
+                (secrets.token_hex(8), season_id, f"M{match_number}", total,
+                 f"Yield released through match {match_number} — {len(results)} "
+                 f"position-step(s), swept {swept['amount']:,} into vaults", actor, _now()))
+        return {"released_through": match_number, "steps": len(results),
+                "yield_total": total, "swept": swept["amount"], "swept_accounts": swept["locked"]}
 
     # ------------------------------------------------------------------
     # manual finance (fines, umpire duty, sub cash)
@@ -554,17 +577,14 @@ class FinanceService:
                     self.bank.adjust(account["id"], -amount, "Undo match reward",
                                      tx_type="match_reward", conn=conn)
                 else:
-                    # Universal credit: reverse every player account
-                    # (auto-vault accounts give the money back from the vault).
+                    # Universal credit: rewards land in liquid cash for every
+                    # account (auto money is swept into the vault only at a
+                    # yield release), so reverse the liquid credit.
                     accounts = conn.execute(
                         "SELECT * FROM bank_accounts WHERE owner_type = 'player'").fetchall()
                     for acct in accounts:
-                        if acct["auto_vault"]:
-                            self.bank.unlock_amount(acct["id"], season_id, amount,
-                                                    conn=conn, comment="Undo match reward")
-                        else:
-                            self.bank.adjust(acct["id"], -amount, "Undo match reward",
-                                             tx_type="match_reward", conn=conn)
+                        self.bank.adjust(acct["id"], -amount, "Undo match reward",
+                                         tx_type="match_reward", conn=conn)
             else:
                 raise ValueError(f"Cannot undo entry type '{ttype}'")
             conn.execute(

@@ -131,13 +131,11 @@ def test_finances_levy_route(app):
     assert len([e for e in finance.list_finance_entries(season["id"]) if e["type"] == "squad_levy"]) == 1
 
 
-def test_admin_grant_routes_to_vault_for_auto_account(app):
-    """Bank adjust is the only deposit path now; positive grants route straight
-    to the vault when the account is on auto mode."""
+def test_admin_grant_lands_liquid_and_sweeps_at_release(app):
+    """Bank adjust is the only deposit path; grants land in liquid cash for
+    everyone (auto accounts are swept into the vault at a yield release)."""
     season, players, _ = _setup(app, n_teams=2)
     bank = app.extensions["bank_service"]
-    # players[0] is a manager (funded 10k by _setup) — the grant must vault,
-    # leaving liquid untouched.
     gp = players[0]["global_player_id"]
     acct = bank.get_or_create_account("player", gp)
     bank.set_auto(acct["id"], True)
@@ -148,9 +146,9 @@ def test_admin_grant_routes_to_vault_for_auto_account(app):
                           "comment": "credit saved"})
     assert r.status_code == 302
     fresh = bank.account_for_owner("player", gp)
-    # The money went to the vault, not liquid.
-    assert fresh["liquid_cash"] == liquid_before
-    assert fresh["locked_capital"] == 500
+    # The grant lands liquid (vault sweep happens at the yield release).
+    assert fresh["liquid_cash"] == liquid_before + 500
+    assert fresh["locked_capital"] == 0
 
     # Manual accounts keep plain liquid credit.
     gp2 = players[2]["global_player_id"]  # a non-manager player

@@ -122,8 +122,19 @@ class AuthService:
             return self.get_by_username(user["username"], conn=conn)
 
     def unlink_user(self, user_id: str):
+        """Unlink a user from their player profile.
+
+        Unlinked accounts run on AUTO mode (the only accounts that do — linked
+        accounts are manual). Restoring auto here keeps the rule consistent
+        when the admin unlinks a previously linked account."""
         with self.db.write() as conn:
+            user = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+            gp_id = user["global_player_id"] if user else None
             conn.execute("UPDATE users SET global_player_id = NULL WHERE id = ?", (user_id,))
+            if gp_id:
+                conn.execute(
+                    "UPDATE bank_accounts SET auto_vault = 1 "
+                    "WHERE owner_type = 'player' AND owner_id = ?", (gp_id,))
 
     def user_view(self, user: dict) -> dict:
         """Enrich a raw users row with DERIVED role + team state.

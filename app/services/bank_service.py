@@ -148,10 +148,10 @@ class BankService:
                 (new_principal, new_locked, 1 if reinvest else 0, position["id"]),
             )
         else:
-            # New position: yield accrues only for matches AFTER the money
-            # entered the vault (a deposit after match N was finalized earns
-            # from match N+1 onward — no retroactive yield).
-            start_match = self._max_finalized_match_number(conn, season_id)
+            # New position: yield accrues from the next RELEASED match onward
+            # (the admin releases yield manually; capital locked after release
+            # N earns from release N+1 — no retroactive steps).
+            start_match = self._released_through(conn, season_id)
             position_id = secrets.token_hex(8)
             conn.execute(
                 "INSERT INTO vault_positions (id, account_id, season_id, principal, locked_capital, "
@@ -166,13 +166,17 @@ class BankService:
         self._log(conn, account_id, "vault_lock", -amount, new_liquid, f"Locked {amount} in vault")
 
     @staticmethod
-    def _max_finalized_match_number(conn, season_id: str) -> int:
-        """Highest finalized match number in the season (0 if none). Used to
-        start a new vault position's yield horizon after the latest played
-        match, so money locked mid-season never earns retroactive yield."""
+    def _released_through(conn, season_id: str) -> int:
+        """Highest match number whose yield has been RELEASED (0 if none).
+
+        Yield is decoupled from match finalization: the admin releases it
+        manually, and each release is recorded in the season finance ledger
+        (type 'yield_release'). New vault positions start their horizon here so
+        capital locked after release N never earns steps 1..N retroactively."""
         nums = []
         for r in conn.execute(
-                "SELECT match_id FROM match_stats WHERE season_id = ?", (season_id,)).fetchall():
+                "SELECT match_id FROM season_finance_entries WHERE season_id = ? "
+                "AND type = 'yield_release'", (season_id,)).fetchall():
             m = re.search(r"\d+", str(r["match_id"] or ""))
             if m:
                 nums.append(int(m.group(0)))
@@ -280,14 +284,14 @@ class BankService:
 
     def credit(self, account_id: str, amount: int, comment: str, tx_type: str = "adjust",
                season_id: str = None, conn=None, force_liquid: bool = False) -> dict:
-        """Credit an account; auto-vault accounts route straight to the vault.
+        """Credit an account — always into liquid cash.
 
-        Auto accounts: money lands in liquid and is immediately locked into the
-        season's vault position (compounding) — net liquid unchanged. Manual
-        accounts: plain liquid credit. `force_liquid=True` bypasses the auto
-        routing (used by universal funding, which must stay spendable through
-        the auction). Pass `conn` to run inside a caller's write transaction
-        (atomic with the caller's work)."""
+        Auto mode no longer routes credits straight to the vault: money stays
+        liquid and the FULL balance of every auto account is swept into the
+        vault when the admin RELEASES the vault yield (see
+        `release_yield` / `lock_auto_after_auction`). `season_id` and
+        `force_liquid` are accepted for caller compatibility but unused.
+        Pass `conn` to run inside a caller's write transaction."""
         amount = int(amount)
         if amount <= 0:
             raise ValueError("Amount must be positive")
@@ -296,18 +300,7 @@ class BankService:
             account = c.execute("SELECT * FROM bank_accounts WHERE id = ?", (account_id,)).fetchone()
             if not account:
                 raise ValueError("Account not found")
-            if account["auto_vault"] and season_id and not force_liquid:
-                new_liquid = int(account["liquid_cash"]) + amount
-                c.execute(
-                    "UPDATE bank_accounts SET liquid_cash = ? WHERE id = ?",
-                    (new_liquid, account_id),
-                )
-                self._log(c, account_id, tx_type, amount, new_liquid, comment)
-                fresh = c.execute(
-                    "SELECT * FROM bank_accounts WHERE id = ?", (account_id,)).fetchone()
-                self._lock_internal(c, fresh, season_id, amount, reinvest=True)
-            else:
-                self.adjust(account_id, amount, comment, tx_type=tx_type, conn=c)
+            self.adjust(account_id, amount, comment, tx_type=tx_type, conn=c)
             return row_to_dict(c.execute(
                 "SELECT * FROM bank_accounts WHERE id = ?", (account_id,)).fetchone())
 

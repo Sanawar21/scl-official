@@ -119,13 +119,16 @@
   <section class="card">
     <h2>Vault</h2>
     <p class="muted small">{{ finalized_count }} finalized match(es); max match number {{ max_match }}.
-      Unlock is allowed once ≥ 12 matches are finalized.</p>
+      Yield released through match <b>{{ released_through }}</b> — it is decoupled from match
+      uploads: <b>notify managers first, then release</b>. Releasing sweeps every auto account's
+      full liquid into the vault, then applies the 7% compounding step(s). Unlock is allowed once
+      ≥ 12 matches are finalized.</p>
     <form method="post" action="{{ url_for('admin.finances_yield') }}" class="row">
       <input type="hidden" name="season_id" value="{{ season_id }}">
-      <label class="small">Apply yield through match
-        <input type="number" name="match_number" value="{{ max_match }}" min="1" max="12" required style="width:70px">
+      <label class="small">Release yield through match
+        <input type="number" name="match_number" value="{{ released_through + 1 }}" min="1" max="12" required style="width:70px">
       </label>
-      <button class="btn btn-small" type="submit">Apply yield</button>
+      <button class="btn btn-small btn-primary" type="submit">Release yield</button>
     </form>
     <form method="post" action="{{ url_for('admin.finances_unlock') }}" class="row">
       <input type="hidden" name="season_id" value="{{ season_id }}">

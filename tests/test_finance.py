@@ -206,38 +206,25 @@ def test_delete_team_keeps_wallet(app, svc):
 
 
 # ---------------------------------------------------------------------------
-# 3a. auto mode (auto_vault routing)
+# 3a. auto mode (credits land liquid; the release sweeps auto vaults)
 # ---------------------------------------------------------------------------
-def test_credit_routes_to_vault_when_auto(app, svc):
-    season, players, _ = _setup(app, n_teams=2)
-    sid = season["id"]
-    bank = app.extensions["bank_service"]
-    acct = bank.get_or_create_account("player", players[2]["global_player_id"])
-    bank.set_auto(acct["id"], True)
-    acct = bank.credit(acct["id"], 1000, "auto credit", tx_type="deposit", season_id=sid)
-    assert acct["auto_vault"] == 1
-    assert acct["liquid_cash"] == 0          # went straight to the vault
-    assert acct["locked_capital"] == 1000
-    positions = bank.vault_positions(acct["id"])
-    assert len(positions) == 1 and positions[0]["locked_capital"] == 1000
-    assert positions[0]["reinvest"] == 1
-
-
-def test_credit_stays_liquid_when_manual(app, svc):
+def test_credit_lands_liquid_for_auto_and_manual(app, svc):
+    """Credits always land in liquid cash — auto mode only controls the vault
+    SWEEP at each yield release (no more auto-routing on credit)."""
     season, players, _ = _setup(app, n_teams=2)
     sid = season["id"]
     bank = app.extensions["bank_service"]
     acct = bank.get_or_create_account("player", players[2]["global_player_id"])
     assert acct["auto_vault"] == 1  # new accounts default to auto
-    bank.set_auto(acct["id"], False)  # owner opts into manual
-    acct = bank.credit(acct["id"], 1000, "manual credit", tx_type="deposit", season_id=sid)
-    assert acct["liquid_cash"] == 1000
+    acct = bank.credit(acct["id"], 1000, "auto credit", tx_type="deposit", season_id=sid)
+    assert acct["auto_vault"] == 1
+    assert acct["liquid_cash"] == 1000      # liquid until a release sweeps it
     assert acct["locked_capital"] == 0
-    # Auto toggle flips behavior.
-    acct = bank.set_auto(acct["id"], True)
-    acct = bank.credit(acct["id"], 500, "now auto", season_id=sid)
-    assert acct["liquid_cash"] == 1000
-    assert acct["locked_capital"] == 500
+    assert bank.vault_positions(acct["id"]) == []
+    # Manual accounts behave the same.
+    bank.set_auto(acct["id"], False)
+    acct = bank.credit(acct["id"], 500, "manual credit", season_id=sid)
+    assert acct["liquid_cash"] == 1500 and acct["locked_capital"] == 0
 
 
 def test_unlock_amount_releases_vault_capital(app, svc):
@@ -246,7 +233,8 @@ def test_unlock_amount_releases_vault_capital(app, svc):
     bank = app.extensions["bank_service"]
     acct = bank.get_or_create_account("player", players[2]["global_player_id"])
     bank.set_auto(acct["id"], True)
-    bank.credit(acct["id"], 1000, "funding", season_id=sid)
+    bank.credit(acct["id"], 1000, "funding", season_id=sid)   # lands liquid
+    bank.lock_to_vault(acct["id"], sid, 1000, reinvest=True)  # manual lock
     released = bank.unlock_amount(acct["id"], sid, 600, comment="undo")
     assert released == 600
     acct = bank.get_account(acct["id"])
@@ -257,46 +245,44 @@ def test_unlock_amount_releases_vault_capital(app, svc):
     assert bank.get_account(acct["id"])["locked_capital"] == 0
 
 
-def test_auto_account_match_credit_goes_to_vault(app, svc, scorer, finance, bank):
+def test_auto_account_match_credit_lands_liquid_then_swept_at_release(app, svc, scorer, finance, bank):
+    """A match reward for an auto account lands LIQUID; releasing the yield
+    sweeps the full balance into the vault, then applies the 7% step."""
     season, players, teams = _setup(app, n_teams=2)
     sid = season["id"]
     a, b = teams[0], teams[1]
-    # Put an unrelated player in auto mode.
     auto_acct = bank.get_or_create_account("player", players[2]["global_player_id"])
     bank.set_auto(auto_acct["id"], True)
     _register_finalized(app, scorer, sid, "M1", "Match 1", a["id"], b["id"])
     finance.on_match_finalized(sid, "M1")
     acct = bank.get_account(auto_acct["id"])
+    assert acct["liquid_cash"] == 250 and acct["locked_capital"] == 0
+    finance.release_yield(sid, 1)
+    acct = bank.get_account(auto_acct["id"])
     assert acct["liquid_cash"] == 0
-    # The 250 match credit was vaulted when M1 finalized — it entered the vault
-    # AFTER match 1 was played, so it earns no retroactive M1 yield yet (it
-    # starts compounding from match 2 onward).
-    assert acct["locked_capital"] == 250
+    assert acct["locked_capital"] == 268  # 250 + 7% = 267.5 -> 268
 
 
-def test_vault_yield_starts_after_deposit_match(app, svc, scorer, finance, bank):
-    """Money locked AFTER match 1 earns only match-2 yield, not match 1's.
+def test_vault_position_created_after_release_starts_at_next_release(app, svc, scorer, finance, bank):
+    """A position created AFTER yield release 1 earns only release 2's step.
 
-    Regression: positions were created with last_yield_match=0, so the yield
-    catch-up backfilled yield for every finalized match regardless of when the
-    deposit happened (Chandia CC got M1+M2 yield for a post-M1 deposit)."""
+    Yield is released manually; capital locked after release N starts its
+    horizon at N+1 (no retroactive steps — the Chandia regression)."""
     season, players, teams = _setup(app, n_teams=2)
     sid = season["id"]
     a, b = teams[0], teams[1]
     _register_finalized(app, scorer, sid, "M1", "Match 1", a["id"], b["id"])
-    finance.on_match_finalized(sid, "M1")
-    # Deposit into the vault AFTER match 1 is done.
+    # Owner opts into manual and locks AFTER release 1.
     acct = bank.get_or_create_account("player", "late-depositor")
-    bank.set_auto(acct["id"], False)  # manual: deposit straight to vault
+    bank.set_auto(acct["id"], False)
     bank.adjust(acct["id"], 10000, "funds")
+    finance.release_yield(sid, 1)          # release 1: no position yet
     bank.lock_to_vault(acct["id"], sid, 2000, reinvest=True)
     position = bank.vault_positions(acct["id"])[0]
-    # Position starts its horizon at match 1 (already played -> no yield for it).
-    assert position["last_yield_match"] == 1
+    assert position["last_yield_match"] == 1   # starts after release 1
     assert position["locked_capital"] == 2000
-    # Match 2 finalizes -> catch-up applies ONLY the match-2 step (7% of 2000).
     _register_finalized(app, scorer, sid, "M2", "Match 2", b["id"], a["id"])
-    finance.on_match_finalized(sid, "M2")
+    finance.release_yield(sid, 2)          # release 2: ONLY the M2 step
     position = bank.vault_positions(acct["id"])[0]
     assert position["last_yield_match"] == 2
     assert position["locked_capital"] == 2140  # 2000 + 140, NOT 2000+140+150
@@ -304,6 +290,32 @@ def test_vault_yield_starts_after_deposit_match(app, svc, scorer, finance, bank)
     yields = [t for t in txns if t["type"] == "vault_yield"]
     assert len(yields) == 1 and yields[0]["amount"] == 140
     assert "Match 2" in yields[0]["comment"]
+
+
+def test_release_yield_sweeps_auto_liquid_and_refuses_repeat(app, svc, scorer, finance, bank):
+    """Releasing the yield sweeps every auto account's full liquid into the
+    vault first, applies the compounding step, and refuses a second release of
+    the same match (guarded by the ledger)."""
+    season, players, teams = _setup(app, n_teams=2)
+    sid = season["id"]
+    a, b = teams[0], teams[1]
+    gp = players[2]["global_player_id"]
+    acct = bank.get_or_create_account("player", gp)
+    bank.set_auto(acct["id"], True)
+    bank.adjust(acct["id"], 1000, "funds")
+    _register_finalized(app, scorer, sid, "M1", "Match 1", a["id"], b["id"])
+    finance.on_match_finalized(sid, "M1")
+    assert bank.get_account(acct["id"])["liquid_cash"] == 1250
+    result = finance.release_yield(sid, 1)
+    assert result["steps"] >= 1 and result["swept"] == 1250
+    acct = bank.get_account(acct["id"])
+    assert acct["liquid_cash"] == 0
+    assert acct["locked_capital"] == 1338  # 1250 * 1.07 = 1337.5 -> 1338
+    # The release is recorded in the ledger; re-releasing M1 is refused.
+    entries = finance.list_finance_entries(sid)
+    assert any(e["type"] == "yield_release" for e in entries)
+    with pytest.raises(ValueError, match="already released"):
+        finance.release_yield(sid, 1)
 
 
 # ---------------------------------------------------------------------------
@@ -392,8 +404,9 @@ def test_board_three_sections(app, svc, finance, bank):
     # Manager names + account refs on every row.
     assert non_playing[0]["manager_name"] == "Cara"
     assert non_playing[0]["account_ref"] == f"team:{gt['id']}"
-    # The non-playing manager's 3k is locked in the vault (auto).
-    assert non_playing[0]["wallet"] == 0 and non_playing[0]["locked"] == 3000
+    # Auto credits land liquid now (the vault sweep happens at a yield
+    # release), so the non-playing manager's 3k is liquid.
+    assert non_playing[0]["wallet"] == 3000 and non_playing[0]["locked"] == 0
     for t in playing:
         assert t["manager_name"] in ("Alice", "Bob")
         assert t["account_ref"].startswith("team:")
@@ -459,7 +472,8 @@ def test_squad_levy_takes_from_vault_for_auto_accounts(app, svc, finance, bank):
     a, b = teams[0], teams[1]
     with app.extensions["db"].write() as conn:
         conn.execute("UPDATE teams SET spent = 3000 WHERE id = ?", (a["id"],))
-    # Auto account with everything in the vault.
+    # Auto account with money in liquid (credits land liquid until a release
+    # sweeps the vault).
     gp = players[2]["global_player_id"]
     acct = bank.get_or_create_account("player", gp)
     bank.set_auto(acct["id"], True)
@@ -468,9 +482,9 @@ def test_squad_levy_takes_from_vault_for_auto_accounts(app, svc, finance, bank):
     result = finance.apply_squad_levy(sid)
     assert result["levy"] == 1500
     acct = bank.get_account(acct["id"])
-    # Liquid untouched (0); 1500 seized from the vault.
-    assert acct["liquid_cash"] == 0
-    assert acct["locked_capital"] == 5000 - 1500
+    # The levy takes from liquid first.
+    assert acct["liquid_cash"] == 5000 - 1500
+    assert acct["locked_capital"] == 0
 
 
 def test_squad_levy_zero_spend_is_noop(app, finance):
@@ -494,14 +508,15 @@ def _register_finalized(app, scorer, season_id, match_id, match_number, team_a, 
             (f"{season_id}:{match_id.lower()}", season_id, match_id, "Team A won"))
 
 
-def test_on_match_finalized_credits_every_wallet_and_applies_yield(app, svc, scorer, finance, bank):
+def test_on_match_finalized_credits_every_wallet_without_yield(app, svc, scorer, finance, bank):
+    """Finalization rewards every wallet but does NOT apply vault yield
+    (decoupled — yield is released manually)."""
     season, _, teams = _setup(app, n_teams=2)
     sid = season["id"]
     a, b = teams[0], teams[1]
     a_wallet_before = _wallet(bank, a)
     b_wallet_before = _wallet(bank, b)
-    # Vault position so yield applies (owner opted into manual, so the match
-    # reward lands liquid).
+    # A manual vault position.
     vault_acct = bank.get_or_create_account("player", "fin-owner")
     bank.set_auto(vault_acct["id"], False)
     bank.adjust(vault_acct["id"], 10000, "funds")
@@ -513,23 +528,26 @@ def test_on_match_finalized_credits_every_wallet_and_applies_yield(app, svc, sco
     _register_finalized(app, scorer, sid, "M1", "Match 1", a["id"], b["id"])
     result = finance.on_match_finalized(sid, "M1")
     assert result["finalized"] is True and result["rewarded"] is True
+    assert "yield_applied" not in result
     # EVERY player wallet got the default 250 credit (managers included).
     assert _wallet(bank, svc._get_team(sid, a["id"])) == a_wallet_before + 250
     assert _wallet(bank, svc._get_team(sid, b["id"])) == b_wallet_before + 250
     # The unrelated vault owner's wallet was credited too (liquid 10000 - 2000
     # locked + 250 credit).
     assert bank.get_account(vault_acct["id"])["liquid_cash"] == 10000 - 2000 + 250
-    # Yield compounded once (match 1) -> 2000 -> 2140.
-    assert bank.get_account(vault_acct["id"])["locked_capital"] == 2140
+    # NO yield on finalize: the vault stays at 2000.
+    assert bank.get_account(vault_acct["id"])["locked_capital"] == 2000
     # One marker entry in the ledger (team_id NULL = universal credit).
     entries = finance.list_finance_entries(sid)
     rewards = [e for e in entries if e["type"] == "match_reward"]
     assert len(rewards) == 1 and rewards[0]["team_id"] is None
 
-    # Idempotent on re-run: no double credit, no extra yield.
+    # Idempotent on re-run: no double credit.
     result2 = finance.on_match_finalized(sid, "M1")
     assert result2["rewarded"] is False
     assert _wallet(bank, svc._get_team(sid, a["id"])) == a_wallet_before + 250
+    # Releasing match-1 yield finally compounds the vault: 2000 -> 2140.
+    finance.release_yield(sid, 1)
     assert bank.get_account(vault_acct["id"])["locked_capital"] == 2140
     assert n_wallets == 3  # sanity: 2 managers + fin-owner
 
@@ -621,12 +639,12 @@ def test_post_adjust_and_transfer_accept_player_and_team_refs(app, svc, finance,
     bank.get_or_create_account("player", gp_ind)
     bank.adjust(bank.account_for_owner("player", gp_ind)["id"], 1000, "seed", tx_type="deposit")
 
-    # Adjust the non-playing team's manager (auto account -> vault routing).
+    # Adjust the non-playing team's manager (auto account). Credits land in
+    # liquid — the vault sweep happens only at a yield release.
     finance.post_adjust(sid, f"team:{gt['id']}", "add", 500, "credit saved")
     np_acct = bank.get_or_create_account("player", gp_np)
-    # New auto account: the credit went straight to the vault.
     assert np_acct["auto_vault"] == 1
-    assert np_acct["liquid_cash"] == 0 and np_acct["locked_capital"] == 500
+    assert np_acct["liquid_cash"] == 500 and np_acct["locked_capital"] == 0
 
     # Adjust an individual player's wallet directly.
     finance.post_adjust(sid, f"player:{gp_ind}", "remove", 200, "fine")
@@ -636,8 +654,8 @@ def test_post_adjust_and_transfer_accept_player_and_team_refs(app, svc, finance,
     p_before = bank.account_for_owner("player", gp_ind)["liquid_cash"]
     finance.post_transfer(sid, f"player:{gp_ind}", f"team:{gt['id']}", 300, "sub cash")
     assert bank.account_for_owner("player", gp_ind)["liquid_cash"] == p_before - 300
-    # Recipient is auto -> transfer lands liquid (bank.adjust, not credit).
-    assert bank.account_for_owner("player", gp_np)["liquid_cash"] == 300
+    # Transfer lands liquid (on top of the 500 add).
+    assert bank.account_for_owner("player", gp_np)["liquid_cash"] == 800
 
     # Ledger shows the display names; undo reverses the last (transfer).
     entries = finance.list_finance_entries(sid)
@@ -645,7 +663,7 @@ def test_post_adjust_and_transfer_accept_player_and_team_refs(app, svc, finance,
     assert "Eve" in entries[0]["summary"] and "Standing Team" in entries[0]["summary"]
     finance.undo_last_finance_entry(sid)
     assert bank.account_for_owner("player", gp_ind)["liquid_cash"] == p_before
-    assert bank.account_for_owner("player", gp_np)["liquid_cash"] == 0
+    assert bank.account_for_owner("player", gp_np)["liquid_cash"] == 500
 
 
 # ---------------------------------------------------------------------------
