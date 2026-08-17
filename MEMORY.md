@@ -987,3 +987,15 @@ is live).
   (`app/templates/admin/dashboard.html`), no service change.
 - Verified on prod DB copy (Inferno 9600, Teeli 9000, MHK 7800, Chandia 7700);
   42 unit tests green.
+
+## M2 CSV corrected again (2026-08-17) — real last over
+- User clarified the true M2 last over (Asad bowling): 2.1-2.2 Ahmad 0, **2.3
+  Ahmad bowled**, **2.4 Umar bowled**, **2.5 Yousuf 1** (last man), 2.6 Qambar 0.
+- Previous correction had dropped Ahmad's wicket and wrongly renamed the
+  innings-1 over-2 bowler (it was the REAL Yousuf — Chandia CC sub who replaced
+  Baloch — not Ahmad). Both fixed in `data/match_M2_corrected.csv`; sub log
+  restored (`Teeli CC: Baloch -> Yousuf from Chandia CC`) for fantasy credit.
+- Verified via `_derive_match_stats` (read-only): MHK 50/1 (Hassan 42/9,
+  Asad 1/2, Hassin 32/0, Hassan 13/0) beat Teeli 46/2 (Qambar 43/13, Ahmad 0
+  out, Umar 0 out, Yousuf 1; Yousuf 9/0 bowling). `substitution_ins={'Yousuf'}`.
+- Data files are gitignored; user imports CSVs manually from Admin > Scorer.
