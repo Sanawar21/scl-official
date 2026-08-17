@@ -884,3 +884,22 @@ status via the logged `player_status`. NB: `complete_draft` forfeits the
 wallet of every incomplete team as a penalty, so record oral sales BEFORE
 completing the draft when possible (or use the bid→close path while the lot
 is live).
+
+## Scorer: managers selectable as players — DONE (2026-08-17)
+
+- **Bug**: offline scorer omitted team managers from rosters. Root cause: the
+  season-setup flow (`sync_season_setup`) excludes managers from the season's
+  `players` table ("managers are their own roster slot, never auction lots"),
+  but `_scorer_payload` looked the manager up in that table — so the manager
+  never appeared as a batter/bowler.
+- **Fix** (`scorer_service._scorer_payload`): if the manager has no season
+  player row, emit the manager's **global id + name** (from global_players) as
+  the roster entry. The CSV import already resolves raw global ids through
+  `player_meta`, so stats attach to the manager's global player record (their
+  profile + career stats) with zero import changes.
+- **Tests**: `test_scorer_payload_includes_manager_without_season_row` —
+  payload includes a manager w/o a season row under the global id, and a full
+  CSV round trip attributes runs/wickets/balls to that global id. 11 scorer +
+  39 auction/bank tests green.
+- Real-data smoke: season-2 scorer now lists managers (Ahmad, Hassan, Qambar,
+  Sanawar) in their teams' rosters.

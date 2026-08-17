@@ -103,6 +103,74 @@ def test_scorer_context_payload(app, scorer):
     assert m1["team_b_id"] == teams[1]["id"]
 
 
+def test_scorer_payload_includes_manager_without_season_row(app, scorer):
+    """Real-flow managers (excluded from the season's auction pool, so they
+    have no season players row) still appear in the scorer roster — under
+    their global id — and their stats round-trip through the CSV import."""
+    import secrets
+
+    svc = app.extensions["auction_service"]
+    season = svc.create_season("Test Season")
+    sid = season["id"]
+    # A manager global player with NO season players row (sync_season_setup
+    # excludes managers from the auction pool).
+    mgr_gid = secrets.token_hex(8)
+    with app.extensions["db"].write() as conn:
+        conn.execute(
+            "INSERT INTO global_players (id, name, tier, speciality, created_at) "
+            "VALUES (?, 'Zara', 'gold', 'ALL_ROUNDER', ?)",
+            (mgr_gid, "2026-01-01T00:00:00"))
+    team = svc.create_team(sid, "Zephyrs", mgr_gid)
+    with app.extensions["db"].read() as conn:
+        assert conn.execute(
+            "SELECT 1 FROM players WHERE season_id = ? AND global_player_id = ?",
+            (sid, mgr_gid)).fetchone() is None
+
+    scorer.save_config({"season_slug": sid})
+    payload = scorer.build_scorer_context()["scorer_payload"]
+    zephyrs = next(t for t in payload["teams"] if t["id"] == team["id"])
+    mgr = next(p for p in zephyrs["players"] if p["name"] == "Zara")
+    assert mgr["id"] == mgr_gid  # global id -> CSV import resolves it
+
+    # Round trip: Zara bats (runs) and bowls (wicket) under her global id.
+    t2_gid = secrets.token_hex(8)
+    with app.extensions["db"].write() as conn:
+        conn.execute(
+            "INSERT INTO global_players (id, name, tier, speciality, created_at) "
+            "VALUES (?, 'Nemo', 'silver', 'BOWLER', ?)",
+            (t2_gid, "2026-01-01T00:00:00"))
+    t2_row = svc.create_team(sid, "Vipers", t2_gid)
+    _register(app, scorer, sid, team, t2_row)
+
+    rows = [
+        _delivery("Zara", mgr_gid, 1, "Nemo", "n1", 1, 4, 4,
+                  bat_team="Zephyrs", bat_team_id=team["id"],
+                  bowl_team="Vipers", bowl_team_id=t2_row["id"]),
+        _delivery("Nemo", "n1", 2, "Zara", mgr_gid, 1, 2, 6,
+                  bat_team="Zephyrs", bat_team_id=team["id"],
+                  bowl_team="Vipers", bowl_team_id=t2_row["id"]),
+        _delivery("Nemo", "n1", 1, "Zara", mgr_gid, 2, 0, 0,
+                  bat_team="Vipers", bat_team_id=t2_row["id"],
+                  bowl_team="Zephyrs", bowl_team_id=team["id"],
+                  bowler="Zara", bowler_id=mgr_gid,
+                  dismissed="Nemo", dismissed_id="n1", wkt=1),
+    ]
+    scorer.import_match_csv(_fake_upload(_csv_bytes(rows)), season_id=sid)
+
+    with app.extensions["db"].read() as conn:
+        stats = conn.execute(
+            "SELECT player_id, player_name, runs, wickets, balls_faced, balls_bowled "
+            "FROM match_player_stats WHERE season_id = ? AND player_id = ?",
+            (sid, mgr_gid)).fetchall()
+    assert len(stats) == 1
+    s = stats[0]
+    assert s["player_name"] == "Zara"
+    assert s["runs"] == 4  # ball 2's 2 runs belong to Nemo
+    assert s["balls_faced"] == 1
+    assert s["wickets"] == 1
+    assert s["balls_bowled"] == 1
+
+
 def test_scorer_routes(app):
     _season_with_teams(app)
     client = app.test_client()

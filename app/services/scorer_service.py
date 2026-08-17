@@ -269,14 +269,27 @@ class ScorerService:
                 seen.add(pid)
                 players.append({"id": pid, "name": player_names[pid]})
             # The manager is one of the 4 players but is not in the sold list;
-            # include them so they can be selected as a batter/bowler.
-            mgr_local = conn.execute(
-                "SELECT id FROM players WHERE season_id = ? AND global_player_id = ?",
-                (season_slug, t["manager_player_id"])).fetchone()
-            mgr_id = (mgr_local["id"] if mgr_local else "")
-            if mgr_id and mgr_id not in seen and player_names.get(mgr_id):
+            # include them so they can be selected as a batter/bowler. Managers
+            # may have no season player row (the season-setup flow excludes
+            # them from the auction pool) — in that case use the manager's
+            # global id directly; the CSV import resolves global ids through
+            # player_meta, so stats still attach to the manager's record.
+            mgr_gid = (t["manager_player_id"] or "").strip()
+            mgr_id, mgr_name = "", ""
+            if mgr_gid:
+                mgr_local = conn.execute(
+                    "SELECT id FROM players WHERE season_id = ? AND global_player_id = ?",
+                    (season_slug, mgr_gid)).fetchone()
+                if mgr_local and player_names.get(mgr_local["id"]):
+                    mgr_id, mgr_name = mgr_local["id"], player_names[mgr_local["id"]]
+                else:
+                    gp = conn.execute(
+                        "SELECT name FROM global_players WHERE id = ?", (mgr_gid,)).fetchone()
+                    if gp:
+                        mgr_id, mgr_name = mgr_gid, gp["name"]
+            if mgr_id and mgr_id not in seen:
                 seen.add(mgr_id)
-                players.append({"id": mgr_id, "name": player_names[mgr_id]})
+                players.append({"id": mgr_id, "name": mgr_name})
             roster.append({
                 "id": t["id"],
                 "name": t["name"],
