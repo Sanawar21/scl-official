@@ -19,3 +19,6 @@ data/brandings/*
 .env
 logs/
 server.pid
+
+# local dev server log
+server-local.log
