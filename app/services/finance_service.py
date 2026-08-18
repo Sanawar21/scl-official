@@ -547,6 +547,113 @@ class FinanceService:
                 "yield_total": total, "swept": swept["amount"], "swept_accounts": swept["locked"]}
 
     # ------------------------------------------------------------------
+    # yield scheduling
+    # ------------------------------------------------------------------
+    def schedule_yield_release(self, season_id: str, match_number: int,
+                               scheduled_at: str, actor: str = "admin") -> dict:
+        """Schedule a vault yield release for a specific match at a future time.
+
+        `scheduled_at` must be an ISO timestamp in the future. Only one pending
+        schedule per (season, match) is allowed — re-scheduling cancels the old one.
+        """
+        season_id = (season_id or "").strip().lower()
+        match_number = int(match_number or 0)
+        if match_number < 1:
+            raise ValueError("Match number must be >= 1")
+        # Validate the timestamp is in the future
+        try:
+            sched_dt = datetime.fromisoformat(scheduled_at)
+        except (ValueError, TypeError):
+            raise ValueError("Invalid schedule time")
+        if sched_dt.tzinfo is None:
+            sched_dt = sched_dt.replace(tzinfo=timezone.utc)
+        if sched_dt <= datetime.now(timezone.utc):
+            raise ValueError("Schedule time must be in the future")
+        with self.db.write() as conn:
+            # Check match is finalized
+            reg = conn.execute(
+                "SELECT r.match_number FROM match_stats s "
+                "JOIN match_registry r ON r.match_key = s.match_key "
+                "WHERE s.season_id = ?", (season_id,)).fetchall()
+            finalized_nums = set()
+            for r in reg:
+                m = re.search(r"\d+", str(r["match_number"] or ""))
+                if m:
+                    finalized_nums.add(int(m.group(0)))
+            if match_number not in finalized_nums:
+                raise ValueError(f"Match {match_number} has not been finalized (CSV not uploaded)")
+            # Check yield not already released
+            released = self.bank._released_through(conn, season_id)
+            if match_number <= released:
+                raise ValueError(f"Yield for match {match_number} already released")
+            # Cancel any existing pending schedule for this match
+            conn.execute(
+                "UPDATE yield_schedules SET status = 'cancelled' "
+                "WHERE season_id = ? AND match_number = ? AND status = 'pending'",
+                (season_id, match_number))
+            # Create new schedule
+            sched_id = secrets.token_hex(8)
+            conn.execute(
+                "INSERT INTO yield_schedules (id, season_id, match_number, scheduled_at, "
+                "status, created_by, created_at) VALUES (?, ?, ?, ?, 'pending', ?, ?)",
+                (sched_id, season_id, match_number, sched_dt.isoformat(), actor, _now()))
+        return {"id": sched_id, "match_number": match_number,
+                "scheduled_at": sched_dt.isoformat()}
+
+    def cancel_yield_schedule(self, schedule_id: str) -> dict:
+        """Cancel a pending yield schedule."""
+        with self.db.write() as conn:
+            row = conn.execute(
+                "SELECT * FROM yield_schedules WHERE id = ?", (schedule_id,)).fetchone()
+            if not row:
+                raise ValueError("Schedule not found")
+            if row["status"] != "pending":
+                raise ValueError(f"Schedule already {row['status']}")
+            conn.execute(
+                "UPDATE yield_schedules SET status = 'cancelled' WHERE id = ?",
+                (schedule_id,))
+        return {"ok": True}
+
+    def list_yield_schedules(self, season_id: str) -> list:
+        """List all yield schedules for a season (pending + executed + cancelled)."""
+        season_id = (season_id or "").strip().lower()
+        with self.db.read() as conn:
+            rows = conn.execute(
+                "SELECT * FROM yield_schedules WHERE season_id = ? "
+                "ORDER BY match_number, scheduled_at",
+                (season_id,)).fetchall()
+        return [dict(r) for r in rows]
+
+    def check_and_execute_due_schedules(self) -> list:
+        """Execute any pending yield schedules whose scheduled_at has passed.
+
+        Called by the background scheduler thread. Returns a list of executed
+        schedule results.
+        """
+        now_iso = datetime.now(timezone.utc).isoformat()
+        results = []
+        with self.db.read() as conn:
+            due = conn.execute(
+                "SELECT * FROM yield_schedules WHERE status = 'pending' "
+                "AND scheduled_at <= ?", (now_iso,)).fetchall()
+        for sched in due:
+            try:
+                result = self.release_yield_for_match(
+                    sched["season_id"], sched["match_number"], actor="scheduler")
+                with self.db.write() as conn:
+                    conn.execute(
+                        "UPDATE yield_schedules SET status = 'executed', executed_at = ? "
+                        "WHERE id = ?", (_now(), sched["id"]))
+                results.append({"schedule_id": sched["id"], **result})
+            except Exception:
+                # Mark as failed so it doesn't retry forever
+                with self.db.write() as conn:
+                    conn.execute(
+                        "UPDATE yield_schedules SET status = 'failed' WHERE id = ?",
+                        (sched["id"],))
+        return results
+
+    # ------------------------------------------------------------------
     # manual finance (fines, umpire duty, sub cash)
     # ------------------------------------------------------------------
     def post_adjust(self, season_id: str, account_ref: str, operation: str, amount: int,

@@ -124,7 +124,8 @@
     {% if yield_schedule %}
     <h3>Yield schedule</h3>
     <p class="muted small">Release yield per match after uploading the CSV. Notify managers first, then release.
-      The first release sweeps auto accounts into the vault; subsequent releases only compound.</p>
+      The first release sweeps auto accounts into the vault; subsequent releases only compound.
+      You can release now or schedule for later.</p>
     <div class="table-wrap">
       <table>
         <thead><tr>
@@ -132,6 +133,7 @@
         </tr></thead>
         <tbody>
           {% for m in yield_schedule %}
+          {% set pending_sched = yield_schedules|selectattr('match_number', 'equalto', m.match_number)|selectattr('status', 'equalto', 'pending')|list %}
           <tr>
             <td>{{ m.match_number }}</td>
             <td>{{ m.match_title }}</td>
@@ -139,19 +141,44 @@
             <td>
               {% if m.released %}
                 <span class="tag tag-active">Released</span>
+              {% elif pending_sched %}
+                <span class="tag tag-info">Scheduled · {{ pending_sched[0].scheduled_at|pkt('%b %d, %I:%M %p') }}</span>
               {% else %}
                 <span class="tag tag-warn">Pending</span>
               {% endif %}
             </td>
             <td>
-              {% if not m.released %}
-              <form method="post" action="{{ url_for('admin.finances_yield_match') }}" style="display:inline">
-                <input type="hidden" name="season_id" value="{{ season_id }}">
-                <input type="hidden" name="match_number" value="{{ m.match_number }}">
-                <button class="btn btn-small btn-primary" type="submit">Release yield</button>
-              </form>
-              {% else %}
+              {% if m.released %}
                 <span class="muted small">✓</span>
+              {% elif pending_sched %}
+                <div class="row" style="gap:4px;flex-wrap:wrap">
+                  <form method="post" action="{{ url_for('admin.finances_yield_match') }}" style="display:inline">
+                    <input type="hidden" name="season_id" value="{{ season_id }}">
+                    <input type="hidden" name="match_number" value="{{ m.match_number }}">
+                    <button class="btn btn-small btn-primary" type="submit">Release now</button>
+                  </form>
+                  <form method="post" action="{{ url_for('admin.finances_yield_schedule_cancel') }}" style="display:inline">
+                    <input type="hidden" name="season_id" value="{{ season_id }}">
+                    <input type="hidden" name="schedule_id" value="{{ pending_sched[0].id }}">
+                    <button class="btn btn-small btn-danger" type="submit">Cancel</button>
+                  </form>
+                </div>
+              {% else %}
+                <div class="row" style="gap:4px;flex-wrap:wrap;align-items:center">
+                  <form method="post" action="{{ url_for('admin.finances_yield_match') }}" style="display:inline">
+                    <input type="hidden" name="season_id" value="{{ season_id }}">
+                    <input type="hidden" name="match_number" value="{{ m.match_number }}">
+                    <button class="btn btn-small btn-primary" type="submit">Release now</button>
+                  </form>
+                  <span class="muted small">or</span>
+                  <form method="post" action="{{ url_for('admin.finances_yield_schedule') }}" style="display:inline" class="row" style="gap:4px;align-items:center">
+                    <input type="hidden" name="season_id" value="{{ season_id }}">
+                    <input type="hidden" name="match_number" value="{{ m.match_number }}">
+                    <input type="date" name="schedule_date" required style="width:130px;font-size:0.8em">
+                    <input type="time" name="schedule_time" required style="width:100px;font-size:0.8em">
+                    <button class="btn btn-small" type="submit">Schedule</button>
+                  </form>
+                </div>
               {% endif %}
             </td>
           </tr>

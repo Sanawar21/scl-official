@@ -296,6 +296,7 @@ Update this file whenever you learn something durable. Keep it current as the bu
 
 ## Gotchas learned (don't rediscover)
 
+- **Schema changes: tell user to copy prod DB locally first.** Any `CREATE TABLE` / `ALTER TABLE` changes require the user to copy `scl.db` from the VPS into `data/scl.db` before running locally — otherwise the local DB is out of sync with prod. After schema changes are committed, the VPS auto-deploys and `bootstrap()` applies the migration, but the local copy must be refreshed manually. (2026-08-18)
 - **Stats rows may reference either a team's per-season id or its global id**
   (imported S1 stats use the global id; live scorer rows use the per-season id).
   `league_table` maps names by BOTH (`team_names.setdefault(gid, ...)` + `t["id"]`);

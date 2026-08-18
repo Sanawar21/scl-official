@@ -1,7 +1,12 @@
+import logging
+import threading
+import time
 from datetime import datetime, timezone, timedelta
 
 from flask import Flask, current_app, session, url_for
 from flask_socketio import SocketIO
+
+logger = logging.getLogger(__name__)
 
 # Pakistan Standard Time = UTC+5
 PKT = timezone(timedelta(hours=5))
@@ -98,6 +103,25 @@ def create_app(config_object=None):
         return {"current_user": current_user(), "nav_auction": _nav_auction(current_user())}
 
     socketio.init_app(app)
+
+    # --- background scheduler: auto-execute due yield releases ----------
+    def _yield_scheduler():
+        """Poll every 30 s for pending yield schedules whose time has passed."""
+        with app.app_context():
+            while True:
+                time.sleep(30)
+                try:
+                    results = finance_service.check_and_execute_due_schedules()
+                    for r in results:
+                        logger.info("Scheduled yield released: match %s — %s",
+                                    r.get("match_number"), r.get("yield_total"))
+                except Exception:
+                    logger.exception("yield scheduler tick failed")
+
+    sched_thread = threading.Thread(target=_yield_scheduler, daemon=True,
+                                    name="yield-scheduler")
+    sched_thread.start()
+
     return app
 
 

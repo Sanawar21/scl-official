@@ -368,6 +368,19 @@ CREATE TABLE IF NOT EXISTS season_finance_entries (
 );
 CREATE INDEX IF NOT EXISTS idx_finance_season ON season_finance_entries(season_id);
 
+CREATE TABLE IF NOT EXISTS yield_schedules (
+  id TEXT PRIMARY KEY,
+  season_id TEXT NOT NULL REFERENCES seasons(id),
+  match_number INTEGER NOT NULL,
+  scheduled_at TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  executed_at TEXT,
+  created_by TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_yield_sched_season ON yield_schedules(season_id);
+CREATE INDEX IF NOT EXISTS idx_yield_sched_status ON yield_schedules(status);
+
 CREATE TABLE IF NOT EXISTS changelog (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,

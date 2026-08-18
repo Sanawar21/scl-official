@@ -1,5 +1,6 @@
 import json
 import re
+from datetime import datetime, timezone
 
 from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, session, url_for
 
@@ -826,6 +827,7 @@ def _finance_context(season_id=None):
                 max_match = int(m.group(0))
     released_through = finance.released_through(season_id)
     yield_schedule = finance.yield_schedule(season_id)
+    yield_schedules = finance.list_yield_schedules(season_id)
     return {
         "seasons": seasons,
         "season_id": season_id,
@@ -837,6 +839,7 @@ def _finance_context(season_id=None):
         "max_match": max_match,
         "released_through": released_through,
         "yield_schedule": yield_schedule,
+        "yield_schedules": yield_schedules,
         "match_reward_amount": ruleset.match_reward_amount,
         "registry": registry,
         "active_admin_tab": "finances",
@@ -966,6 +969,49 @@ def finances_yield_match():
               f"{result['yield_total']:,} total yield" +
               (f"; swept {result['swept']:,} into vaults" if result['swept'] else ""),
               "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("admin.finances", season=season_id))
+
+
+@admin_bp.post("/finances/yield/schedule")
+@login_required(role=R.ROLE_ADMIN)
+def finances_yield_schedule():
+    """Schedule a vault yield release for a match at a specific date/time."""
+    finance = current_app.extensions["finance_service"]
+    season_id = (request.form.get("season_id") or "").strip().lower()
+    match_number = _safe_int(request.form.get("match_number"), 0)
+    schedule_date = (request.form.get("schedule_date") or "").strip()
+    schedule_time = (request.form.get("schedule_time") or "").strip()
+    try:
+        if not schedule_date or not schedule_time:
+            raise ValueError("Date and time are required")
+        # Build ISO timestamp from date + time inputs (user enters PKT)
+        from app import PKT
+        naive = datetime.strptime(f"{schedule_date} {schedule_time}", "%Y-%m-%d %H:%M")
+        sched_dt = naive.replace(tzinfo=PKT).astimezone(timezone.utc)
+        result = finance.schedule_yield_release(
+            season_id, match_number, sched_dt.isoformat(),
+            actor=session.get("user", {}).get("username", "admin"),
+        )
+        # Format the scheduled time in PKT for the flash message
+        pkt_str = sched_dt.astimezone(PKT).strftime("%Y-%m-%d %I:%M %p PKT")
+        flash(f"Yield for match {match_number} scheduled for {pkt_str}.", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("admin.finances", season=season_id))
+
+
+@admin_bp.post("/finances/yield/schedule/cancel")
+@login_required(role=R.ROLE_ADMIN)
+def finances_yield_schedule_cancel():
+    """Cancel a pending yield schedule."""
+    finance = current_app.extensions["finance_service"]
+    season_id = (request.form.get("season_id") or "").strip().lower()
+    schedule_id = (request.form.get("schedule_id") or "").strip()
+    try:
+        finance.cancel_yield_schedule(schedule_id)
+        flash("Scheduled yield release cancelled.", "success")
     except ValueError as exc:
         flash(str(exc), "error")
     return redirect(url_for("admin.finances", season=season_id))
