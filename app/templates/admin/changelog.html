@@ -27,7 +27,7 @@
       <h2>{{ e.title }}</h2>
       <span class="tag tag-info">{{ e.change_date }}</span>
     </div>
-    <div class="small muted" style="margin-bottom:6px">by {{ e.author }} · {{ e.created_at[:16] }}</div>
+    <div class="small muted" style="margin-bottom:6px">by {{ e.author }} · {{ e.created_at|pkt }}</div>
     <div class="doc-body">{{ e.body_html | safe }}</div>
     <form method="post" action="{{ url_for('admin.changelog_delete', entry_id=e.id) }}" style="margin-top:8px">
       <button class="btn btn-small btn-danger" type="submit"

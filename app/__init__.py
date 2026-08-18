@@ -1,5 +1,10 @@
+from datetime import datetime, timezone, timedelta
+
 from flask import Flask, current_app, session, url_for
 from flask_socketio import SocketIO
+
+# Pakistan Standard Time = UTC+5
+PKT = timezone(timedelta(hours=5))
 
 from .authz import current_user
 from .config import Config
@@ -74,7 +79,19 @@ def create_app(config_object=None):
     app.register_blueprint(manager_bp)
     app.register_blueprint(matches_bp)
     app.register_blueprint(viewer_bp)
-    app.register_blueprint(wagers_bp)
+    app.register_blueprint(wagers_bp)    # --- template filter: convert UTC timestamps to Pakistan time ----------
+    @app.template_filter("pkt")
+    def pkt_filter(iso_str, fmt="%Y-%m-%d %I:%M %p"):
+        """Render a UTC ISO timestamp in Pakistan time (Asia/Karachi)."""
+        if not iso_str:
+            return "—"
+        try:
+            dt = datetime.fromisoformat(str(iso_str))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt.astimezone(PKT).strftime(fmt)
+        except (ValueError, TypeError):
+            return str(iso_str)[:16]
 
     @app.context_processor
     def inject_globals():

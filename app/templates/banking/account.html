@@ -175,7 +175,7 @@
         <tbody>
           {% for t in txns %}
             <tr>
-              <td class="muted">{{ t.created_at[:16] }}</td>
+              <td class="muted">{{ t.created_at|pkt }}</td>
               <td><span class="tag">{{ t.type }}</span></td>
               <td>{{ t.amount }}</td>
               <td><b>{{ t.balance_after }}</b></td>

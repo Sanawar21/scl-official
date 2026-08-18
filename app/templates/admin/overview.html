@@ -116,7 +116,7 @@
   <ul class="feed">
     {% for item in recent_finance %}
       <li><b>{{ item.label }}</b> {{ item.summary }} — {{ item.amount }}
-        <span class="muted">{{ item.created_at[:16] }}</span></li>
+        <span class="muted">{{ item.created_at|pkt }}</span></li>
     {% endfor %}
     {% for imp in recent_imports %}
       <li><b>Import {{ imp.match_id }}</b> {{ imp.team_rows }} teams / {{ imp.player_rows }} players
@@ -124,7 +124,7 @@
     {% endfor %}
     {% for a in recent_actions %}
       <li><b>{{ a.action_type }}</b> by {{ a.actor }}
-        <span class="muted">{{ a.created_at[:16] }}</span></li>
+        <span class="muted">{{ a.created_at|pkt }}</span></li>
     {% endfor %}
     {% if not recent_finance and not recent_imports and not recent_actions %}
       <li class="muted">No activity yet.</li>

@@ -60,7 +60,7 @@
           <span class="ledger-icon" aria-hidden="true">{{ icon }}</span>
           <span class="ledger-body">
             <b>{{ row.label }}</b> {{ row.summary }}
-            <span class="small muted">{{ row.created_at[:16] }}</span>
+            <span class="small muted">{{ row.created_at|pkt }}</span>
             {% if row.comment %}<span class="small muted"> — {{ row.comment }}</span>{% endif %}
             {% if row.undone_at %}<span class="chip chip-warn">undone</span>{% endif %}
           </span>

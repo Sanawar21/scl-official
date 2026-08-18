@@ -467,6 +467,85 @@ class FinanceService:
         return {"released_through": match_number, "steps": len(results),
                 "yield_total": total, "swept": swept["amount"], "swept_accounts": swept["locked"]}
 
+    def yield_schedule(self, season_id: str) -> list:
+        """Per-match yield release status for the admin finance page.
+
+        Returns a list of dicts, one per finalized match, showing whether
+        yield has been released for that match:
+          {match_number, match_id, released: bool, released_at}
+        """
+        season_id = (season_id or "").strip().lower()
+        if not season_id:
+            return []
+        with self.db.read() as conn:
+            # All finalized matches with their registry metadata
+            rows = conn.execute(
+                "SELECT r.match_number, r.match_id, r.match_title, "
+                "       r.\"between\", r.match_date "
+                "FROM match_stats s "
+                "JOIN match_registry r ON r.match_key = s.match_key "
+                "WHERE s.season_id = ? "
+                "ORDER BY r.match_number", (season_id,)).fetchall()
+            # Released match numbers from yield_release ledger entries
+            released_rows = conn.execute(
+                "SELECT match_id FROM season_finance_entries "
+                "WHERE season_id = ? AND type = 'yield_release' "
+                "AND undone_at IS NULL", (season_id,)).fetchall()
+            released_set = set()
+            for rr in released_rows:
+                m = re.search(r"\d+", str(rr["match_id"] or ""))
+                if m:
+                    released_set.add(int(m.group(0)))
+        schedule = []
+        for r in rows:
+            text = str(r["match_number"] or r["match_id"] or "")
+            m = re.search(r"\d+", text)
+            num = int(m.group(0)) if m else 0
+            schedule.append({
+                "match_number": num,
+                "match_id": r["match_id"],
+                "match_title": r["match_title"] or r["between"] or r["match_id"],
+                "match_date": r["match_date"],
+                "released": num in released_set,
+            })
+        return schedule
+
+    def release_yield_for_match(self, season_id: str, match_number: int,
+                                 actor: str = "admin") -> dict:
+        """Release the vault yield for a single match (7% step only).
+
+        Unlike `release_yield` (bulk), this does NOT sweep auto accounts —
+        it only applies the yield compounding step for positions that exist.
+        First-ever release still sweeps auto accounts so their capital enters
+        the vault before yield is applied.
+        """
+        season_id = (season_id or "").strip().lower()
+        match_number = int(match_number or 0)
+        if match_number < 1:
+            raise ValueError("Match number must be >= 1")
+        with self.db.read() as conn:
+            released = self.bank._released_through(conn, season_id)
+        if match_number <= released:
+            raise ValueError(f"Yield already released through match {released}")
+        # On the very first release, sweep auto accounts into the vault
+        swept = {"amount": 0, "locked": 0}
+        if released == 0:
+            swept = self.bank.lock_auto_after_auction(season_id)
+        results = self.bank.apply_match_yield(season_id, match_number)
+        total = sum(int(r["yield"]) for r in results)
+        with self.db.write() as conn:
+            conn.execute(
+                "INSERT INTO season_finance_entries (id, season_id, match_id, team_id, "
+                "team_name, type, operation, amount, comment, created_by, before_wallet, "
+                "after_wallet, created_at) VALUES (?, ?, ?, NULL, 'all vault positions', "
+                "'yield_release', NULL, ?, ?, ?, NULL, NULL, ?)",
+                (secrets.token_hex(8), season_id, f"M{match_number}", total,
+                 f"Yield released for match {match_number} — {len(results)} "
+                 f"position-step(s)" + (f"; swept {swept['amount']:,}" if swept['amount'] else ""),
+                 actor, _now()))
+        return {"released_through": match_number, "steps": len(results),
+                "yield_total": total, "swept": swept["amount"], "swept_accounts": swept["locked"]}
+
     # ------------------------------------------------------------------
     # manual finance (fines, umpire duty, sub cash)
     # ------------------------------------------------------------------

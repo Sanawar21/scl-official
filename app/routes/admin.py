@@ -825,6 +825,7 @@ def _finance_context(season_id=None):
             if m and int(m.group(0)) > max_match:
                 max_match = int(m.group(0))
     released_through = finance.released_through(season_id)
+    yield_schedule = finance.yield_schedule(season_id)
     return {
         "seasons": seasons,
         "season_id": season_id,
@@ -835,6 +836,7 @@ def _finance_context(season_id=None):
         "finalized_count": finalized_count,
         "max_match": max_match,
         "released_through": released_through,
+        "yield_schedule": yield_schedule,
         "match_reward_amount": ruleset.match_reward_amount,
         "registry": registry,
         "active_admin_tab": "finances",
@@ -945,6 +947,24 @@ def finances_yield():
         flash(f"Yield released through match {result['released_through']}: "
               f"{result['steps']} position-step(s), {result['yield_total']:,} total yield; "
               f"{result['swept']:,} swept into vaults across {result['swept_accounts']} auto account(s).",
+              "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("admin.finances", season=season_id))
+
+
+@admin_bp.post("/finances/yield/match")
+@login_required(role=R.ROLE_ADMIN)
+def finances_yield_match():
+    """Release vault yield for a single match (from the per-match schedule)."""
+    finance = current_app.extensions["finance_service"]
+    season_id = (request.form.get("season_id") or "").strip().lower()
+    match_number = _safe_int(request.form.get("match_number"), 0)
+    try:
+        result = finance.release_yield_for_match(season_id, match_number)
+        flash(f"Yield released for match {result['released_through']}: "
+              f"{result['yield_total']:,} total yield" +
+              (f"; swept {result['swept']:,} into vaults" if result['swept'] else ""),
               "success")
     except ValueError as exc:
         flash(str(exc), "error")

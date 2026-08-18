@@ -368,7 +368,7 @@
         <tbody>
           {% for tr in transfers %}
             <tr>
-              <td>{{ tr.created_at[:16] }}</td>
+              <td>{{ tr.created_at|pkt }}</td>
               <td>{{ players_by_id.get(tr.player_id, {}).get('name', tr.player_id) }}</td>
               <td>{{ teams_by_id.get(tr.team_from, {}).get('name', '—') }}</td>
               <td>{{ teams_by_id.get(tr.team_to, {}).get('name', '—') }}</td>
@@ -396,7 +396,7 @@
             <td>{{ loop.index }}</td>
             <td>{{ a.action_type }}</td>
             <td>{{ a.actor }}</td>
-            <td>{{ a.created_at[:19] }}</td>
+            <td>{{ a.created_at|pkt }}</td>
             <td>{% if a.undone_at %}<span class="tag">undone</span>{% else %}<span class="tag tag-active">live</span>{% endif %}</td>
           </tr>
         {% endfor %}
