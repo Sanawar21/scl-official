@@ -87,6 +87,11 @@
           <span>Current: <strong>{{ pos.locked_capital }}</strong></span>
           <span>Mode: {{ 'compound' if pos.reinvest else 'manual' }}</span>
         </div>
+        <button class="btn btn-small js-reinvest" data-id="{{ pos.id }}"
+                data-reinvest="{{ 0 if pos.reinvest else 1 }}"
+                style="margin-top:6px">
+          {% if pos.reinvest %}Switch to manual harvest{% else %}Switch to compounding{% endif %}
+        </button>
         <div style="margin-top:6px">
           <div style="background:var(--border);border-radius:4px;height:6px;overflow:hidden">
             <div style="background:var(--primary);height:100%;width:{{ ((pos.locked_capital / pos.principal) * 100)|int if pos.principal > 0 else 0 }}%"></div>
