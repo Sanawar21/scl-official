@@ -1,9 +1,6 @@
 {% extends "base.html" %}
 {% block title %}My Account{% endblock %}
 
-{# ───────────────────────────────────────────────────────────────────── #}
-{# CHART.JS — loaded only on this page                                 #}
-{# ───────────────────────────────────────────────────────────────────── #}
 {% block head %}
 <style>
   .portfolio-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 14px; }
@@ -14,6 +11,9 @@
   .wager-card, .yield-card { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; background: var(--surface); }
   .wager-card + .wager-card, .yield-card + .yield-card { margin-top: 8px; }
   .section-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--muted); margin: 18px 0 8px; }
+  .chart-range { display: flex; gap: 4px; margin-bottom: 8px; }
+  .chart-range-btn { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer; color: var(--muted); }
+  .chart-range-btn.active { background: var(--primary, #0B1E38); color: #fff; border-color: var(--primary, #0B1E38); }
 </style>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.min.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
@@ -58,7 +58,14 @@
 
 {# ── BALANCE GROWTH CHART ─────────────────────────────────────────── #}
 <section class="card">
-  <div class="card-head"><h2>Balance over time</h2></div>
+  <div class="card-head">
+    <h2>Balance over time</h2>
+    <div class="chart-range">
+      <button class="chart-range-btn" data-days="7">7d</button>
+      <button class="chart-range-btn" data-days="30">30d</button>
+      <button class="chart-range-btn active" data-days="0">All</button>
+    </div>
+  </div>
   <div class="chart-wrap"><canvas id="chart-balance"></canvas></div>
 </section>
 
@@ -184,7 +191,7 @@
           <input type="text" name="name" value="{{ my_team.name }}" required style="width:220px">
           <input type="text" name="logo" value="{{ my_team.logo or '' }}" placeholder="logo URL (optional)" style="width:220px">
           <input type="text" name="banner" value="{{ my_team.banner or '' }}" placeholder="banner URL (optional)" style="width:220px">
-          <textarea name="about" rows="3" placeholder="About the team…" style="width:220px">{{ my_team.about or '' }}</textarea>
+          <textarea name="about" rows="3" placeholder="About the team..." style="width:220px">{{ my_team.about or '' }}</textarea>
         </div>
         <button class="btn btn-primary" type="submit">Save team</button>
         <span id="team-msg" class="error-text"></span>
@@ -234,7 +241,7 @@
   <form id="vault-lock-form">
     <div class="row">
       <select name="season_id" required style="width:auto">
-        <option value="">— season —</option>
+        <option value="">-- season --</option>
         {% for s in seasons %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
       </select>
       <input type="number" name="amount" placeholder="amount to lock" min="1" required style="width:140px">
@@ -250,7 +257,7 @@
 <section class="card">
   <div class="card-head">
     <h2>Transactions</h2>
-    <input type="search" id="txn-filter" placeholder="Filter…" style="width:180px">
+    <input type="search" id="txn-filter" placeholder="Filter..." style="width:180px">
   </div>
   <div class="table-wrap">
     <table id="txn-table">
@@ -277,8 +284,9 @@
 <script>
 (function () {
   const fmt = (n) => n.toLocaleString();
+  let chart = null;
 
-  // ── Fetch portfolio data ──────────────────────────────────────────
+  // -- Fetch portfolio data -------------------------------------------
   fetch("{{ url_for('portfolio.portfolio_data') }}")
     .then(r => r.json())
     .then(d => {
@@ -290,81 +298,109 @@
       document.getElementById('p-wagers').textContent = fmt(d.wager_committed);
       document.getElementById('p-yield').textContent = fmt(d.vault_earned);
 
-      // ── Balance chart: Net worth (thick), Liquid, Vault ─────────────
-      if (d.txns && d.txns.length) {
-        // Walk transactions chronologically to reconstruct vault balance
-        const sorted = [...d.txns].sort((a, b) => new Date(a.t) - new Date(b.t));
-        const labels = [];
-        const liquidData = [];
-        const vaultData = [];
-        const netWorthData = [];
-        // Start from first transaction — track vault changes
-        let vault = 0;
-        sorted.forEach(t => {
-          const dt = new Date(t.t);
-          labels.push(dt.toLocaleDateString('en-PK', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}));
-          liquidData.push(t.bal);
-          // Reconstruct vault from transaction types
-          // vault_lock has negative amount (liquid decreases, vault increases)
-          // vault_unlock has positive amount (liquid increases, vault decreases)
-          const amt = Number(t.amount) || 0;
-          if (t.type === 'vault_lock') vault += Math.abs(amt);   // lock: vault grows
-          else if (t.type === 'vault_unlock') vault -= Math.abs(amt); // unlock: vault shrinks
-          else if (t.type === 'vault_yield_reversal') vault += amt; // yield removed (negative)
-          else if (t.type === 'vault_yield') vault -= amt; // yield applied (negative)
-          else if (t.type === 'squad_levy') { /* vault might be seized */ }
-          vaultData.push(Math.max(0, vault));
-          netWorthData.push(t.bal + Math.max(0, vault));
-        });
-        new Chart(document.getElementById('chart-balance'), {
-          type: 'line',
-          data: {
-            labels: labels,
-            datasets: [
-              {
-                label: 'Net worth',
-                data: netWorthData,
-                borderColor: '#0B1E38',
-                backgroundColor: 'rgba(11,30,56,0.06)',
-                fill: true, tension: 0.3, pointRadius: 3,
-                borderWidth: 2.5,
-              },
-              {
-                label: 'Liquid',
-                data: liquidData,
-                borderColor: '#A3FF00',
-                backgroundColor: 'transparent',
-                fill: false, tension: 0.3, pointRadius: 2,
-                borderWidth: 1.5, borderDash: [5, 3],
-              },
-              {
-                label: 'Vault',
-                data: vaultData,
-                borderColor: '#8C939E',
-                backgroundColor: 'transparent',
-                fill: false, tension: 0.3, pointRadius: 2,
-                borderWidth: 1.5, borderDash: [2, 2],
-              }
-            ]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
-              tooltip: { mode: 'index', intersect: false }
-            },
-            scales: {
-              y: { beginAtZero: true, ticks: { callback: v => fmt(v) } },
-              x: { ticks: { maxRotation: 45, font: { size: 10 } } }
-            }
-          }
-        });
+      if (!d.txns || !d.txns.length) return;
+      const sorted = [...d.txns].sort((a, b) => new Date(a.t) - new Date(b.t));
+
+      // Anchor vault at current locked and work backwards.
+      // Only vault_lock / vault_unlock create transaction records;
+      // yield is applied silently by the backend, so we cannot
+      // forward-walk from 0. Working backwards from the known
+      // current vault is accurate.
+      const vaultVals = new Array(sorted.length).fill(0);
+      vaultVals[sorted.length - 1] = d.locked;
+      for (let i = sorted.length - 2; i >= 0; i--) {
+        const next = sorted[i + 1];
+        const amt = Math.abs(Number(next.amount) || 0);
+        if (next.type === 'vault_lock')       vaultVals[i] = vaultVals[i + 1] - amt;
+        else if (next.type === 'vault_unlock') vaultVals[i] = vaultVals[i + 1] + amt;
+        else                                  vaultVals[i] = vaultVals[i + 1];
       }
+
+      // Store full arrays for time-range filtering
+      window._chartAll = {
+        labels: sorted.map(t => new Date(t.t).toLocaleDateString('en-PK', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})),
+        liquid: sorted.map(t => t.bal),
+        vault:  vaultVals.map(v => Math.max(0, v)),
+        net:    sorted.map((t, i) => t.bal + Math.max(0, vaultVals[i])),
+        dates:  sorted.map(t => new Date(t.t))
+      };
+
+      // Time range filter buttons
+      document.querySelectorAll('.chart-range-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.chart-range-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          renderChart(parseInt(btn.dataset.days) || 0);
+        });
+      });
+
+      renderChart(0); // show all initially
     })
     .catch(() => {});
 
-  // ── Transaction filter ────────────────────────────────────────────
+  function renderChart(days) {
+    const all = window._chartAll;
+    if (!all) return;
+    let startIdx = 0;
+    if (days > 0) {
+      const cutoff = new Date(Date.now() - days * 86400000);
+      for (let i = 0; i < all.dates.length; i++) {
+        if (all.dates[i] >= cutoff) { startIdx = i; break; }
+      }
+    }
+    const labels = all.labels.slice(startIdx);
+    const liquid = all.liquid.slice(startIdx);
+    const vault  = all.vault.slice(startIdx);
+    const net    = all.net.slice(startIdx);
+
+    if (chart) chart.destroy();
+    chart = new Chart(document.getElementById('chart-balance'), {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Net worth',
+            data: net,
+            borderColor: '#0B1E38',
+            backgroundColor: 'rgba(11,30,56,0.06)',
+            fill: true, tension: 0.3, pointRadius: 3,
+            borderWidth: 2.5,
+          },
+          {
+            label: 'Liquid',
+            data: liquid,
+            borderColor: '#A3FF00',
+            backgroundColor: 'transparent',
+            fill: false, tension: 0.3, pointRadius: 2,
+            borderWidth: 1.5, borderDash: [5, 3],
+          },
+          {
+            label: 'Vault',
+            data: vault,
+            borderColor: '#8C939E',
+            backgroundColor: 'transparent',
+            fill: false, tension: 0.3, pointRadius: 2,
+            borderWidth: 1.5, borderDash: [2, 2],
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+          tooltip: { mode: 'index', intersect: false }
+        },
+        scales: {
+          y: { beginAtZero: true, ticks: { callback: v => fmt(v) } },
+          x: { ticks: { maxRotation: 45, font: { size: 10 } } }
+        }
+      }
+    });
+  }
+
+  // -- Transaction filter ---------------------------------------------
   const filter = document.getElementById('txn-filter');
   const table = document.getElementById('txn-table');
   if (filter && table) filter.addEventListener('input', function () {
@@ -374,8 +410,8 @@
     });
   });
 
-  // ── AJAX forms ────────────────────────────────────────────────────
-  const wire = (id, url, reload) => {
+  // -- AJAX forms -----------------------------------------------------
+  const wire = (id, url) => {
     const f = document.getElementById(id);
     if (!f) return;
     f.addEventListener('submit', async e => {
