@@ -589,13 +589,13 @@ class FinanceService:
             # Cancel any existing pending schedule for this match
             conn.execute(
                 "UPDATE yield_schedules SET status = 'cancelled' "
-                "WHERE season_id = ? AND match_number = ? AND status = 'pending'",
+                "WHERE season_id = ? AND match_number = ? AND status = 'scheduled'",
                 (season_id, match_number))
             # Create new schedule
             sched_id = secrets.token_hex(8)
             conn.execute(
                 "INSERT INTO yield_schedules (id, season_id, match_number, scheduled_at, "
-                "status, created_by, created_at) VALUES (?, ?, ?, ?, 'pending', ?, ?)",
+                "status, created_by, created_at) VALUES (?, ?, ?, ?, 'scheduled', ?, ?)",
                 (sched_id, season_id, match_number, sched_dt.isoformat(), actor, _now()))
         return {"id": sched_id, "match_number": match_number,
                 "scheduled_at": sched_dt.isoformat()}
@@ -607,7 +607,7 @@ class FinanceService:
                 "SELECT * FROM yield_schedules WHERE id = ?", (schedule_id,)).fetchone()
             if not row:
                 raise ValueError("Schedule not found")
-            if row["status"] != "pending":
+            if row["status"] not in ('scheduled', 'pending'):
                 raise ValueError(f"Schedule already {row['status']}")
             conn.execute(
                 "UPDATE yield_schedules SET status = 'cancelled' WHERE id = ?",
@@ -634,7 +634,7 @@ class FinanceService:
         results = []
         with self.db.read() as conn:
             due = conn.execute(
-                "SELECT * FROM yield_schedules WHERE status = 'pending' "
+                "SELECT * FROM yield_schedules WHERE status = 'scheduled' "
                 "AND scheduled_at <= ?", (now_iso,)).fetchall()
         for sched in due:
             try:

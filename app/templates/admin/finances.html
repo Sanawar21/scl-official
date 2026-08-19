@@ -133,7 +133,7 @@
         </tr></thead>
         <tbody>
           {% for m in yield_schedule %}
-          {% set pending_sched = yield_schedules|selectattr('match_number', 'equalto', m.match_number)|selectattr('status', 'equalto', 'pending')|list %}
+          {% set pending_sched = yield_schedules|selectattr('match_number', 'equalto', m.match_number)|selectattr('status', 'equalto', 'scheduled')|list %}
           <tr>
             <td>{{ m.match_number }}</td>
             <td>{{ m.match_title }}</td>
