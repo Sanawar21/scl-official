@@ -22,6 +22,31 @@ def account():
     vault_positions = bank_service.vault_positions(account["id"]) if account else []
     seasons = current_app.extensions["auction_service"].list_seasons()
     txns = bank_service.transactions(account["id"], limit=50) if account else []
+    # wager bets for this user
+    wager_bets = []
+    if account and user.get("global_player_id"):
+        with db.read() as conn:
+            from ..db import rows_to_dicts as _r2d
+            rows = conn.execute(
+                "SELECT b.*, w.title, w.status AS wager_status, w.side_a, w.side_b, "
+                "w.winning_side FROM wager_bets b JOIN wagers w ON w.id = b.wager_id "
+                "WHERE b.user_id = ? AND b.status = 'open' ORDER BY b.created_at DESC",
+                (user["global_player_id"],),
+            ).fetchall()
+            wager_bets = _r2d(rows)
+    # yield schedules
+    yield_schedules = []
+    if vault_positions:
+        with db.read() as conn:
+            from ..db import rows_to_dicts as _r2d2
+            season_ids = list({v["season_id"] for v in vault_positions})
+            if season_ids:
+                ph = ','.join('?' for _ in season_ids)
+                rows = conn.execute(
+                    f"SELECT * FROM yield_schedules WHERE season_id IN ({ph}) ORDER BY match_number",
+                    season_ids,
+                ).fetchall()
+                yield_schedules = _r2d2(rows)
     finalized_counts = {}
     with db.read() as conn:
         for row in conn.execute("SELECT season_id, COUNT(*) AS n FROM match_stats GROUP BY season_id"):
@@ -53,6 +78,7 @@ def account():
                            vault_positions=vault_positions, seasons=seasons, txns=txns,
                            finalized_counts=finalized_counts, my_team=my_team,
                            match_reward_amount=match_reward_amount,
+                           wager_bets=wager_bets, yield_schedules=yield_schedules,
                            team_logo_url=branding.team_logo(my_team) if my_team else "",
                            team_banner_url=branding.team_banner(my_team) if my_team else "")
 

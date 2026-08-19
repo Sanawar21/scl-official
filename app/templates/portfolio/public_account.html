@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+{% block title %}{{ name }} — Portfolio{% endblock %}
+
+{% block head %}
+<style>
+  .stat-row { display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-bottom:14px }
+  .chart-wrap { position:relative;width:100%;height:220px }
+  @media(min-width:600px){.chart-wrap{height:260px}}
+  .wager-card,.yield-card { border:1px solid var(--border);border-radius:8px;padding:10px 12px;background:var(--surface) }
+  .wager-card+.wager-card,.yield-card+.yield-card { margin-top:8px }
+</style>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.min.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="page-head" style="display:flex;align-items:center;gap:14px">
+  {% if team_logo_url %}
+    <img src="{{ team_logo_url }}" alt="{{ name }}" style="height:48px;width:48px;border-radius:8px;object-fit:cover">
+  {% endif %}
+  <div>
+    <h1>{{ name }}</h1>
+    <p class="page-sub">
+      {% if team_name %}Manager of <b>{{ team_name }}</b>{% else %}Player{% endif %}
+      · Net worth: <b>{{ net_worth }}</b>
+    </p>
+  </div>
+</div>
+
+{# ── STAT TILES ───────────────────────────────────────────────────── #}
+<div class="stat-row">
+  <div class="stat-tile">
+    <div class="stat-label">Liquid</div>
+    <div class="stat-value">{{ liquid }}</div>
+  </div>
+  <div class="stat-tile">
+    <div class="stat-label">Locked (vault)</div>
+    <div class="stat-value">{{ locked }}</div>
+  </div>
+  <div class="stat-tile">
+    <div class="stat-label">In wagers</div>
+    <div class="stat-value">{{ wager_committed }}</div>
+  </div>
+  <div class="stat-tile">
+    <div class="stat-label">Net worth</div>
+    <div class="stat-value">{{ net_worth }}</div>
+  </div>
+</div>
+
+{# ── BALANCE HISTORY (no balance_after shown publicly — chart only) ── #}
+<section class="card">
+  <div class="card-head"><h2>Balance history</h2></div>
+  <div class="chart-wrap"><canvas id="chart-history"></canvas></div>
+</section>
+
+{# ── ASSET ALLOCATION ─────────────────────────────────────────────── #}
+<section class="card">
+  <div class="card-head"><h2>Asset allocation</h2></div>
+  <div style="max-width:260px;margin:0 auto">
+    <div class="chart-wrap"><canvas id="chart-allocation"></canvas></div>
+  </div>
+</section>
+
+{# ── VAULT POSITIONS ──────────────────────────────────────────────── #}
+{% if vaults %}
+<section class="card">
+  <div class="card-head"><h2>Vault positions</h2></div>
+  <div class="grid">
+    {% for pos in vaults %}
+      <div class="team-box">
+        <div class="team-head">
+          <b>{{ pos.season_id }}</b>
+          {% if pos.unlocked %}<span class="chip chip-success">Unlocked</span>
+          {% else %}<span class="chip">Locked until M12</span>{% endif %}
+        </div>
+        <div class="team-stats">
+          <span>Principal: <strong>{{ pos.principal }}</strong></span>
+          <span>Current: <strong>{{ pos.locked_capital }}</strong></span>
+          <span>Mode: {{ 'compound' if pos.reinvest else 'manual' }}</span>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{# ── ACTIVE WAGERS ────────────────────────────────────────────────── #}
+{% if wager_bets %}
+<section class="card">
+  <div class="card-head"><h2>Active wagers</h2></div>
+  {% for b in wager_bets %}
+    <div class="wager-card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <b>{{ b.title }}</b>
+        <span class="tag">{{ b.side }}</span>
+      </div>
+      <div class="muted small" style="margin-top:4px">
+        Stake: <strong>{{ b.amount }}</strong>
+      </div>
+    </div>
+  {% endfor %}
+</section>
+{% endif %}
+
+{# ── YIELD SCHEDULE ───────────────────────────────────────────────── #}
+{% if yield_schedules %}
+<section class="card">
+  <div class="card-head"><h2>Yield schedule</h2></div>
+  {% for ys in yield_schedules %}
+    <div class="yield-card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <b>Match {{ ys.match_number }}</b>
+        {% if ys.status == 'released' %}
+          <span class="tag tag-success">✓ Released</span>
+        {% elif ys.status == 'scheduled' %}
+          <span class="tag tag-info">📅 Scheduled</span>
+        {% else %}
+          <span class="tag">⏳ Pending</span>
+        {% endif %}
+      </div>
+      {% if ys.status == 'scheduled' %}
+        <div class="muted small">Scheduled: {{ ys.scheduled_at[:10] }} at {{ ys.scheduled_at[11:16] }}</div>
+      {% endif %}
+    </div>
+  {% endfor %}
+</section>
+{% endif %}
+
+{# ── RECENT TRANSACTIONS (public: type + amount + time, no balance) ── #}
+<section class="card">
+  <div class="card-head"><h2>Recent activity</h2></div>
+  {% if txns %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>When</th><th>Type</th><th>Amount</th></tr></thead>
+      <tbody>
+        {% for t in txns %}
+          <tr>
+            <td class="muted">{{ t.created_at|pkt }}</td>
+            <td><span class="tag">{{ t.type }}</span></td>
+            <td>{{ t.amount }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p class="muted small">No transactions yet.</p>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const fmt = n => n.toLocaleString();
+  const txns = {{ txns|tojson }};
+  if (txns && txns.length) {
+    const labels = txns.map(t => {
+      const dt = new Date(t.created_at);
+      return dt.toLocaleDateString('en-PK', {month:'short',day:'numeric'});
+    });
+    const balances = txns.map(t => t.balance_after);
+    const colors = txns.map(t => t.amount >= 0 ? '#1e8e5a' : '#d93025');
+    new Chart(document.getElementById('chart-history'), {
+      type:'line',
+      data:{
+        labels,
+        datasets:[{
+          label:'Balance',
+          data:balances,
+          borderColor:'#0B1E38',
+          backgroundColor:'rgba(11,30,56,0.08)',
+          fill:true,tension:0.3,pointRadius:3,pointBackgroundColor:colors,borderWidth:2,
+        }]
+      },
+      options:{
+        responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false}},
+        scales:{
+          y:{beginAtZero:true,ticks:{callback:v=>fmt(v)}},
+          x:{ticks:{maxRotation:45,font:{size:10}}}
+        }
+      }
+    });
+  }
+
+  // Allocation donut
+  const liquid={{ liquid }}, locked={{ locked }}, wager={{ wager_committed }};
+  const data=[liquid,locked,wager].filter(v=>v>0);
+  const labels=['Liquid','Vault','Wagers'].filter((_,i)=>[liquid,locked,wager][i]>0);
+  const colors=['#A3FF00','#0B1E38','#8C939E'].filter((_,i)=>[liquid,locked,wager][i]>0);
+  if(data.length){
+    new Chart(document.getElementById('chart-allocation'),{
+      type:'doughnut',
+      data:{labels,datasets:[{data,backgroundColor:colors,borderWidth:2,borderColor:'#fff'}]},
+      options:{
+        responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:11}}},
+                 tooltip:{callbacks:{label:ctx=>ctx.label+': '+fmt(ctx.parsed)}}}
+      }
+    });
+  }
+})();
+</script>
+{% endblock %}

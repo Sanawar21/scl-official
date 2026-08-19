@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Portfolios — SCL{% endblock %}
+
+{% block head %}
+<style>
+  .rank-badge { display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;font-weight:800;font-size:14px;flex:none }
+  .rank-1 { background:#A3FF00;color:#0B1E38 }
+  .rank-2 { background:#C0C0C0;color:#0B1E38 }
+  .rank-3 { background:#CD7F32;color:#fff }
+  .rank-other { background:var(--border);color:var(--muted);font-size:12px }
+  .portfolio-row { display:grid;grid-template-columns:36px 1fr auto;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--border) }
+  .portfolio-row:last-child { border-bottom:none }
+  .portfolio-name { font-weight:600;font-size:15px }
+  .portfolio-team { font-size:12px;color:var(--muted) }
+  .portfolio-nw { font-size:18px;font-weight:800;text-align:right }
+  .portfolio-breakdown { font-size:11px;color:var(--muted);text-align:right }
+  .yield-timeline { display:flex;flex-direction:column;gap:8px }
+  .yield-item { display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;background:var(--surface);border:1px solid var(--border) }
+  .yield-dot { width:10px;height:10px;border-radius:50%;flex:none }
+  .yield-dot-pending { background:var(--muted) }
+  .yield-dot-scheduled { background:var(--primary) }
+  .yield-dot-released { background:var(--success) }
+  @media (max-width:600px) {
+    .portfolio-row { grid-template-columns:28px 1fr;gap:8px }
+    .portfolio-nw { font-size:15px }
+    .portfolio-breakdown { grid-column:2 / -1 }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1>Portfolio Rankings</h1>
+  <p class="page-sub">Public view — all accounts ranked by net worth</p>
+</div>
+
+{# ── LEADERBOARD ──────────────────────────────────────────────────── #}
+<section class="card">
+  <div class="card-head"><h2>Net worth leaderboard</h2></div>
+  {% if rankings %}
+    {% for r in rankings %}
+      <a href="{{ url_for('portfolio.public_account_view', owner_id=r.owner_id) }}" style="text-decoration:none;color:inherit">
+        <div class="portfolio-row">
+          <div>
+            <span class="rank-badge {% if r.rank == 1 %}rank-1{% elif r.rank == 2 %}rank-2{% elif r.rank == 3 %}rank-3{% else %}rank-other{% endif %}">
+              {{ r.rank }}
+            </span>
+          </div>
+          <div>
+            <div class="portfolio-name">{{ r.name }}</div>
+            {% if r.team_name %}<div class="portfolio-team">🏟 {{ r.team_name }}</div>{% endif %}
+          </div>
+          <div>
+            <div class="portfolio-nw">{{ r.net_worth }}</div>
+            <div class="portfolio-breakdown">
+              💰{{ r.liquid }} · 🔒{{ r.locked }}
+              {% if r.wager_committed %} · 🎲{{ r.wager_committed }}{% endif %}
+            </div>
+          </div>
+        </div>
+      </a>
+    {% endfor %}
+  {% else %}
+    <p class="muted small">No accounts with balances yet.</p>
+  {% endif %}
+</section>
+
+{# ── SCHEDULED YIELD RELEASES ─────────────────────────────────────── #}
+{% if yield_schedules %}
+<section class="card">
+  <div class="card-head"><h2>Yield release schedule</h2></div>
+  <div class="yield-timeline">
+    {% for ys in yield_schedules %}
+      <div class="yield-item">
+        <span class="yield-dot {% if ys.status == 'released' %}yield-dot-released{% elif ys.status == 'scheduled' %}yield-dot-scheduled{% else %}yield-dot-pending{% endif %}"></span>
+        <div style="flex:1">
+          <b>{{ ys.season_name or ys.season_id }} · Match {{ ys.match_number }}</b>
+          <div class="muted small">
+            {% if ys.status == 'released' %}
+              Released {{ ys.executed_at[:10] if ys.executed_at else '—' }}
+            {% elif ys.status == 'scheduled' %}
+              Scheduled {{ ys.scheduled_at[:10] }} at {{ ys.scheduled_at[11:16] }}
+            {% else %}
+              Pending
+            {% endif %}
+          </div>
+        </div>
+        <span class="tag {% if ys.status == 'released' %}tag-success{% elif ys.status == 'scheduled' %}tag-info{% else %}{% endif %}">
+          {{ ys.status|capitalize }}
+        </span>
+      </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}

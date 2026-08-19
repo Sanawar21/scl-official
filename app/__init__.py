@@ -75,6 +75,7 @@ def create_app(config_object=None):
     from .routes.banking import banking_bp
     from .routes.manager import manager_bp
     from .routes.matches import matches_bp
+    from .routes.portfolio import portfolio_bp
     from .routes.viewer import viewer_bp
     from .routes.wagers import wagers_bp
 
@@ -83,6 +84,7 @@ def create_app(config_object=None):
     app.register_blueprint(banking_bp)
     app.register_blueprint(manager_bp)
     app.register_blueprint(matches_bp)
+    app.register_blueprint(portfolio_bp)
     app.register_blueprint(viewer_bp)
     app.register_blueprint(wagers_bp)    # --- template filter: convert UTC timestamps to Pakistan time ----------
     @app.template_filter("pkt")

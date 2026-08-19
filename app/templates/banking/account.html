@@ -1,8 +1,27 @@
 {% extends "base.html" %}
 {% block title %}My Account{% endblock %}
+
+{# ───────────────────────────────────────────────────────────────────── #}
+{# CHART.JS — loaded only on this page                                 #}
+{# ───────────────────────────────────────────────────────────────────── #}
+{% block head %}
+<style>
+  .portfolio-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .portfolio-grid .stat-tile { text-align: center; }
+  .portfolio-grid .stat-value { font-size: 20px; }
+  .chart-wrap { position: relative; width: 100%; height: 220px; }
+  @media (min-width: 600px) { .chart-wrap { height: 260px; } }
+  .wager-card, .yield-card { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; background: var(--surface); }
+  .wager-card + .wager-card, .yield-card + .yield-card { margin-top: 8px; }
+  .section-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--muted); margin: 18px 0 8px; }
+</style>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.min.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+{% endblock %}
+
 {% block content %}
 <div class="page-head">
-  <h1>Central Bank</h1>
+  <h1>Portfolio</h1>
   <p class="page-sub">{{ current_user.username }}{% if current_user.global_player_id %} · linked{% endif %}</p>
 </div>
 
@@ -12,275 +31,370 @@
     <span class="small">Ask an admin to link it to your SCL player profile — then you can wager, lock funds in the vault, and (if you manage a team) run your squad.</span>
   </div>
 {% else %}
-  {% if my_team %}
-    <section class="card">
-      <div class="card-head">
-        <h2>My team</h2>
-        <span class="tag tag-active">Manager</span>
-      </div>
-      <p class="muted small">Your wallet is the team's money — rewards, grants and transfers all move through it.
-        {% if my_team.seasons %}Playing seasons: {% for s in my_team.seasons %}<b>{{ s.season_id }}</b>{% if not loop.last %}, {% endif %}{% endfor %}.{% else %}
-        This team isn't registered for a season yet — the admin adds it when it's time to play.{% endif %}</p>
-      <div class="row" style="gap:14px;align-items:flex-start;margin-bottom:12px">
-        <div style="flex:none">
-          <img src="{{ team_logo_url }}" alt="{{ my_team.name }} logo" class="team-logo"
-               style="max-height:64px;max-width:120px;border-radius:8px">
-          {% if my_team.banner %}
-            <img src="{{ team_banner_url }}" alt="{{ my_team.name }} banner" class="team-banner"
-                 style="display:block;max-height:54px;max-width:240px;object-fit:cover;border-radius:6px;margin-top:6px">
-          {% endif %}
+
+{# ── OVERVIEW TILES ────────────────────────────────────────────────── #}
+<div class="portfolio-grid">
+  <div class="stat-tile">
+    <div class="stat-label">Net worth</div>
+    <div class="stat-value" id="p-net-worth">—</div>
+  </div>
+  <div class="stat-tile">
+    <div class="stat-label">Liquid cash</div>
+    <div class="stat-value" id="p-liquid">—</div>
+  </div>
+  <div class="stat-tile">
+    <div class="stat-label">Locked (vault)</div>
+    <div class="stat-value" id="p-locked">—</div>
+  </div>
+  <div class="stat-tile">
+    <div class="stat-label">In wagers</div>
+    <div class="stat-value" id="p-wagers">—</div>
+  </div>
+  <div class="stat-tile">
+    <div class="stat-label">Vault yield earned</div>
+    <div class="stat-value" id="p-yield">—</div>
+  </div>
+</div>
+
+{# ── BALANCE GROWTH CHART ─────────────────────────────────────────── #}
+<section class="card">
+  <div class="card-head"><h2>Balance over time</h2></div>
+  <div class="chart-wrap"><canvas id="chart-balance"></canvas></div>
+</section>
+
+{# ── ASSET ALLOCATION ─────────────────────────────────────────────── #}
+<section class="card">
+  <div class="card-head"><h2>Asset allocation</h2></div>
+  <div style="max-width:280px;margin:0 auto">
+    <div class="chart-wrap"><canvas id="chart-allocation"></canvas></div>
+  </div>
+</section>
+
+{# ── VAULT POSITIONS ──────────────────────────────────────────────── #}
+{% if vault_positions %}
+<section class="card">
+  <div class="card-head"><h2>Vault positions</h2></div>
+  <div class="grid">
+    {% for pos in vault_positions %}
+      <div class="team-box">
+        <div class="team-head">
+          <b>{{ pos.season_id }}</b>
+          {% if pos.unlocked %}<span class="chip chip-success">Unlocked</span>
+          {% else %}<span class="chip">Locked until M12</span>{% endif %}
         </div>
-        <form id="team-update-form" class="row" style="gap:10px;align-items:flex-start">
-          <input type="hidden" name="team_id" value="{{ my_team.id }}">
-          <div class="col" style="gap:8px">
-            <input type="text" name="name" value="{{ my_team.name }}" required style="width:220px">
-            <input type="text" name="logo" value="{{ my_team.logo or '' }}" placeholder="logo URL (optional)" style="width:220px">
-            <input type="text" name="banner" value="{{ my_team.banner or '' }}" placeholder="banner URL (optional)" style="width:220px">
-            <textarea name="about" rows="3" placeholder="About the team…" style="width:220px">{{ my_team.about or '' }}</textarea>
+        <div class="team-stats">
+          <span>Principal: <strong>{{ pos.principal }}</strong></span>
+          <span>Current: <strong>{{ pos.locked_capital }}</strong></span>
+          <span>Mode: {{ 'compound' if pos.reinvest else 'manual' }}</span>
+        </div>
+        <div style="margin-top:6px">
+          <div style="background:var(--border);border-radius:4px;height:6px;overflow:hidden">
+            <div style="background:var(--primary);height:100%;width:{{ ((pos.locked_capital / pos.principal) * 100)|int if pos.principal > 0 else 0 }}%"></div>
           </div>
-          <button class="btn btn-primary" type="submit">Save team</button>
-          <span id="team-msg" class="error-text"></span>
-        </form>
-      </div>
-      <div class="team-box" style="background:var(--surface)">
-        <h3>Upload branding</h3>
-        <p class="muted small" style="margin:0 0 8px">Upload your logo and wide banner (JPG/PNG).
-          If you don't upload one, the SCL brand is used by default.</p>
-        <form id="team-branding-form" class="row" enctype="multipart/form-data">
-          <input type="hidden" name="team_id" value="{{ my_team.id }}">
-          <label class="field"><span class="small">Logo</span>
-            <input type="file" name="logo" accept="image/*"></label>
-          <label class="field"><span class="small">Banner</span>
-            <input type="file" name="banner" accept="image/*"></label>
-          <button class="btn btn-small btn-primary" type="submit">Upload</button>
-          <span id="branding-msg" class="error-text"></span>
-        </form>
-        <div class="row" style="margin-top:8px">
-          <form id="team-branding-remove" class="row" style="margin:0">
-            <input type="hidden" name="team_id" value="{{ my_team.id }}">
-            <select name="kind" style="width:auto">
-              <option value="logo">logo</option>
-              <option value="banner">banner</option>
-            </select>
-            <button class="btn btn-small btn-ghost" type="submit">Remove asset</button>
-          </form>
+          <span class="muted small">{{ ((pos.locked_capital - pos.principal)) if pos.locked_capital > pos.principal else 0 }} yield earned</span>
         </div>
       </div>
-    </section>
-  {% else %}
-    <section class="card">
-      <div class="card-head"><h2>Start a team</h2></div>
-      <p class="muted small">Create a team account and manage it from here — its money is your wallet.
-        Your team can play in a future season even if it isn't registered now.</p>
-      <form id="team-create-form" class="row">
-        <input type="text" name="name" placeholder="team name" required style="width:220px">
-        <button class="btn btn-primary" type="submit">Create team</button>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{# ── ACTIVE WAGERS ────────────────────────────────────────────────── #}
+<section class="card">
+  <div class="card-head"><h2>Active wagers</h2></div>
+  <div id="wager-list">
+    {% for b in wager_bets %}
+      <div class="wager-card">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <b>{{ b.title }}</b>
+          <span class="tag">{{ b.side }}</span>
+        </div>
+        <div class="muted small" style="margin-top:4px">
+          Stake: <strong>{{ b.amount }}</strong>
+          {% if b.winning_side %} · {{ '✅ Won' if b.winning_side == b.side else '❌ Lost' }}{% endif %}
+        </div>
+      </div>
+    {% endfor %}
+    {% if not wager_bets %}
+      <p class="muted small">No active wagers.</p>
+    {% endif %}
+  </div>
+</section>
+
+{# ── SCHEDULED YIELD RELEASES ─────────────────────────────────────── #}
+{% if yield_schedules %}
+<section class="card">
+  <div class="card-head"><h2>Yield schedule</h2></div>
+  {% for ys in yield_schedules %}
+    <div class="yield-card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <b>Match {{ ys.match_number }}</b>
+        {% if ys.status == 'released' %}
+          <span class="tag tag-success">✓ Released</span>
+        {% elif ys.status == 'scheduled' %}
+          <span class="tag tag-info">📅 Scheduled</span>
+        {% else %}
+          <span class="tag">⏳ Pending</span>
+        {% endif %}
+      </div>
+      {% if ys.status == 'scheduled' %}
+        <div class="muted small">Scheduled: {{ ys.scheduled_at[:16] }}</div>
+      {% elif ys.status == 'released' %}
+        <div class="muted small">Released: {{ ys.executed_at[:16] if ys.executed_at else '—' }}</div>
+      {% endif %}
+    </div>
+  {% endfor %}
+</section>
+{% endif %}
+
+{# ── AUTO MODE ────────────────────────────────────────────────────── #}
+<section class="card">
+  <div class="card-head">
+    <h2>Auto mode</h2>
+    <span class="tag {% if account.auto_vault %}tag-active{% else %}tag-info{% endif %}">{{ 'ON' if account.auto_vault else 'OFF' }}</span>
+  </div>
+  <p class="muted small">Auto mode runs your finances hands-free — money goes straight into your vault and compounds at 7% per match.</p>
+  <form id="auto-form" class="row">
+    <input type="hidden" name="auto" value="{{ 0 if account.auto_vault else 1 }}">
+    <button class="btn {% if account.auto_vault %}btn-secondary{% else %}btn-primary{% endif %}" type="submit">
+      {% if account.auto_vault %}Switch to manual{% else %}Turn on auto mode{% endif %}
+    </button>
+    <span id="auto-msg" class="error-text"></span>
+  </form>
+</section>
+
+{# ── MY TEAM (if manager) ─────────────────────────────────────────── #}
+{% if my_team %}
+  <section class="card">
+    <div class="card-head">
+      <h2>My team</h2>
+      <span class="tag tag-active">Manager</span>
+    </div>
+    <p class="muted small">Your wallet is the team's money — rewards, grants and transfers all move through it.
+      {% if my_team.seasons %}Playing seasons: {% for s in my_team.seasons %}<b>{{ s.season_id }}</b>{% if not loop.last %}, {% endif %}{% endfor %}.{% endif %}</p>
+    <div class="row" style="gap:14px;align-items:flex-start;margin-bottom:12px">
+      <div style="flex:none">
+        <img src="{{ team_logo_url }}" alt="{{ my_team.name }} logo" class="team-logo"
+             style="max-height:64px;max-width:120px;border-radius:8px">
+        {% if my_team.banner %}
+          <img src="{{ team_banner_url }}" alt="{{ my_team.name }} banner" class="team-banner"
+               style="display:block;max-height:54px;max-width:240px;object-fit:cover;border-radius:6px;margin-top:6px">
+        {% endif %}
+      </div>
+      <form id="team-update-form" class="row" style="gap:10px;align-items:flex-start">
+        <input type="hidden" name="team_id" value="{{ my_team.id }}">
+        <div class="col" style="gap:8px">
+          <input type="text" name="name" value="{{ my_team.name }}" required style="width:220px">
+          <input type="text" name="logo" value="{{ my_team.logo or '' }}" placeholder="logo URL (optional)" style="width:220px">
+          <input type="text" name="banner" value="{{ my_team.banner or '' }}" placeholder="banner URL (optional)" style="width:220px">
+          <textarea name="about" rows="3" placeholder="About the team…" style="width:220px">{{ my_team.about or '' }}</textarea>
+        </div>
+        <button class="btn btn-primary" type="submit">Save team</button>
         <span id="team-msg" class="error-text"></span>
       </form>
-    </section>
-  {% endif %}
-
-  <section class="card">
-    <div class="card-head">
-      <h2>Auto mode</h2>
-      <span class="tag {% if account.auto_vault %}tag-active{% else %}tag-info{% endif %}">{{ 'ON' if account.auto_vault else 'OFF' }}</span>
     </div>
-    <p class="muted small">Auto mode runs your finances hands-free (it's <b>on by default</b> for new
-      signups, but is switched <b>off</b> the moment an admin links your account to your player — so
-      linked players manage their liquid cash themselves): money that comes in — admin grants, the
-      {{ match_reward_amount }} per-match credit — goes straight into your vault and compounds at 7%
-      per match. Your universal funding stays liquid through the auction so you can bid, then locks
-      into the vault once the draft completes. Flip it any time from this card.</p>
-    <form id="auto-form" class="row">
-      <input type="hidden" name="auto" value="{{ 0 if account.auto_vault else 1 }}">
-      <button class="btn {% if account.auto_vault %}btn-secondary{% else %}btn-primary{% endif %}" type="submit">
-        {% if account.auto_vault %}Switch to manual{% else %}Turn on auto mode{% endif %}
-      </button>
-      <span id="auto-msg" class="error-text"></span>
-    </form>
-  </section>
-
-  <section class="card">
-    <div class="stat-row">
-      <div class="stat-tile">
-        <div class="stat-label">Liquid cash</div>
-        <div class="stat-value">{{ account.liquid_cash }}</div>
-      </div>
-      <div class="stat-tile">
-        <div class="stat-label">Locked (vault)</div>
-        <div class="stat-value">{{ account.locked_capital }}</div>
+    <div class="team-box" style="background:var(--surface)">
+      <h3>Upload branding</h3>
+      <p class="muted small" style="margin:0 0 8px">Upload your logo and wide banner (JPG/PNG).
+        If you don't upload one, the SCL brand is used by default.</p>
+      <form id="team-branding-form" class="row" enctype="multipart/form-data">
+        <input type="hidden" name="team_id" value="{{ my_team.id }}">
+        <label class="field"><span class="small">Logo</span>
+          <input type="file" name="logo" accept="image/*"></label>
+        <label class="field"><span class="small">Banner</span>
+          <input type="file" name="banner" accept="image/*"></label>
+        <button class="btn btn-small btn-primary" type="submit">Upload</button>
+        <span id="branding-msg" class="error-text"></span>
+      </form>
+      <div class="row" style="margin-top:8px">
+        <form id="team-branding-remove" class="row" style="margin:0">
+          <input type="hidden" name="team_id" value="{{ my_team.id }}">
+          <select name="kind" style="width:auto">
+            <option value="logo">logo</option>
+            <option value="banner">banner</option>
+          </select>
+          <button class="btn btn-small btn-ghost" type="submit">Remove asset</button>
+        </form>
       </div>
     </div>
-
-    <p class="muted small">Only the admin can add balance to your account (grants, credit saved, etc.) —
-      see the admin dashboard.</p>
   </section>
-
+{% else %}
   <section class="card">
-    <div class="card-head"><h2>Vault</h2></div>
-    <p class="muted small">7% yield per match. Default = compounding (auto-reinvest).
-      Manual harvest pays 7% of the original principal to liquid cash each match.
-      Locked capital is untouchable until the season ends (after Match 12).</p>
-    <form id="vault-lock-form">
-      <div class="row">
-        <select name="season_id" required style="width:auto">
-          <option value="">— season —</option>
-          {% for s in seasons %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
-        </select>
-        <input type="number" name="amount" placeholder="amount to lock" min="1" required style="width:140px">
-        <label class="checkbox-label"><input type="checkbox" name="reinvest" value="1" checked>
-          Compounding (reinvest)</label>
-        <button class="btn btn-primary" type="submit">Lock in vault</button>
-        <span id="vault-msg" class="error-text"></span>
-      </div>
+    <div class="card-head"><h2>Start a team</h2></div>
+    <p class="muted small">Create a team account and manage it from here — its money is your wallet.</p>
+    <form id="team-create-form" class="row">
+      <input type="text" name="name" placeholder="team name" required style="width:220px">
+      <button class="btn btn-primary" type="submit">Create team</button>
+      <span id="team-msg" class="error-text"></span>
     </form>
+  </section>
+{% endif %}
 
-    {% if vault_positions %}
-      <h3>Vault positions</h3>
-      <div class="grid">
-        {% for pos in vault_positions %}
-          <div class="team-box">
-            <div class="team-head">
-              <b>{{ pos.season_id }}</b>
-              {% if pos.unlocked %}<span class="chip chip-success">Unlocked</span>
-              {% else %}<span class="chip">Locked until M12</span>{% endif %}
-            </div>
-            <div class="team-stats">
-              <span>Principal: <strong>{{ pos.principal }}</strong></span>
-              <span>Locked: <strong>{{ pos.locked_capital }}</strong></span>
-              <span>Mode: {{ 'compound' if pos.reinvest else 'manual' }}</span>
-              <span>Yield: match {{ pos.last_yield_match }} of 12
-                ({{ finalized_counts.get(pos.season_id, 0) }} finalized)</span>
-            </div>
-            <button class="btn btn-small js-reinvest" data-id="{{ pos.id }}"
-                    data-reinvest="{{ 0 if pos.reinvest else 1 }}">
-              {% if pos.reinvest %}Switch to manual harvest{% else %}Switch to compounding{% endif %}
-            </button>
-          </div>
+{# ── VAULT LOCK ───────────────────────────────────────────────────── #}
+<section class="card">
+  <div class="card-head"><h2>Lock funds in vault</h2></div>
+  <p class="muted small">7% yield per match. Locked capital is untouchable until the season ends (after Match 12).</p>
+  <form id="vault-lock-form">
+    <div class="row">
+      <select name="season_id" required style="width:auto">
+        <option value="">— season —</option>
+        {% for s in seasons %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+      </select>
+      <input type="number" name="amount" placeholder="amount to lock" min="1" required style="width:140px">
+      <label class="checkbox-label"><input type="checkbox" name="reinvest" value="1" checked>
+        Compounding (reinvest)</label>
+      <button class="btn btn-primary" type="submit">Lock in vault</button>
+      <span id="vault-msg" class="error-text"></span>
+    </div>
+  </form>
+</section>
+
+{# ── TRANSACTIONS ─────────────────────────────────────────────────── #}
+<section class="card">
+  <div class="card-head">
+    <h2>Transactions</h2>
+    <input type="search" id="txn-filter" placeholder="Filter…" style="width:180px">
+  </div>
+  <div class="table-wrap">
+    <table id="txn-table">
+      <thead><tr><th>When</th><th>Type</th><th>Amount</th><th>Balance</th><th>Comment</th></tr></thead>
+      <tbody>
+        {% for t in txns %}
+          <tr>
+            <td class="muted">{{ t.created_at|pkt }}</td>
+            <td><span class="tag">{{ t.type }}</span></td>
+            <td>{{ t.amount }}</td>
+            <td><b>{{ t.balance_after }}</b></td>
+            <td>{{ t.comment }}</td>
+          </tr>
         {% endfor %}
-      </div>
-    {% endif %}
-  </section>
+      </tbody>
+    </table>
+  </div>
+</section>
 
-  <section class="card">
-    <div class="card-head">
-      <h2>Transactions</h2>
-      <div class="row">
-        <input type="search" id="txn-filter" placeholder="Filter by type or comment…" style="width:220px">
-      </div>
-    </div>
-    <div class="table-wrap">
-      <table id="txn-table">
-        <thead><tr><th>When</th><th>Type</th><th>Amount</th><th>Balance</th><th>Comment</th></tr></thead>
-        <tbody>
-          {% for t in txns %}
-            <tr>
-              <td class="muted">{{ t.created_at|pkt }}</td>
-              <td><span class="tag">{{ t.type }}</span></td>
-              <td>{{ t.amount }}</td>
-              <td><b>{{ t.balance_after }}</b></td>
-              <td>{{ t.comment }}</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </section>
 {% endif %}
 {% endblock %}
 
 {% block scripts %}
 <script>
-  (function () {
-    const filter = document.getElementById('txn-filter');
-    const table = document.getElementById('txn-table');
-    if (!filter || !table) return;
-    filter.addEventListener('input', function () {
-      const q = (filter.value || '').toLowerCase();
-      table.querySelectorAll('tbody tr').forEach(function (row) {
-        row.hidden = row.innerText.toLowerCase().indexOf(q) === -1;
-      });
-    });
-  })();
-</script>
-<script>
-  window.addEventListener('load', () => {
-    const autoForm = document.getElementById('auto-form');
-    if (autoForm) autoForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const res = await fetch("{{ url_for('banking.auto_toggle') }}", {
-        method: 'POST',
-        body: new FormData(autoForm),
-      });
-      const data = await res.json();
-      if (data.ok) { location.reload(); }
-      else { document.getElementById('auto-msg').textContent = data.error || 'Error'; }
-    });
-    const teamCreate = document.getElementById('team-create-form');
-    if (teamCreate) teamCreate.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const res = await fetch("{{ url_for('banking.team_create') }}", {
-        method: 'POST',
-        body: new FormData(teamCreate),
-      });
-      const data = await res.json();
-      if (data.ok) { location.reload(); }
-      else { document.getElementById('team-msg').textContent = data.error || 'Error'; }
-    });
-    const teamUpdate = document.getElementById('team-update-form');
-    if (teamUpdate) teamUpdate.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const res = await fetch("{{ url_for('banking.team_update') }}", {
-        method: 'POST',
-        body: new FormData(teamUpdate),
-      });
-      const data = await res.json();
-      if (data.ok) { location.reload(); }
-      else { document.getElementById('team-msg').textContent = data.error || 'Error'; }
-    });
-    const teamBranding = document.getElementById('team-branding-form');
-    if (teamBranding) teamBranding.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const res = await fetch("{{ url_for('banking.team_branding') }}", {
-        method: 'POST',
-        body: new FormData(teamBranding),
-      });
-      const data = await res.json();
-      if (data.ok) { location.reload(); }
-      else { document.getElementById('branding-msg').textContent = data.error || 'Error'; }
-    });
-    const teamBrandingRemove = document.getElementById('team-branding-remove');
-    if (teamBrandingRemove) teamBrandingRemove.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const res = await fetch("{{ url_for('banking.team_branding_remove') }}", {
-        method: 'POST',
-        body: new FormData(teamBrandingRemove),
-      });
-      const data = await res.json();
-      if (data.ok) { location.reload(); }
-      else { document.getElementById('branding-msg').textContent = data.error || 'Error'; }
-    });
-    const lockForm = document.getElementById('vault-lock-form');
-    if (lockForm) lockForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const res = await fetch("{{ url_for('banking.vault_lock') }}", {
-        method: 'POST',
-        body: new FormData(lockForm),
-      });
-      const data = await res.json();
-      if (data.ok) { location.reload(); }
-      else { document.getElementById('vault-msg').textContent = data.error || 'Error'; }
-    });
-    document.querySelectorAll('.js-reinvest').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        const res = await fetch("{{ url_for('banking.vault_reinvest', position_id='__ID__') }}".replace('__ID__', btn.dataset.id), {
-          method: 'POST',
-          body: new URLSearchParams({ reinvest: btn.dataset.reinvest }),
+(function () {
+  const fmt = (n) => n.toLocaleString();
+
+  // ── Fetch portfolio data ──────────────────────────────────────────
+  fetch("{{ url_for('portfolio.portfolio_data') }}")
+    .then(r => r.json())
+    .then(d => {
+      if (!d.ok) return;
+      // tiles
+      document.getElementById('p-net-worth').textContent = fmt(d.net_worth);
+      document.getElementById('p-liquid').textContent = fmt(d.liquid);
+      document.getElementById('p-locked').textContent = fmt(d.locked);
+      document.getElementById('p-wagers').textContent = fmt(d.wager_committed);
+      document.getElementById('p-yield').textContent = fmt(d.vault_earned);
+
+      // ── Balance line chart ────────────────────────────────────────
+      if (d.txns && d.txns.length) {
+        const labels = d.txns.map(t => {
+          const dt = new Date(t.t);
+          return dt.toLocaleDateString('en-PK', {month:'short', day:'numeric'});
         });
-        const data = await res.json();
-        if (data.ok) { location.reload(); }
-      });
+        const balances = d.txns.map(t => t.bal);
+        const colors = d.txns.map(t => t.amount >= 0 ? '#1e8e5a' : '#d93025');
+        new Chart(document.getElementById('chart-balance'), {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Balance',
+              data: balances,
+              borderColor: '#0B1E38',
+              backgroundColor: 'rgba(11,30,56,0.08)',
+              fill: true,
+              tension: 0.3,
+              pointRadius: 3,
+              pointBackgroundColor: colors,
+              borderWidth: 2,
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+              y: { beginAtZero: true, ticks: { callback: v => fmt(v) } },
+              x: { ticks: { maxRotation: 45, font: { size: 10 } } }
+            }
+          }
+        });
+      }
+
+      // ── Allocation donut ──────────────────────────────────────────
+      const allocData = [d.liquid, d.locked, d.wager_committed].filter(v => v > 0);
+      const allocLabels = ['Liquid', 'Vault', 'Wagers'];
+      const allocColors = ['#A3FF00', '#0B1E38', '#8C939E'];
+      if (allocData.length) {
+        new Chart(document.getElementById('chart-allocation'), {
+          type: 'doughnut',
+          data: {
+            labels: allocLabels.filter((_, i) => [d.liquid, d.locked, d.wager_committed][i] > 0),
+            datasets: [{
+              data: allocData,
+              backgroundColor: allocColors.filter((_, i) => [d.liquid, d.locked, d.wager_committed][i] > 0),
+              borderWidth: 2,
+              borderColor: '#fff',
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+              tooltip: { callbacks: { label: ctx => ctx.label + ': ' + fmt(ctx.parsed) } }
+            }
+          }
+        });
+      }
+    })
+    .catch(() => {});
+
+  // ── Transaction filter ────────────────────────────────────────────
+  const filter = document.getElementById('txn-filter');
+  const table = document.getElementById('txn-table');
+  if (filter && table) filter.addEventListener('input', function () {
+    const q = filter.value.toLowerCase();
+    table.querySelectorAll('tbody tr').forEach(r => {
+      r.hidden = r.innerText.toLowerCase().indexOf(q) === -1;
     });
   });
+
+  // ── AJAX forms ────────────────────────────────────────────────────
+  const wire = (id, url, reload) => {
+    const f = document.getElementById(id);
+    if (!f) return;
+    f.addEventListener('submit', async e => {
+      e.preventDefault();
+      const res = await fetch(url, { method: 'POST', body: new FormData(f) });
+      const d = await res.json();
+      if (d.ok) location.reload();
+      else { const m = f.querySelector('.error-text'); if (m) m.textContent = d.error || 'Error'; }
+    });
+  };
+  wire('auto-form', "{{ url_for('banking.auto_toggle') }}");
+  wire('team-create-form', "{{ url_for('banking.team_create') }}");
+  wire('team-update-form', "{{ url_for('banking.team_update') }}");
+  wire('team-branding-form', "{{ url_for('banking.team_branding') }}");
+  wire('team-branding-remove', "{{ url_for('banking.team_branding_remove') }}");
+  wire('vault-lock-form', "{{ url_for('banking.vault_lock') }}");
+
+  document.querySelectorAll('.js-reinvest').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      await fetch("{{ url_for('banking.vault_reinvest', position_id='__ID__') }}".replace('__ID__', btn.dataset.id), {
+        method: 'POST', body: new URLSearchParams({ reinvest: btn.dataset.reinvest })
+      });
+      location.reload();
+    });
+  });
+})();
 </script>
 {% endblock %}

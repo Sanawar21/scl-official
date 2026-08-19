@@ -1051,3 +1051,34 @@ is live).
   - Match summary page (`/matches/<season>/<match>`): each innings card now
     shows the team banner + logo (`_attach_section_branding` in matches.py).
 - Suite: 215 unit (212 → 215: auction export service + route, summary branding).
+
+## Portfolio + public rankings — DONE (2026-08-19)
+
+- **Logged-in Account page** now has a **Portfolio** section at the top:
+  - 5 stat tiles: Net worth, Liquid, Locked, In wagers, Vault yield earned
+  - **Balance over time** line chart (Chart.js, chronological from bank_transactions)
+  - **Asset allocation** doughnut chart (Liquid / Vault / Wagers)
+  - Vault positions with progress bars and yield earned
+  - Active wagers cards (side, stake, win/loss)
+  - Yield release schedule per season
+  - Then: auto mode, my team, lock funds, transactions (unchanged)
+
+- **Public Portfolio Rankings** (`/portfolio`):
+  - Net worth leaderboard (rank badge, name, team, liquid/locked/wagers breakdown)
+  - Yield release schedule timeline (pending / scheduled / released)
+  - Every row links to the individual public account view
+
+- **Public Account View** (`/portfolio/<owner_id>`):
+  - Stat tiles, balance history chart, allocation donut, vault positions,
+    active wagers, yield schedule, recent activity (type + amount + time, no balance_after)
+
+- **Routes** in `app/routes/portfolio.py`:
+  - `GET /portfolio/data` — JSON for the private portfolio page charts (login required)
+  - `GET /portfolio` — public rankings
+  - `GET /portfolio/<owner_id>` — public account view
+
+- **Navbar** now has a "Portfolio" link (public, visible to everyone)
+
+- Uses Chart.js 4 via CDN (no npm install needed)
+
+- `banking.account` route now also passes `wager_bets` and `yield_schedules` to the template
