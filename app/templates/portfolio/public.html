@@ -77,9 +77,9 @@
           <b>{{ ys.season_name or ys.season_id }} · Match {{ ys.match_number }}</b>
           <div class="muted small">
             {% if ys.status == 'released' %}
-              Released {{ ys.executed_at[:10] if ys.executed_at else '—' }}
+              Released {{ ys.executed_at|pkt if ys.executed_at else '—' }}
             {% elif ys.status == 'scheduled' %}
-              Scheduled {{ ys.scheduled_at[:10] }} at {{ ys.scheduled_at[11:16] }}
+              Scheduled {{ ys.scheduled_at|pkt('%b %d, %I:%M %p') }}
             {% else %}
               Pending
             {% endif %}

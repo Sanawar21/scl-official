@@ -119,7 +119,7 @@
         {% endif %}
       </div>
       {% if ys.status == 'scheduled' %}
-        <div class="muted small">Scheduled: {{ ys.scheduled_at[:10] }} at {{ ys.scheduled_at[11:16] }}</div>
+        <div class="muted small">Scheduled {{ ys.scheduled_at|pkt('%b %d, %I:%M %p') }}</div>
       {% endif %}
     </div>
   {% endfor %}
