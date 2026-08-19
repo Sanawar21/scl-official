@@ -62,14 +62,6 @@
   <div class="chart-wrap"><canvas id="chart-balance"></canvas></div>
 </section>
 
-{# ── ASSET ALLOCATION ─────────────────────────────────────────────── #}
-<section class="card">
-  <div class="card-head"><h2>Asset allocation</h2></div>
-  <div style="max-width:280px;margin:0 auto">
-    <div class="chart-wrap"><canvas id="chart-allocation"></canvas></div>
-  </div>
-</section>
-
 {# ── VAULT POSITIONS ──────────────────────────────────────────────── #}
 {% if vault_positions %}
 <section class="card">
@@ -143,9 +135,9 @@
         {% endif %}
       </div>
       {% if ys.status == 'scheduled' %}
-        <div class="muted small">Scheduled: {{ ys.scheduled_at[:16] }}</div>
+        <div class="muted small">Scheduled {{ ys.scheduled_at|pkt('%b %d, %I:%M %p') }}</div>
       {% elif ys.status == 'released' %}
-        <div class="muted small">Released: {{ ys.executed_at[:16] if ys.executed_at else '—' }}</div>
+        <div class="muted small">Released {{ ys.executed_at|pkt if ys.executed_at else '—' }}</div>
       {% endif %}
     </div>
   {% endfor %}
@@ -298,64 +290,73 @@
       document.getElementById('p-wagers').textContent = fmt(d.wager_committed);
       document.getElementById('p-yield').textContent = fmt(d.vault_earned);
 
-      // ── Balance line chart ────────────────────────────────────────
+      // ── Balance chart: Net worth (thick), Liquid, Vault ─────────────
       if (d.txns && d.txns.length) {
-        const labels = d.txns.map(t => {
+        // Walk transactions chronologically to reconstruct vault balance
+        const sorted = [...d.txns].sort((a, b) => new Date(a.t) - new Date(b.t));
+        const labels = [];
+        const liquidData = [];
+        const vaultData = [];
+        const netWorthData = [];
+        // Start from first transaction — track vault changes
+        let vault = 0;
+        sorted.forEach(t => {
           const dt = new Date(t.t);
-          return dt.toLocaleDateString('en-PK', {month:'short', day:'numeric'});
+          labels.push(dt.toLocaleDateString('en-PK', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}));
+          liquidData.push(t.bal);
+          // Reconstruct vault from transaction types
+          // vault_lock has negative amount (liquid decreases, vault increases)
+          // vault_unlock has positive amount (liquid increases, vault decreases)
+          const amt = Number(t.amount) || 0;
+          if (t.type === 'vault_lock') vault += Math.abs(amt);   // lock: vault grows
+          else if (t.type === 'vault_unlock') vault -= Math.abs(amt); // unlock: vault shrinks
+          else if (t.type === 'vault_yield_reversal') vault += amt; // yield removed (negative)
+          else if (t.type === 'vault_yield') vault -= amt; // yield applied (negative)
+          else if (t.type === 'squad_levy') { /* vault might be seized */ }
+          vaultData.push(Math.max(0, vault));
+          netWorthData.push(t.bal + Math.max(0, vault));
         });
-        const balances = d.txns.map(t => t.bal);
-        const colors = d.txns.map(t => t.amount >= 0 ? '#1e8e5a' : '#d93025');
         new Chart(document.getElementById('chart-balance'), {
           type: 'line',
           data: {
             labels: labels,
-            datasets: [{
-              label: 'Balance',
-              data: balances,
-              borderColor: '#0B1E38',
-              backgroundColor: 'rgba(11,30,56,0.08)',
-              fill: true,
-              tension: 0.3,
-              pointRadius: 3,
-              pointBackgroundColor: colors,
-              borderWidth: 2,
-            }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: {
-              y: { beginAtZero: true, ticks: { callback: v => fmt(v) } },
-              x: { ticks: { maxRotation: 45, font: { size: 10 } } }
-            }
-          }
-        });
-      }
-
-      // ── Allocation donut ──────────────────────────────────────────
-      const allocData = [d.liquid, d.locked, d.wager_committed].filter(v => v > 0);
-      const allocLabels = ['Liquid', 'Vault', 'Wagers'];
-      const allocColors = ['#A3FF00', '#0B1E38', '#8C939E'];
-      if (allocData.length) {
-        new Chart(document.getElementById('chart-allocation'), {
-          type: 'doughnut',
-          data: {
-            labels: allocLabels.filter((_, i) => [d.liquid, d.locked, d.wager_committed][i] > 0),
-            datasets: [{
-              data: allocData,
-              backgroundColor: allocColors.filter((_, i) => [d.liquid, d.locked, d.wager_committed][i] > 0),
-              borderWidth: 2,
-              borderColor: '#fff',
-            }]
+            datasets: [
+              {
+                label: 'Net worth',
+                data: netWorthData,
+                borderColor: '#0B1E38',
+                backgroundColor: 'rgba(11,30,56,0.06)',
+                fill: true, tension: 0.3, pointRadius: 3,
+                borderWidth: 2.5,
+              },
+              {
+                label: 'Liquid',
+                data: liquidData,
+                borderColor: '#A3FF00',
+                backgroundColor: 'transparent',
+                fill: false, tension: 0.3, pointRadius: 2,
+                borderWidth: 1.5, borderDash: [5, 3],
+              },
+              {
+                label: 'Vault',
+                data: vaultData,
+                borderColor: '#8C939E',
+                backgroundColor: 'transparent',
+                fill: false, tension: 0.3, pointRadius: 2,
+                borderWidth: 1.5, borderDash: [2, 2],
+              }
+            ]
           },
           options: {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
               legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
-              tooltip: { callbacks: { label: ctx => ctx.label + ': ' + fmt(ctx.parsed) } }
+              tooltip: { mode: 'index', intersect: false }
+            },
+            scales: {
+              y: { beginAtZero: true, ticks: { callback: v => fmt(v) } },
+              x: { ticks: { maxRotation: 45, font: { size: 10 } } }
             }
           }
         });

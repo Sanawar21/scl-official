@@ -53,14 +53,6 @@
   <div class="chart-wrap"><canvas id="chart-history"></canvas></div>
 </section>
 
-{# ── ASSET ALLOCATION ─────────────────────────────────────────────── #}
-<section class="card">
-  <div class="card-head"><h2>Asset allocation</h2></div>
-  <div style="max-width:260px;margin:0 auto">
-    <div class="chart-wrap"><canvas id="chart-allocation"></canvas></div>
-  </div>
-</section>
-
 {# ── VAULT POSITIONS ──────────────────────────────────────────────── #}
 {% if vaults %}
 <section class="card">
@@ -156,48 +148,41 @@
   const fmt = n => n.toLocaleString();
   const txns = {{ txns|tojson }};
   if (txns && txns.length) {
-    const labels = txns.map(t => {
+    const sorted = [...txns].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    const labels = [];
+    const liquidData = [];
+    const vaultData = [];
+    const netWorthData = [];
+    let vault = 0;
+    sorted.forEach(t => {
       const dt = new Date(t.created_at);
-      return dt.toLocaleDateString('en-PK', {month:'short',day:'numeric'});
+      labels.push(dt.toLocaleDateString('en-PK', {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}));
+      liquidData.push(t.balance_after);
+      const amt = Number(t.amount) || 0;
+      if (t.type === 'vault_lock') vault += Math.abs(amt);
+      else if (t.type === 'vault_unlock') vault -= Math.abs(amt);
+      else if (t.type === 'vault_yield_reversal') vault += amt;
+      else if (t.type === 'vault_yield') vault -= amt;
+      vaultData.push(Math.max(0, vault));
+      netWorthData.push(t.balance_after + Math.max(0, vault));
     });
-    const balances = txns.map(t => t.balance_after);
-    const colors = txns.map(t => t.amount >= 0 ? '#1e8e5a' : '#d93025');
     new Chart(document.getElementById('chart-history'), {
       type:'line',
       data:{
         labels,
-        datasets:[{
-          label:'Balance',
-          data:balances,
-          borderColor:'#0B1E38',
-          backgroundColor:'rgba(11,30,56,0.08)',
-          fill:true,tension:0.3,pointRadius:3,pointBackgroundColor:colors,borderWidth:2,
-        }]
+        datasets:[
+          {label:'Net worth',data:netWorthData,borderColor:'#0B1E38',backgroundColor:'rgba(11,30,56,0.06)',fill:true,tension:0.3,pointRadius:3,borderWidth:2.5},
+          {label:'Liquid',data:liquidData,borderColor:'#A3FF00',backgroundColor:'transparent',fill:false,tension:0.3,pointRadius:2,borderWidth:1.5,borderDash:[5,3]},
+          {label:'Vault',data:vaultData,borderColor:'#8C939E',backgroundColor:'transparent',fill:false,tension:0.3,pointRadius:2,borderWidth:1.5,borderDash:[2,2]}
+        ]
       },
       options:{
         responsive:true,maintainAspectRatio:false,
-        plugins:{legend:{display:false}},
+        plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:11}}},tooltip:{mode:'index',intersect:false}},
         scales:{
           y:{beginAtZero:true,ticks:{callback:v=>fmt(v)}},
           x:{ticks:{maxRotation:45,font:{size:10}}}
         }
-      }
-    });
-  }
-
-  // Allocation donut
-  const liquid={{ liquid }}, locked={{ locked }}, wager={{ wager_committed }};
-  const data=[liquid,locked,wager].filter(v=>v>0);
-  const labels=['Liquid','Vault','Wagers'].filter((_,i)=>[liquid,locked,wager][i]>0);
-  const colors=['#A3FF00','#0B1E38','#8C939E'].filter((_,i)=>[liquid,locked,wager][i]>0);
-  if(data.length){
-    new Chart(document.getElementById('chart-allocation'),{
-      type:'doughnut',
-      data:{labels,datasets:[{data,backgroundColor:colors,borderWidth:2,borderColor:'#fff'}]},
-      options:{
-        responsive:true,maintainAspectRatio:false,
-        plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:11}}},
-                 tooltip:{callbacks:{label:ctx=>ctx.label+': '+fmt(ctx.parsed)}}}
       }
     });
   }
