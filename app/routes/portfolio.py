@@ -75,7 +75,7 @@ def _account_data(db, bank_service, user):
 # Private — portfolio JSON (for the account page charts)
 # ---------------------------------------------------------------------------
 
-@portfolio_bp.get("/portfolio/data")
+@portfolio_bp.get("/portfolios/data")
 @login_required()
 def portfolio_data():
     db = current_app.extensions["db"]
@@ -108,11 +108,12 @@ def portfolio_data():
 # Public — portfolio rankings + per-account view
 # ---------------------------------------------------------------------------
 
-@portfolio_bp.get("/portfolio")
+@portfolio_bp.get("/portfolios")
 def public_portfolio():
     """Public leaderboard of all accounts by net worth."""
     db = current_app.extensions["db"]
     bank_service = current_app.extensions["bank_service"]
+    branding = current_app.extensions["branding_service"]
     rankings = []
     with db.read() as conn:
         accounts = conn.execute(
@@ -127,7 +128,7 @@ def public_portfolio():
             name = gp["name"] if gp else owner_id[:8]
             # team info
             gt = conn.execute(
-                "SELECT name, logo FROM global_teams WHERE manager_player_id = ?",
+                "SELECT name, logo, banner FROM global_teams WHERE manager_player_id = ?",
                 (owner_id,),
             ).fetchone()
             # vault positions
@@ -147,11 +148,12 @@ def public_portfolio():
             net_worth = liquid + locked + wager_committed
             if net_worth <= 0 and liquid == 0 and locked == 0:
                 continue  # skip empty unlinked accounts
+            team_dict = dict(gt) if gt else None
             rankings.append({
                 "owner_id": owner_id,
                 "name": name,
                 "team_name": gt["name"] if gt else None,
-                "team_logo": gt["logo"] if gt else None,
+                "team_logo_url": branding.team_logo(team_dict) if team_dict else "",
                 "liquid": liquid,
                 "locked": locked,
                 "wager_committed": wager_committed,
@@ -177,7 +179,7 @@ def public_portfolio():
     )
 
 
-@portfolio_bp.get("/portfolio/<owner_id>")
+@portfolio_bp.get("/portfolios/<owner_id>")
 def public_account_view(owner_id):
     """Public view of a single account's finances."""
     db = current_app.extensions["db"]
