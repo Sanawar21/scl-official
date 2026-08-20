@@ -543,6 +543,11 @@ class FinanceService:
                  f"Yield released for match {match_number} — {len(results)} "
                  f"position-step(s)" + (f"; swept {swept['amount']:,}" if swept['amount'] else ""),
                  actor, _now()))
+            # Also mark any yield_schedules record as executed
+            conn.execute(
+                "UPDATE yield_schedules SET status = 'executed', executed_at = ? "
+                "WHERE season_id = ? AND match_number = ? AND status IN ('scheduled', 'pending')",
+                (_now(), season_id, match_number))
         return {"released_through": match_number, "steps": len(results),
                 "yield_total": total, "swept": swept["amount"], "swept_accounts": swept["locked"]}
 

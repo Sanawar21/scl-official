@@ -72,11 +72,11 @@
   <div class="yield-timeline">
     {% for ys in yield_schedules %}
       <div class="yield-item">
-        <span class="yield-dot {% if ys.status == 'released' %}yield-dot-released{% elif ys.status == 'scheduled' %}yield-dot-scheduled{% else %}yield-dot-pending{% endif %}"></span>
+        <span class="yield-dot {% if ys.status in ('executed', 'released') %}yield-dot-released{% elif ys.status == 'scheduled' %}yield-dot-scheduled{% else %}yield-dot-pending{% endif %}"></span>
         <div style="flex:1">
           <b>{{ ys.season_name or ys.season_id }} · Match {{ ys.match_number }}</b>
           <div class="muted small">
-            {% if ys.status == 'released' %}
+            {% if ys.status in ('executed', 'released') %}
               Released {{ ys.executed_at|pkt if ys.executed_at else '—' }}
             {% elif ys.status == 'scheduled' %}
               Scheduled {{ ys.scheduled_at|pkt('%b %d, %I:%M %p') }}
@@ -85,7 +85,7 @@
             {% endif %}
           </div>
         </div>
-        <span class="tag {% if ys.status == 'released' %}tag-success{% elif ys.status == 'scheduled' %}tag-info{% else %}{% endif %}">
+        <span class="tag {% if ys.status in ('executed', 'released') %}tag-success{% elif ys.status == 'scheduled' %}tag-info{% else %}{% endif %}">
           {{ ys.status|capitalize }}
         </span>
       </div>

@@ -102,7 +102,7 @@
     <div class="yield-card">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <b>Match {{ ys.match_number }}</b>
-        {% if ys.status == 'released' %}
+        {% if ys.status in ('executed', 'released') %}
           <span class="tag tag-success">✓ Released</span>
         {% elif ys.status == 'scheduled' %}
           <span class="tag tag-info">📅 Scheduled</span>
