@@ -68,9 +68,9 @@
       <button class="chart-range-btn" data-days="30">30d</button>
       <button class="chart-range-btn active" data-days="0">All</button>
       <span class="chart-range-sep">|</span>
-      <input type="date" id="chart-start" title="From">
+      <input type="datetime-local" id="chart-start" title="From">
       <span class="chart-range-sep">to</span>
-      <input type="date" id="chart-end" title="To">
+      <input type="datetime-local" id="chart-end" title="To">
     </div>
   </div>
   <div class="chart-wrap"><canvas id="chart-balance"></canvas></div>
@@ -368,8 +368,8 @@
     // Custom date range takes priority over preset days
     const dateStartEl = document.getElementById('chart-start');
     const dateEndEl = document.getElementById('chart-end');
-    const customStart = dateStartEl && dateStartEl.value ? new Date(dateStartEl.value + 'T00:00:00') : null;
-    const customEnd = dateEndEl && dateEndEl.value ? new Date(dateEndEl.value + 'T23:59:59') : null;
+    const customStart = dateStartEl && dateStartEl.value ? new Date(dateStartEl.value) : null;
+    const customEnd = dateEndEl && dateEndEl.value ? new Date(dateEndEl.value) : null;
 
     if (customStart || customEnd) {
       // Find indices for custom range
