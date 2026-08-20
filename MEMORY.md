@@ -1082,3 +1082,18 @@ is live).
 - Uses Chart.js 4 via CDN (no npm install needed)
 
 - `banking.account` route now also passes `wager_bets` and `yield_schedules` to the template
+
+## Yield schedule fix + chart time range — DONE (2026-08-20)
+
+- **Yield schedule status bug fixed**: `release_yield_for_match()` now updates `yield_schedules`
+  to `status = 'executed'` when yield is released (manual or scheduled). Templates updated to
+  check `ys.status in ('executed', 'released')` instead of `ys.status == 'released'`.
+  Root cause: background scheduler stored `'executed'` but templates checked `'released'`.
+
+- **Custom time range filter on balance charts** (both `/account` and `/portfolio/<id>`):
+  - Preset buttons: 7d, 30d, All
+  - Custom date range: start + end date inputs that filter the chart to any range
+  - Clicking a preset clears custom dates; setting dates deactivates presets
+  - Fixes the "data points dwarfed by pre-draft allocations" issue
+
+- **Gotcha**: schema changes require user to copy prod `scl.db` locally (see Deployment section)

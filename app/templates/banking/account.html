@@ -11,9 +11,12 @@
   .wager-card, .yield-card { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; background: var(--surface); }
   .wager-card + .wager-card, .yield-card + .yield-card { margin-top: 8px; }
   .section-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--muted); margin: 18px 0 8px; }
-  .chart-range { display: flex; gap: 4px; margin-bottom: 8px; }
+  .chart-range { display: flex; gap: 4px; margin-bottom: 8px; flex-wrap: wrap; align-items: center; }
   .chart-range-btn { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer; color: var(--muted); }
   .chart-range-btn.active { background: var(--primary, #0B1E38); color: #fff; border-color: var(--primary, #0B1E38); }
+  .chart-range-sep { color: var(--muted); font-size: 12px; margin: 0 2px; }
+  .chart-range input[type="date"] { border: 1px solid var(--border); border-radius: 6px; padding: 3px 6px; font-size: 12px; color: var(--text); background: var(--surface); }
+  .chart-range input[type="date"]:focus { outline: 1px solid var(--primary, #0B1E38); }
 </style>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.min.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
@@ -64,6 +67,10 @@
       <button class="chart-range-btn" data-days="7">7d</button>
       <button class="chart-range-btn" data-days="30">30d</button>
       <button class="chart-range-btn active" data-days="0">All</button>
+      <span class="chart-range-sep">|</span>
+      <input type="date" id="chart-start" title="From">
+      <span class="chart-range-sep">to</span>
+      <input type="date" id="chart-end" title="To">
     </div>
   </div>
   <div class="chart-wrap"><canvas id="chart-balance"></canvas></div>
@@ -330,7 +337,21 @@
         btn.addEventListener('click', () => {
           document.querySelectorAll('.chart-range-btn').forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
+          // Clear custom dates when using presets
+          document.getElementById('chart-start').value = '';
+          document.getElementById('chart-end').value = '';
           renderChart(parseInt(btn.dataset.days) || 0);
+        });
+      });
+
+      // Custom date range inputs
+      const dateStart = document.getElementById('chart-start');
+      const dateEnd = document.getElementById('chart-end');
+      [dateStart, dateEnd].forEach(el => {
+        el.addEventListener('change', () => {
+          // Deactivate preset buttons
+          document.querySelectorAll('.chart-range-btn').forEach(b => b.classList.remove('active'));
+          renderChart(0);
         });
       });
 
@@ -342,16 +363,34 @@
     const all = window._chartAll;
     if (!all) return;
     let startIdx = 0;
-    if (days > 0) {
+    let endIdx = all.dates.length;
+
+    // Custom date range takes priority over preset days
+    const dateStartEl = document.getElementById('chart-start');
+    const dateEndEl = document.getElementById('chart-end');
+    const customStart = dateStartEl && dateStartEl.value ? new Date(dateStartEl.value + 'T00:00:00') : null;
+    const customEnd = dateEndEl && dateEndEl.value ? new Date(dateEndEl.value + 'T23:59:59') : null;
+
+    if (customStart || customEnd) {
+      // Find indices for custom range
+      for (let i = 0; i < all.dates.length; i++) {
+        if (customStart && all.dates[i] >= customStart) { startIdx = i; break; }
+      }
+      if (customEnd) {
+        for (let i = all.dates.length - 1; i >= 0; i--) {
+          if (all.dates[i] <= customEnd) { endIdx = i + 1; break; }
+        }
+      }
+    } else if (days > 0) {
       const cutoff = new Date(Date.now() - days * 86400000);
       for (let i = 0; i < all.dates.length; i++) {
         if (all.dates[i] >= cutoff) { startIdx = i; break; }
       }
     }
-    const labels = all.labels.slice(startIdx);
-    const liquid = all.liquid.slice(startIdx);
-    const vault  = all.vault.slice(startIdx);
-    const net    = all.net.slice(startIdx);
+    const labels = all.labels.slice(startIdx, endIdx);
+    const liquid = all.liquid.slice(startIdx, endIdx);
+    const vault  = all.vault.slice(startIdx, endIdx);
+    const net    = all.net.slice(startIdx, endIdx);
 
     if (chart) chart.destroy();
     chart = new Chart(document.getElementById('chart-balance'), {
