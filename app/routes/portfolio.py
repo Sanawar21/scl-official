@@ -32,7 +32,7 @@ def _account_data(db, bank_service, user):
             "w.winning_side "
             "FROM wager_bets b JOIN wagers w ON w.id = b.wager_id "
             "WHERE b.user_id = ? AND b.status = 'open' ORDER BY b.created_at DESC",
-            (user["global_player_id"],),
+            (user["id"],),
         ).fetchall()
         wager_bets = rows_to_dicts(rows)
 

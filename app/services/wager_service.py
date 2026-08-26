@@ -338,11 +338,14 @@ class WagerService:
                 "SELECT id FROM bank_transactions WHERE account_id = ? ORDER BY rowid DESC LIMIT 1",
                 (account["id"],),
             ).fetchone()
-            # Admin-initiated bets use 'admin' as user_id; username stores the player name
+            # Store the player's login user_id so _credit can resolve payouts.
+            user_row = conn.execute("SELECT id FROM users WHERE global_player_id = ?",
+                                    (global_player_id,)).fetchone()
+            buyer_user_id = user_row["id"] if user_row else global_player_id
             conn.execute(
                 "INSERT INTO wager_bets (id, wager_id, user_id, username, side, amount, status, "
-                "stake_tx_id, created_at) VALUES (?, ?, 'admin', ?, ?, ?, 'open', ?, ?)",
-                (bet_id, wager_id, player_name, side, amount,
+                "stake_tx_id, created_at) VALUES (?, ?, ?, ?, ?, ?, 'open', ?, ?)",
+                (bet_id, wager_id, buyer_user_id, player_name, side, amount,
                  stake_tx["id"] if stake_tx else None, _now()),
             )
             self._history(conn, wager_id, "bet", actor,
