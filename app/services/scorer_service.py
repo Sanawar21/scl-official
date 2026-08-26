@@ -1243,6 +1243,9 @@ class ScorerService:
         def slug(p):
             return player_profile_slug(p["player_id"], p["player_name"])
 
+        # Economy: 5 overs (30 balls) for all-seasons, 2 overs (12) for single season.
+        econ_min = 30 if not season_id else 12
+
         return {
             "batters": [{"rank": i + 1, **p, "slug": slug(p)}
                         for i, p in enumerate(top(players, lambda p: (p["runs"], p["strike_rate"])))],
@@ -1252,18 +1255,14 @@ class ScorerService:
             "sixes": [{"rank": i + 1, **p, "slug": slug(p)}
                       for i, p in enumerate(top(players, lambda p: (p["sixes"], p["runs"]),
                                                 predicate=lambda p: p["sixes"] > 0))],
-            "fantasy": [{"rank": i + 1, **p, "slug": slug(p)}
-                        for i, p in enumerate(top(players, lambda p: p["fantasy_score"]))],
+            # Strike rate: min 40 runs scored to qualify.
             "strike_rates": [{"rank": i + 1, **p, "slug": slug(p)}
                              for i, p in enumerate(top(players, lambda p: p["strike_rate"],
-                                                       predicate=lambda p: p["balls_faced"] >= 6))],
+                                                       predicate=lambda p: p["runs"] >= 40))],
+            # Economy: season-aware threshold (econ_min set above).
             "economies": [{"rank": i + 1, **p, "slug": slug(p)}
                           for i, p in enumerate(top(players, lambda p: -p["economy"],
-                                                    predicate=lambda p: p["balls_bowled"] >= 6))],
-            "teams_points": [{"rank": i + 1, **t} for i, t in enumerate(
-                top(teams, lambda t: (t["matches"] and t["fantasy_points"],)))],
-            "teams_fantasy": [{"rank": i + 1, **t} for i, t in enumerate(
-                top(teams, lambda t: t["fantasy_points"]))],
+                                                    predicate=lambda p: p["balls_bowled"] >= econ_min))],
         }
 
     def match_summary(self, season_id: str, match_id: str) -> dict:

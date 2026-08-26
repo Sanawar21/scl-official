@@ -365,7 +365,7 @@ def test_leaderboards_rankings(app, scorer):
     boards = scorer.leaderboards(season["id"])
     assert boards["batters"][0]["player_name"] == "Alice"
     assert boards["bowlers"][0]["player_name"] == "Cara"
-    assert boards["fantasy"][0]["player_name"] == "Cara"
+    assert "fantasy" not in boards, "fantasy removed from leaderboards"
     assert boards["batters"][0]["strike_rate"] == 200.0
     assert boards["bowlers"][0]["economy"] == 4.0
     # Alice has 2 sixes (Cara has none) — sixes board lists her first.

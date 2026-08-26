@@ -24,16 +24,12 @@
     <label class="tab-label" for="lb-bat">Runs</label>
     <input class="tab-input" type="radio" name="lb" id="lb-bowl">
     <label class="tab-label" for="lb-bowl">Wickets</label>
-    <input class="tab-input" type="radio" name="lb" id="lb-fantasy">
-    <label class="tab-label" for="lb-fantasy">Fantasy</label>
     <input class="tab-input" type="radio" name="lb" id="lb-sixes">
     <label class="tab-label" for="lb-sixes">Sixes</label>
     <input class="tab-input" type="radio" name="lb" id="lb-sr">
     <label class="tab-label" for="lb-sr">Strike rate</label>
     <input class="tab-input" type="radio" name="lb" id="lb-econ">
     <label class="tab-label" for="lb-econ">Economy</label>
-    <input class="tab-input" type="radio" name="lb" id="lb-team">
-    <label class="tab-label" for="lb-team">Team fantasy</label>
 
     <div class="tab-panel" id="panel-bat">
       {% if boards.batters %}
@@ -92,6 +88,7 @@
     </div>
 
     <div class="tab-panel" id="panel-sr">
+      <p class="muted small" style="margin-bottom:8px">Minimum 40 runs scored to qualify</p>
       {% if boards.strike_rates %}
         <ol class="feed podium-list">
           {% for b in boards.strike_rates %}
@@ -106,6 +103,9 @@
     </div>
 
     <div class="tab-panel" id="panel-econ">
+      {% if season_id %}<p class="muted small" style="margin-bottom:8px">Minimum 2 overs (12 balls) bowled to qualify</p>
+      {% else %}<p class="muted small" style="margin-bottom:8px">Minimum 5 overs (30 balls) bowled to qualify (all seasons combined)</p>
+      {% endif %}
       {% if boards.economies %}
         <ol class="feed podium-list">
           {% for b in boards.economies %}
