@@ -188,7 +188,7 @@ class WagerService:
                             (bet["user_id"],)).fetchone()
         if user and user["global_player_id"]:
             gp_id = user["global_player_id"]
-        elif bet.get("username"):
+        elif bet["username"]:
             gp = conn.execute("SELECT id FROM global_players WHERE name = ?",
                               (bet["username"],)).fetchone()
             if gp:
