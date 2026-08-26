@@ -49,39 +49,85 @@
 {% endif %}
 
 {% for w in wagers %}
-  <section class="card">
+  <section class="card wager-card">
     <div class="card-head">
       <h2><a href="{{ url_for('wagers.detail', wager_id=w.id) }}">{{ w.title }}</a></h2>
       <span class="chip {% if w.status == 'resolved' %}chip-success{% elif w.status == 'voided' %}chip-danger{% elif w.status == 'vetted' %}chip-info{% else %}chip-warn{% endif %}">{{ w.status }}</span>
     </div>
     {% if w.description %}<p class="muted small">{{ w.description }}</p>{% endif %}
 
+    {# ── Two side containers ── #}
     {% set total = w.yes_total + w.no_total %}
+    {% set odds_a = (100 / (100 - w.house_probability)) if w.house_probability and w.house_probability < 100 else 0 %}
+    {% set odds_b = (100 / w.house_probability) if w.house_probability and w.house_probability > 0 else 0 %}
+
+    <div class="wager-sides">
+      {# ── Side A ── #}
+      <div class="wager-side wager-side-a">
+        <div class="wager-side-head">
+          <span class="wager-side-name">{{ w.side_a }}</span>
+          {% if odds_a %}<span class="wager-odds">{{ '%.2f'|format(odds_a) }}x</span>{% endif %}
+        </div>
+        <div class="wager-side-staked">
+          <span class="wager-staked-amt js-yes">{{ w.yes_total }}</span>
+          <span class="muted small">staked</span>
+        </div>
+        {% if w.status == 'vetted' and user and user.global_player_id %}
+          <form method="post" action="{{ url_for('wagers.bet', wager_id=w.id) }}" class="wager-bet-form">
+            <input type="hidden" name="side" value="{{ w.side_a }}">
+            <input type="number" name="amount" placeholder="amount" min="1" required class="wager-bet-input">
+            <button class="btn btn-small btn-primary" type="submit">Bet</button>
+          </form>
+        {% endif %}
+      </div>
+
+      {# ── Side B ── #}
+      <div class="wager-side wager-side-b">
+        <div class="wager-side-head">
+          <span class="wager-side-name">{{ w.side_b }}</span>
+          {% if odds_b %}<span class="wager-odds">{{ '%.2f'|format(odds_b) }}x</span>{% endif %}
+        </div>
+        <div class="wager-side-staked">
+          <span class="wager-staked-amt js-no">{{ w.no_total }}</span>
+          <span class="muted small">staked</span>
+        </div>
+        {% if w.status == 'vetted' and user and user.global_player_id %}
+          <form method="post" action="{{ url_for('wagers.bet', wager_id=w.id) }}" class="wager-bet-form">
+            <input type="hidden" name="side" value="{{ w.side_b }}">
+            <input type="number" name="amount" placeholder="amount" min="1" required class="wager-bet-input">
+            <button class="btn btn-small btn-primary" type="submit">Bet</button>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+
+    {# ── Pool bar + meta ── #}
     {% if total > 0 %}
       <div class="pool-bar" aria-label="pool split">
-        <div class="pool-yes" style="width: {{ (100 * w.yes_total / total) if total else 0 }}%"></div>
-        <div class="pool-no" style="width: {{ (100 * w.no_total / total) if total else 0 }}%"></div>
+        <div class="pool-yes" style="width: {{ (100 * w.yes_total / total) }}%"></div>
+        <div class="pool-no" style="width: {{ (100 * w.no_total / total) }}%"></div>
       </div>
     {% endif %}
 
-    <div class="team-stats" data-wager="{{ w.id }}">
-      <span class="js-yes">{{ w.side_a }} <b>{{ w.yes_total }}</b></span>
-      <span class="js-no">{{ w.side_b }} <b>{{ w.no_total }}</b></span>
+    <div class="wager-meta" data-wager="{{ w.id }}">
       <span class="js-pot">Pot: <b>{{ w.pot }}</b>{% if w.house_injected %} (+{{ w.house_injected }} house){% endif %}</span>
-      {% if w.house_probability %}
-        <span>{{ w.side_a }} fair <b>{{ '%.2f'|format(100 / (100 - w.house_probability)) }}x</b></span>
-        <span>{{ w.side_b }} fair <b>{{ '%.2f'|format(100 / w.house_probability) }}x</b></span>
-        <span class="js-cover chip chip-info">House covers: {{ w.side_a }} win → <b>{{ w.cover_a }}</b> ·
-          {{ w.side_b }} win → <b>{{ w.cover_b }}</b></span>
-      {% endif %}
       <span class="muted">{{ w.bet_count }} bet(s)</span>
-      {% if w.season_id %}<span class="muted">{{ w.season_id }}</span>{% endif %}
-      <span class="muted">by {{ w.initiator_name }}</span>
+      {% if w.house_probability %}
+        <span class="js-cover muted small">House covers: {{ w.side_a }} → <b>{{ w.cover_a }}</b> · {{ w.side_b }} → <b>{{ w.cover_b }}</b></span>
+      {% endif %}
+      {% if w.season_id %}<span class="muted small">{{ w.season_id }}</span>{% endif %}
+      <span class="muted small">by {{ w.initiator_name }}</span>
     </div>
 
     {% if w.status == 'frozen' %}<p class="muted small">Pools frozen — a Phase 2 market may open with updated odds.</p>{% endif %}
     {% if w.void_reason %}<p class="muted small">Vetoed: {{ w.void_reason }}</p>{% endif %}
     {% if w.void_reason is none and w.veto_reason %}<p class="muted small">Vetoed: {{ w.veto_reason }}</p>{% endif %}
+
+    {% if not user %}
+      <p class="muted small"><a href="{{ url_for('auth.login_page', next=request.path) }}">Log in</a> to place a bet.</p>
+    {% elif not user.global_player_id and w.status == 'vetted' %}
+      <p class="muted small">Link your account to a player profile to bet.</p>
+    {% endif %}
   </section>
 {% else %}
   <div class="empty"><div class="empty-title">No markets yet</div>
@@ -111,11 +157,44 @@
 {% endif %}
 {% endblock %}
 
+{% block head %}
+<style>
+  /* ── Wager card two-side layout ── */
+  .wager-sides { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 10px 0; }
+  .wager-side {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .wager-side-a { border-left: 3px solid var(--primary); }
+  .wager-side-b { border-left: 3px solid var(--danger); }
+  .wager-side-head { display: flex; align-items: center; justify-content: space-between; }
+  .wager-side-name { font-weight: 700; font-size: 15px; }
+  .wager-odds {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    background: var(--surface-alt, #f5f5f0);
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+  .wager-side-staked { display: flex; align-items: baseline; gap: 6px; }
+  .wager-staked-amt { font-size: 22px; font-weight: 700; }
+  .wager-bet-form { display: flex; gap: 6px; align-items: center; margin-top: 4px; }
+  .wager-bet-input { width: 90px; padding: 5px 8px; font-size: 13px; }
+  .wager-meta { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: 13px; margin-top: 6px; }
+  @media (max-width: 500px) {
+    .wager-sides { grid-template-columns: 1fr; }
+  }
+</style>
+{% endblock %}
+
 {% block scripts %}
 <script>
   (function () {
-    // Live house coverage: poll the JSON snapshot so the guarantee shown
-    // adjusts automatically as new bids land on either side.
     async function refresh() {
       let wagers;
       try {
@@ -124,16 +203,15 @@
       wagers.forEach(function (w) {
         const row = document.querySelector('[data-wager="' + w.id + '"]');
         if (!row) return;
-        const yes = row.querySelector('.js-yes b');
-        const no = row.querySelector('.js-no b');
+        const yes = row.querySelector('.js-yes');
+        const no = row.querySelector('.js-no');
         const pot = row.querySelector('.js-pot b');
-        const cover = row.querySelector('.js-cover b');
+        const cover = row.querySelector('.js-cover');
         if (yes) yes.textContent = w.yes_total;
         if (no) no.textContent = w.no_total;
         if (pot) pot.textContent = w.pot;
         if (cover) {
-          const bs = cover.querySelectorAll('b');
-          if (bs.length === 2) { bs[0].textContent = w.cover_a; bs[1].textContent = w.cover_b; }
+          cover.innerHTML = 'House covers: ' + w.side_a + ' → <b>' + w.cover_a + '</b> · ' + w.side_b + ' → <b>' + w.cover_b + '</b>';
         }
       });
     }

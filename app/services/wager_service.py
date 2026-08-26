@@ -338,10 +338,10 @@ class WagerService:
                 "SELECT id FROM bank_transactions WHERE account_id = ? ORDER BY rowid DESC LIMIT 1",
                 (account["id"],),
             ).fetchone()
-            # We store user_id as NULL for admin-initiated bets; username holds the player name
+            # Admin-initiated bets use 'admin' as user_id; username stores the player name
             conn.execute(
                 "INSERT INTO wager_bets (id, wager_id, user_id, username, side, amount, status, "
-                "stake_tx_id, created_at) VALUES (?, ?, NULL, ?, ?, ?, 'open', ?, ?)",
+                "stake_tx_id, created_at) VALUES (?, ?, 'admin', ?, ?, ?, 'open', ?, ?)",
                 (bet_id, wager_id, player_name, side, amount,
                  stake_tx["id"] if stake_tx else None, _now()),
             )
