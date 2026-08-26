@@ -395,6 +395,7 @@ class ScorecardService:
                         ("TOPPADDING", (0, 0), (-1, -1), 8),
                         ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
                         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
                     ]))
                     story.append(band)
                     story.append(Spacer(1, 6 * mm))
