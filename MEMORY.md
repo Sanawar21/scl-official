@@ -1125,3 +1125,11 @@ Auto accounts now stay as LIQUID as possible (user decision):
 - **Gotchas**: `_lock_internal` MERGES positions per account+season (a second
   lock overwrites the reinvest flag); `season_finance_entries` has FK to
   seasons — tests must create a real season.
+
+## Admin auto-mode toggle — DONE (2026-08-26)
+
+- Admin can set/unset auto mode from `/auth/admin/link` and `/admin/finances`.
+  Routes: `admin.account_auto_set` and `admin.account_auto_unset`.
+- Budget board in finances now shows AUTO/MANUAL tag + toggle button per account.
+- Link page shows auto status for each linked user alongside unlink/reset actions.
+- `finance_service.list_season_finances` now returns `auto_vault` and `account_id` per row.
