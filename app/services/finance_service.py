@@ -79,12 +79,15 @@ class FinanceService:
             for t in season_teams:
                 mgr = (t["manager_player_id"] or "").strip()
                 wallet, locked = _wallet(mgr) if mgr else (0, 0)
+                acct_obj = self.bank.account_for_owner("player", mgr) if mgr else None
                 rows.append({
                     "section": "playing", "kind": "team",
                     "team_id": t["id"], "name": t["name"],
                     "manager_name": _gp_name(mgr),
                     "account_ref": f"team:{t['id']}" if mgr else None,
                     "wallet": wallet, "locked": locked,
+                    "auto_vault": bool(acct_obj and acct_obj.get("auto_vault")),
+                    "account_id": acct_obj["id"] if acct_obj else None,
                     "credits_remaining": int(t["credits_remaining"] or 0),
                     "players_count": len(json_loads(t["players"], [])),
                     "bench_count": len(json_loads(t["bench"], [])),
@@ -95,12 +98,15 @@ class FinanceService:
                     continue
                 mgr = (gt.get("manager_player_id") or "").strip()
                 wallet, locked = _wallet(mgr) if mgr else (0, 0)
+                acct_obj = self.bank.account_for_owner("player", mgr) if mgr else None
                 rows.append({
                     "section": "non_playing", "kind": "team",
                     "team_id": gt["id"], "name": gt["name"],
                     "manager_name": _gp_name(mgr),
                     "account_ref": f"team:{gt['id']}" if mgr else None,
                     "wallet": wallet, "locked": locked,
+                    "auto_vault": bool(acct_obj and acct_obj.get("auto_vault")),
+                    "account_id": acct_obj["id"] if acct_obj else None,
                     "credits_remaining": None, "players_count": 0, "bench_count": 0,
                 })
             # 3) individual players — EVERY global player not managing a team
@@ -118,6 +124,8 @@ class FinanceService:
                     "account_ref": f"player:{gp['id']}",
                     "wallet": int(acct["liquid_cash"]) if acct else 0,
                     "locked": int(acct["locked_capital"]) if acct else 0,
+                    "auto_vault": bool(acct and acct.get("auto_vault")),
+                    "account_id": acct["id"] if acct else None,
                     "credits_remaining": None, "players_count": 0, "bench_count": 0,
                 })
         order = {"playing": 0, "non_playing": 1, "players": 2}

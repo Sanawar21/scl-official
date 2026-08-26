@@ -45,7 +45,7 @@
   <h2>All accounts</h2>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Username</th><th>Role</th><th>Player</th><th>Tier</th><th></th></tr></thead>
+      <thead><tr><th>Username</th><th>Role</th><th>Player</th><th>Tier</th><th>Auto</th><th></th></tr></thead>
       <tbody>
         {% for u in linked %}
           <tr>
@@ -53,6 +53,23 @@
             <td>{{ u.role }}</td>
             <td>{{ u.player_name or '—' }}</td>
             <td>{{ u.tier or '—' }}</td>
+            <td>
+              {% if u.account_id %}
+                {% if u.auto_vault %}
+                  <span class="tag tag-active">AUTO</span>
+                  <form method="post" action="{{ url_for('admin.account_auto_unset', account_id=u.account_id) }}" style="display:inline">
+                    <button class="btn btn-small" type="submit" title="Set to manual mode">Set manual</button>
+                  </form>
+                {% else %}
+                  <span class="tag tag-info">MANUAL</span>
+                  <form method="post" action="{{ url_for('admin.account_auto_set', account_id=u.account_id) }}" style="display:inline">
+                    <button class="btn btn-small btn-primary" type="submit" title="Set to auto mode">Set auto</button>
+                  </form>
+                {% endif %}
+              {% else %}
+                <span class="muted small">—</span>
+              {% endif %}
+            </td>
             <td>
               <div class="row" style="gap:6px;flex-wrap:wrap">
                 {% if u.global_player_id %}

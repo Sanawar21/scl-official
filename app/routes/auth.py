@@ -104,6 +104,17 @@ def link_page():
             "WHERE u.role != 'admin' ORDER BY u.username"
         ).fetchall()
         linked = [dict(r) for r in rows]
+        # Attach bank account info (auto_vault, account_id) for linked players
+        for row in linked:
+            gp_id = row.get("global_player_id")
+            if gp_id:
+                acct = conn.execute(
+                    "SELECT id, auto_vault FROM bank_accounts "
+                    "WHERE owner_type = 'player' AND owner_id = ?", (gp_id,)
+                ).fetchone()
+                if acct:
+                    row["account_id"] = acct["id"]
+                    row["auto_vault"] = bool(acct["auto_vault"])
     for row in linked:
         view = auth_service.user_view({"id": row["user_id"], "role": row["role"],
                                        "global_player_id": row["global_player_id"]})

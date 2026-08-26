@@ -701,6 +701,32 @@ def bank_adjust():
     return redirect(url_for("admin.auction", season=_season_id()))
 
 
+@admin_bp.post("/account/<account_id>/auto/set")
+@login_required(role=R.ROLE_ADMIN)
+def account_auto_set(account_id):
+    """Admin sets an account to auto mode (yield sweeps + manual harvest)."""
+    bank_service = current_app.extensions["bank_service"]
+    try:
+        bank_service.set_auto(account_id, True)
+        flash("Account set to auto mode.", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(request.referrer or url_for("admin.link_page"))
+
+
+@admin_bp.post("/account/<account_id>/auto/unset")
+@login_required(role=R.ROLE_ADMIN)
+def account_auto_unset(account_id):
+    """Admin removes auto mode from an account (manual vault management)."""
+    bank_service = current_app.extensions["bank_service"]
+    try:
+        bank_service.set_auto(account_id, False)
+        flash("Account set to manual mode.", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(request.referrer or url_for("admin.link_page"))
+
+
 @admin_bp.get("/season/<season_id>/state")
 @login_required(role=R.ROLE_ADMIN)
 def state_json(season_id):
