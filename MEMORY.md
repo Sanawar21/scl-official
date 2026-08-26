@@ -1133,3 +1133,11 @@ Auto accounts now stay as LIQUID as possible (user decision):
 - Budget board in finances now shows AUTO/MANUAL tag + toggle button per account.
 - Link page shows auto status for each linked user alongside unlink/reset actions.
 - `finance_service.list_season_finances` now returns `auto_vault` and `account_id` per row.
+
+## Admin wager creation + bet-on-behalf — DONE (2026-08-26)
+
+- Admin can create wagers directly from `/wagers/admin` (no player opening stake required).
+- Admin can bet on behalf of any player: selects player, side, amount — deducted from their wallet.
+- Service methods: `wager_service.admin_create_wager()` and `wager_service.admin_bet_on_behalf()`.
+- Routes: `wagers.admin_create` (POST) and `wagers.admin_bet_behalf` (POST).
+- Admin template shows global player list + seasons in the create form and bet-on-behalf forms.
