@@ -145,8 +145,10 @@ def test_house_injection_uses_house_funds(app, wager, bank):
 
 
 def test_resolve_proportional_split(app, wager):
-    """Fat pot: winners split the whole pot pro-rata, exceeding fair odds."""
+    """Fat pot: winners get fair odds, house takes the remainder."""
     season, players, _ = _setup(app, n_teams=2)
+    house = bank = wager.bank
+    house_acct = bank.get_or_create_account("house", "house")
     alice = _linked_user(app, "alice", players[0]["global_player_id"])
     bob = _linked_user(app, "bob", players[1]["global_player_id"])
     carol = _linked_user(app, "carol", players[2]["global_player_id"])
@@ -155,16 +157,17 @@ def test_resolve_proportional_split(app, wager):
 
     wager.place_bet(bob, w["id"], "Yes", 80)
     wager.place_bet(carol, w["id"], "No", 300)
-    # pot = 500; fair(Yes) = 2x -> guaranteed 400 <= 500 -> proportional.
+    # Yes: 200 total. No: 300. fair(Yes)=2x -> guaranteed 400 <= 500.
+    # Winners get fair odds: 120*2=240, 80*2=160. House keeps 100.
     w = wager.resolve(w["id"], "admin", "Yes")
 
     assert w["status"] == "resolved" and w["winning_side"] == "Yes"
     by_user = {b["username"]: b for b in w["bets"]}
-    # Yes winners split the full pot pro-rata: 120/200 and 80/200 of 500.
-    assert by_user["alice"]["payout"] == 300
-    assert by_user["bob"]["payout"] == 200
+    assert by_user["alice"]["payout"] == 240
+    assert by_user["bob"]["payout"] == 160
     assert by_user["carol"]["payout"] == 0
-    assert _liquid(app, players[0]["global_player_id"]) == alice_before - 120 + 300
+    assert _liquid(app, players[0]["global_player_id"]) == alice_before - 120 + 240
+    assert bank.get_account(house_acct["id"])["liquid_cash"] == 100
 
 
 def test_resolve_house_guarantee_topup(app, wager, bank):
@@ -179,6 +182,7 @@ def test_resolve_house_guarantee_topup(app, wager, bank):
     w = _open_market(app, wager, alice, side="Yes", amount=200, estimate=25)
     wager.place_bet(bob, w["id"], "No", 100)
     # pot = 300; guaranteed(No) = 100 * 4 = 400 > 300 -> top-up 100.
+    # Bob gets 100 * 4 = 400. House rake = 0 (spent 100 to cover shortfall).
     w = wager.resolve(w["id"], "admin", "No")
 
     by_user = {b["username"]: b for b in w["bets"]}
@@ -204,7 +208,7 @@ def test_resolve_auto_injects_partial_house(app, wager, bank):
     by_user = {b["username"]: b for b in w["bets"]}
     assert by_user["bob"]["payout"] == 350  # 100 * 350/100 = 350
     assert by_user["alice"]["payout"] == 0
-    assert bank.get_account(house["id"])["liquid_cash"] == 0
+    assert bank.get_account(house["id"])["liquid_cash"] == 0  # injected 50, got 0 back
     assert w["status"] == "resolved"
 
 

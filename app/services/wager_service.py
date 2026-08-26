@@ -523,7 +523,11 @@ class WagerService:
             guaranteed = int(round(winning_stakes * fair))
             house = self.bank.get_or_create_account(HOUSE_TYPE, HOUSE_ID, conn=conn)
 
-            # Auto-inject from house wallet if needed — never block resolution.
+            # --- Payout model: each side is independent ---
+            # Winners receive their stake × fair odds. The house takes the
+            # remainder of the losing pot (not redistributed to winners).
+            # If the house can't cover the full guaranteed amount, it injects
+            # what it has and winners split proportionally from what's available.
             injected_this_resolve = 0
             if guaranteed > pot:
                 top_up = guaranteed - pot
@@ -535,10 +539,23 @@ class WagerService:
                                      tx_type="house_inject", conn=conn)
                 pot += injected_this_resolve
 
-            # Winners split the pot pro-rata — covers full house cover, partial, and fat pot.
-            payouts = {b["id"]: int(round(int(b["amount"]) * pot / winning_stakes))
-                       for b in winners}
+            if guaranteed <= pot:
+                # House fully covers (or pot is fat) — pay at fair odds.
+                payouts = {b["id"]: int(round(int(b["amount"]) * fair)) for b in winners}
+            else:
+                # House couldn't fully cover — proportional payout from available pot.
+                payouts = {b["id"]: int(round(int(b["amount"]) * pot / winning_stakes))
+                           for b in winners}
+            # House keeps the remainder of the losing pot.
+            total_payout = sum(payouts.values())
+            loser_stakes = sum(int(b["amount"]) for b in losers)
+            house_profit = winning_stakes + loser_stakes + int(wager["house_injected"] or 0) + injected_this_resolve - total_payout
             house_note = f"; House auto-injected {injected_this_resolve}" if injected_this_resolve else ""
+            if house_profit > 0:
+                self.bank.adjust(house["id"], house_profit,
+                                 f"House rake from '{wager['title']}'",
+                                 tx_type="house_rake", conn=conn)
+                house_note += f"; House rake {house_profit}" if not house_note else f", rake {house_profit}"
 
             for bet in winners:
                 self._credit(conn, bet, payouts[bet["id"]], "wager_payout",
