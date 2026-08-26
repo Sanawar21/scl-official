@@ -35,11 +35,14 @@
 </section>
 
 {% for w in wagers %}
-  <section class="card">
+  <section class="card wager-card">
     <div class="card-head">
       <h2><a href="{{ url_for('wagers.detail', wager_id=w.id) }}">{{ w.title }}</a></h2>
       <span class="chip {% if w.status == 'resolved' %}chip-success{% elif w.status == 'voided' %}chip-danger{% elif w.status == 'vetted' %}chip-info{% else %}chip-warn{% endif %}">{{ w.status }}</span>
     </div>
+    {% if w.description %}<p class="muted small">{{ w.description }}</p>{% endif %}
+
+    {# ── Lifecycle stepper ── #}
     {% set lifecycle = ['proposed', 'calibrating', 'vetted', 'frozen', 'resolved'] %}
     {% set cur = lifecycle.index(w.status) if w.status in lifecycle else (lifecycle.index('frozen') + 1) %}
     <div class="stepper" style="margin-bottom:8px">
@@ -56,120 +59,183 @@
         {% endif %}
       </ol>
     </div>
-    <div class="team-stats muted small">
-      <span>by {{ w.initiator_name }}</span>
-      <span>pot {{ w.pot }} ({{ w.yes_total }} / {{ w.no_total }})</span>
-      <span>house injected {{ w.house_injected }}</span>
-      {% if w.house_probability %}<span>consensus {{ '%.2f'|format(w.house_probability) }}% for {{ w.side_b }}</span>
-        <span class="chip chip-info">House covers: {{ w.side_a }} win → {{ w.cover_a }} · {{ w.side_b }} win → {{ w.cover_b }}</span>{% endif %}
-    </div>
 
-    {% if w.status in ('proposed', 'calibrating') %}
-      <h3>Calibration</h3>
-      <form method="post" action="{{ url_for('wagers.admin_calibrate', wager_id=w.id) }}" class="row">
-        <input type="number" name="estimate" placeholder="blind estimate %" min="1" max="99" step="0.01" required style="width:110px">
-        <button class="btn btn-small" type="submit">Record estimate</button>
-      </form>
-      {% if w.calibration_estimates %}
-        <p class="muted small">Estimates: {% for e in w.calibration_estimates %}{{ e.admin }}={{ e.estimate }}% {% endfor %}
-          (average {{ '%.2f'|format(w.house_probability) }}%)</p>
-      {% endif %}
-      <div class="row">
-        <form method="post" action="{{ url_for('wagers.admin_finalize', wager_id=w.id) }}">
-          <button class="btn btn-small btn-primary" type="submit">Finalize (open betting)</button>
-        </form>
-        <form method="post" action="{{ url_for('wagers.admin_veto', wager_id=w.id) }}">
-          <input type="text" name="reason" placeholder="veto reason" style="width:140px">
-          <button class="btn btn-small btn-danger" type="submit">Veto (refund all)</button>
-        </form>
-      </div>
-    {% endif %}
+    {# ── Two side containers ── #}
+    {% set total = w.yes_total + w.no_total %}
+    {% set odds_a = (100 / (100 - w.house_probability)) if w.house_probability and w.house_probability < 100 else 0 %}
+    {% set odds_b = (100 / w.house_probability) if w.house_probability and w.house_probability > 0 else 0 %}
 
-    {% if w.status in ('vetted', 'frozen') %}
-      <div class="row">
-        <form method="post" action="{{ url_for('wagers.admin_inject', wager_id=w.id) }}">
-          <input type="number" name="amount" placeholder="house injection" min="1" required style="width:110px">
-          <button class="btn btn-small" type="submit">Inject house funds</button>
-        </form>
-        {% if w.status == 'vetted' %}
-          <form method="post" action="{{ url_for('wagers.admin_freeze', wager_id=w.id) }}">
-            <button class="btn btn-small" type="submit">Freeze</button>
-          </form>
-        {% else %}
-          <form method="post" action="{{ url_for('wagers.admin_unfreeze', wager_id=w.id) }}">
-            <button class="btn btn-small" type="submit">Unfreeze</button>
+    <div class="wager-sides">
+      {# ── Side A ── #}
+      <div class="wager-side wager-side-a">
+        <div class="wager-side-head">
+          <span class="wager-side-name">{{ w.side_a }}</span>
+          {% if odds_a %}<span class="wager-odds">{{ '%.2f'|format(odds_a) }}x</span>{% endif %}
+        </div>
+        <div class="wager-side-staked">
+          <span class="wager-staked-amt js-yes">{{ w.yes_total }}</span>
+          <span class="muted small">staked</span>
+        </div>
+        {% if w.status in ('proposed', 'calibrating', 'vetted', 'frozen') %}
+          <form method="post" action="{{ url_for('wagers.admin_bet_behalf', wager_id=w.id) }}" class="wager-bet-form">
+            <input type="hidden" name="side" value="{{ w.side_a }}">
+            <select name="global_player_id" required class="wager-player-select">
+              <option value="">Player…</option>
+              {% for gp in global_players %}
+                <option value="{{ gp.id }}">{{ gp.name }}</option>
+              {% endfor %}
+            </select>
+            <input type="number" name="amount" placeholder="amount" min="1" required class="wager-bet-input">
+            <button class="btn btn-small btn-primary" type="submit">Bet</button>
           </form>
         {% endif %}
       </div>
-      <div class="row">
-        <form method="post" action="{{ url_for('wagers.admin_resolve', wager_id=w.id) }}">
-          <label class="small">Winning side
-            <select name="winning_side">
-              <option value="{{ w.side_a }}">{{ w.side_a }}</option>
-              <option value="{{ w.side_b }}">{{ w.side_b }}</option>
-            </select>
-          </label>
-          <button class="btn btn-small btn-primary" type="submit">Resolve &amp; pay</button>
-        </form>
-        <form method="post" action="{{ url_for('wagers.admin_void', wager_id=w.id) }}">
-          <input type="text" name="reason" placeholder="void reason" style="width:140px">
-          <button class="btn btn-small btn-danger" type="submit">Void (refund 100%)</button>
-        </form>
-      </div>
-    {% endif %}
 
-    {% if w.bets %}
-      <h3>Bets ({{ w.bets | selectattr('status', 'equalto', 'open') | list | length }} open)</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>User</th><th>Side</th><th>Amount</th><th>Status</th><th>When</th><th></th></tr></thead>
-          <tbody>
-            {% for b in w.bets %}
-              <tr>
-                <td>{{ b.username }}</td>
-                <td>{{ b.side }}</td>
-                <td>{{ b.amount }}</td>
-                <td><span class="tag">{{ b.status }}</span></td>
-                <td class="muted">{{ b.created_at|pkt }}</td>
-                <td>
-                  {% if b.status == 'open' and w.status in ('proposed', 'calibrating', 'vetted', 'frozen') %}
-                    <form method="post" action="{{ url_for('wagers.admin_remove_bet', wager_id=w.id, bet_id=b.id) }}" class="row" style="justify-content:flex-end">
-                      <button class="btn btn-small btn-danger" type="submit"
-                              onclick="return confirm('Remove this stake (refund {{ b.amount }} to {{ b.username }})?')">
-                        Remove bet
-                      </button>
-                    </form>
-                  {% endif %}
-                </td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    {% endif %}
-
-    {% if w.status in ('proposed', 'calibrating', 'vetted', 'frozen') %}
-      <details style="margin-top:8px">
-        <summary class="btn btn-small">Bet on behalf of player</summary>
-        <form method="post" action="{{ url_for('wagers.admin_bet_behalf', wager_id=w.id) }}" style="margin-top:6px">
-          <div class="row">
-            <select name="global_player_id" required style="min-width:180px">
-              <option value="">— choose player —</option>
+      {# ── Side B ── #}
+      <div class="wager-side wager-side-b">
+        <div class="wager-side-head">
+          <span class="wager-side-name">{{ w.side_b }}</span>
+          {% if odds_b %}<span class="wager-odds">{{ '%.2f'|format(odds_b) }}x</span>{% endif %}
+        </div>
+        <div class="wager-side-staked">
+          <span class="wager-staked-amt js-no">{{ w.no_total }}</span>
+          <span class="muted small">staked</span>
+        </div>
+        {% if w.status in ('proposed', 'calibrating', 'vetted', 'frozen') %}
+          <form method="post" action="{{ url_for('wagers.admin_bet_behalf', wager_id=w.id) }}" class="wager-bet-form">
+            <input type="hidden" name="side" value="{{ w.side_b }}">
+            <select name="global_player_id" required class="wager-player-select">
+              <option value="">Player…</option>
               {% for gp in global_players %}
-                <option value="{{ gp.id }}">{{ gp.name }} ({{ gp.tier }})</option>
+                <option value="{{ gp.id }}">{{ gp.name }}</option>
               {% endfor %}
             </select>
-            <select name="side" required style="width:auto">
-              <option value="{{ w.side_a }}">{{ w.side_a }}</option>
-              <option value="{{ w.side_b }}">{{ w.side_b }}</option>
-            </select>
-            <input type="number" name="amount" placeholder="amount" min="1" required style="width:100px">
-            <button class="btn btn-small btn-primary" type="submit">Place bet</button>
-          </div>
+            <input type="number" name="amount" placeholder="amount" min="1" required class="wager-bet-input">
+            <button class="btn btn-small btn-primary" type="submit">Bet</button>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+
+    {# ── Pool bar + meta ── #}
+    {% if total > 0 %}
+      <div class="pool-bar" aria-label="pool split">
+        <div class="pool-yes" style="width: {{ (100 * w.yes_total / total) }}%"></div>
+        <div class="pool-no" style="width: {{ (100 * w.no_total / total) }}%"></div>
+      </div>
+    {% endif %}
+
+    <div class="wager-meta" data-wager="{{ w.id }}">
+      <span class="js-pot">Pot: <b>{{ w.pot }}</b>{% if w.house_injected %} (+{{ w.house_injected }} house){% endif %}</span>
+      <span class="muted">{{ w.bet_count }} bet(s)</span>
+      {% if w.house_probability %}
+        <span class="js-cover muted small">House covers: {{ w.side_a }} → <b>{{ w.cover_a }}</b> · {{ w.side_b }} → <b>{{ w.cover_b }}</b></span>
+      {% endif %}
+      <span class="muted small">by {{ w.initiator_name }}</span>
+    </div>
+
+    {# ── Calibration (proposed / calibrating) ── #}
+    {% if w.status in ('proposed', 'calibrating') %}
+      <details open>
+        <summary class="small muted" style="cursor:pointer;margin-top:8px">Calibration</summary>
+        <form method="post" action="{{ url_for('wagers.admin_calibrate', wager_id=w.id) }}" class="row" style="margin-top:6px">
+          <input type="number" name="estimate" placeholder="blind estimate %" min="1" max="99" step="0.01" required style="width:110px">
+          <button class="btn btn-small" type="submit">Record estimate</button>
         </form>
+        {% if w.calibration_estimates %}
+          <p class="muted small">Estimates: {% for e in w.calibration_estimates %}{{ e.admin }}={{ e.estimate }}% {% endfor %}
+            (average {{ '%.2f'|format(w.house_probability) }}%)</p>
+        {% endif %}
+        <div class="row" style="margin-top:6px">
+          <form method="post" action="{{ url_for('wagers.admin_finalize', wager_id=w.id) }}">
+            <button class="btn btn-small btn-primary" type="submit">Finalize (open betting)</button>
+          </form>
+          <form method="post" action="{{ url_for('wagers.admin_veto', wager_id=w.id) }}">
+            <input type="text" name="reason" placeholder="veto reason" style="width:140px">
+            <button class="btn btn-small btn-danger" type="submit">Veto (refund all)</button>
+          </form>
+        </div>
       </details>
     {% endif %}
 
+    {# ── House injection + freeze (vetted / frozen) ── #}
+    {% if w.status in ('vetted', 'frozen') %}
+      <details open>
+        <summary class="small muted" style="cursor:pointer;margin-top:8px">House &amp; freeze</summary>
+        <div class="row" style="margin-top:6px">
+          <form method="post" action="{{ url_for('wagers.admin_inject', wager_id=w.id) }}">
+            <input type="number" name="amount" placeholder="house injection" min="1" required style="width:110px">
+            <button class="btn btn-small" type="submit">Inject house funds</button>
+          </form>
+          {% if w.status == 'vetted' %}
+            <form method="post" action="{{ url_for('wagers.admin_freeze', wager_id=w.id) }}">
+              <button class="btn btn-small" type="submit">Freeze</button>
+            </form>
+          {% else %}
+            <form method="post" action="{{ url_for('wagers.admin_unfreeze', wager_id=w.id) }}">
+              <button class="btn btn-small" type="submit">Unfreeze</button>
+            </form>
+          {% endif %}
+        </div>
+      </details>
+    {% endif %}
+
+    {# ── Resolve / Void (vetted / frozen) ── #}
+    {% if w.status in ('vetted', 'frozen') %}
+      <details open>
+        <summary class="small muted" style="cursor:pointer;margin-top:8px">Resolve</summary>
+        <div class="row" style="margin-top:6px">
+          <form method="post" action="{{ url_for('wagers.admin_resolve', wager_id=w.id) }}">
+            <label class="small">Winning side
+              <select name="winning_side">
+                <option value="{{ w.side_a }}">{{ w.side_a }}</option>
+                <option value="{{ w.side_b }}">{{ w.side_b }}</option>
+              </select>
+            </label>
+            <button class="btn btn-small btn-primary" type="submit">Resolve &amp; pay</button>
+          </form>
+          <form method="post" action="{{ url_for('wagers.admin_void', wager_id=w.id) }}">
+            <input type="text" name="reason" placeholder="void reason" style="width:140px">
+            <button class="btn btn-small btn-danger" type="submit">Void (refund 100%)</button>
+          </form>
+        </div>
+      </details>
+    {% endif %}
+
+    {# ── Bets table ── #}
+    {% if w.bets %}
+      <details open style="margin-top:8px">
+        <summary class="small muted" style="cursor:pointer">Bets ({{ w.bets | selectattr('status', 'equalto', 'open') | list | length }} open)</summary>
+        <div class="table-wrap" style="margin-top:6px">
+          <table>
+            <thead><tr><th>User</th><th>Side</th><th>Amount</th><th>Status</th><th>When</th><th></th></tr></thead>
+            <tbody>
+              {% for b in w.bets %}
+                <tr>
+                  <td>{{ b.username }}</td>
+                  <td>{{ b.side }}</td>
+                  <td>{{ b.amount }}</td>
+                  <td><span class="tag">{{ b.status }}</span></td>
+                  <td class="muted">{{ b.created_at|pkt }}</td>
+                  <td>
+                    {% if b.status == 'open' and w.status in ('proposed', 'calibrating', 'vetted', 'frozen') %}
+                      <form method="post" action="{{ url_for('wagers.admin_remove_bet', wager_id=w.id, bet_id=b.id) }}" class="row" style="justify-content:flex-end">
+                        <button class="btn btn-small btn-danger" type="submit"
+                                onclick="return confirm('Remove this stake (refund {{ b.amount }} to {{ b.username }})?')">
+                          Remove bet
+                        </button>
+                      </form>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </details>
+    {% endif %}
+
+    {# ── Status notes ── #}
     {% if w.status == 'resolved' %}
       <p class="muted small">Resolved {{ w.resolved_at[:16] }} — <b>{{ w.winning_side }}</b> won.</p>
     {% endif %}
@@ -181,4 +247,39 @@
 {% else %}
   <div class="card"><p class="muted">No markets yet.</p></div>
 {% endfor %}
+{% endblock %}
+
+{% block head %}
+<style>
+  .wager-sides { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 10px 0; }
+  .wager-side {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .wager-side-a { border-left: 3px solid var(--primary); }
+  .wager-side-b { border-left: 3px solid var(--danger); }
+  .wager-side-head { display: flex; align-items: center; justify-content: space-between; }
+  .wager-side-name { font-weight: 700; font-size: 15px; }
+  .wager-odds {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    background: var(--surface-alt, #f5f5f0);
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+  .wager-side-staked { display: flex; align-items: baseline; gap: 6px; }
+  .wager-staked-amt { font-size: 22px; font-weight: 700; }
+  .wager-bet-form { display: flex; gap: 6px; align-items: center; margin-top: 4px; }
+  .wager-bet-input { width: 90px; padding: 5px 8px; font-size: 13px; }
+  .wager-player-select { padding: 5px 8px; font-size: 13px; max-width: 140px; }
+  .wager-meta { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: 13px; margin-top: 6px; }
+  @media (max-width: 500px) {
+    .wager-sides { grid-template-columns: 1fr; }
+  }
+</style>
 {% endblock %}
