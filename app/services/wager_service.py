@@ -182,10 +182,19 @@ class WagerService:
 
     def _credit(self, conn, bet, amount: int, tx_type: str, comment: str):
         """Credit a bettor's liquid cash (payout or refund) and settle the bet."""
+        # Try user login ID first, then fall back to player name lookup.
+        gp_id = None
         user = conn.execute("SELECT global_player_id FROM users WHERE id = ?",
                             (bet["user_id"],)).fetchone()
         if user and user["global_player_id"]:
-            account = self.bank.get_or_create_account("player", user["global_player_id"], conn=conn)
+            gp_id = user["global_player_id"]
+        elif bet.get("username"):
+            gp = conn.execute("SELECT id FROM global_players WHERE name = ?",
+                              (bet["username"],)).fetchone()
+            if gp:
+                gp_id = gp["id"]
+        if gp_id:
+            account = self.bank.get_or_create_account("player", gp_id, conn=conn)
             self.bank.adjust(account["id"], amount, comment, tx_type=tx_type, conn=conn)
         conn.execute(
             "UPDATE wager_bets SET status = ?, payout = ?, settled_at = ? WHERE id = ?",
