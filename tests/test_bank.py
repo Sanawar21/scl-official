@@ -87,9 +87,9 @@ def test_fund_all_players_lands_in_liquid_not_vault(app, bank):
     assert result2["skipped"] == 2
 
 
-def test_lock_auto_after_auction_locks_remaining_liquid(app, bank):
-    """After the auction, auto accounts' leftover liquid locks into the vault;
-    manual accounts keep liquid control."""
+def test_sweep_auto_liquid_to_vault_locks_remaining_liquid(app, bank):
+    """Sweeping auto accounts locks their liquid into the vault (manual-harvest
+    mode); manual accounts keep liquid control."""
     with app.extensions["db"].write() as conn:
         conn.execute("INSERT INTO global_players (id, name, tier, speciality, created_at) "
                      "VALUES ('gp-a', 'A', 'gold', 'BATTER', '2026-01-01')")
@@ -99,7 +99,7 @@ def test_lock_auto_after_auction_locks_remaining_liquid(app, bank):
     b = bank.account_for_owner("player", "gp-b")
     bank.set_auto(b["id"], False)  # B opts out of auto
 
-    result = bank.lock_auto_after_auction("season-2")
+    result = bank.sweep_auto_liquid_to_vault("season-2")
     assert result["locked"] == 1
     assert result["amount"] == 10000
 
@@ -107,6 +107,7 @@ def test_lock_auto_after_auction_locks_remaining_liquid(app, bank):
     assert a["liquid_cash"] == 0 and a["locked_capital"] == 10000
     positions = bank.vault_positions(a["id"])
     assert len(positions) == 1 and positions[0]["locked_capital"] == 10000
+    assert positions[0]["reinvest"] == 0, "auto positions are always manual-harvest"
     # Manual account untouched.
     b = bank.account_for_owner("player", "gp-b")
     assert b["liquid_cash"] == 10000 and b["locked_capital"] == 0

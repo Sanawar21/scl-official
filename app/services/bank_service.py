@@ -102,7 +102,7 @@ class BankService:
         The money lands in **liquid cash** even for auto accounts — the 10k
         must be spendable through the auction (managers bid with it). Auto
         accounts' leftover liquid is locked into the vault AFTER the auction
-        via `lock_auto_after_auction`. Wallets are auto-created for players who
+        via `sweep_auto_liquid_to_vault`. Wallets are auto-created for players who
         never signed up (auto mode ON by default). Idempotent: an account that
         already received `season_funding` is skipped on re-runs.
         """
@@ -288,8 +288,8 @@ class BankService:
 
         Auto mode no longer routes credits straight to the vault: money stays
         liquid and the FULL balance of every auto account is swept into the
-        vault when the admin RELEASES the vault yield (see
-        `release_yield` / `lock_auto_after_auction`). `season_id` and
+        vault just before each yield release (see `release_yield` /
+        `sweep_auto_liquid_to_vault`). `season_id` and
         `force_liquid` are accepted for caller compatibility but unused.
         Pass `conn` to run inside a caller's write transaction."""
         amount = int(amount)
@@ -309,24 +309,36 @@ class BankService:
         with self.db.write() as c:
             return _impl(c)
 
-    def lock_auto_after_auction(self, season_id: str) -> dict:
-        """Lock every auto account's remaining liquid into the season's vault.
+    def sweep_auto_liquid_to_vault(self, season_id: str) -> dict:
+        """Sweep every AUTO account's full liquid balance into its season vault
+        position — in MANUAL-HARVEST mode (reinvest=0).
 
-        Runs when the auction completes: auto accounts keep their money liquid
-        through the auction (so managers can bid / stakers can stake), and the
-        leftover locks into the vault once the draft is done. Manual accounts
-        keep liquid control. Returns {"locked": n, "amount": total}."""
+        Auto accounts stay as liquid as possible: all income (match rewards,
+        admin adds, wager payouts) lands in liquid cash and is only vaulted at
+        the very last moment — immediately BEFORE a yield release — so it earns
+        the next 7% step. Because auto positions always run manual harvest,
+        that step pays straight back out into liquid instead of compounding
+        silently inside the vault.
+
+        Any existing COMPOUND position on an auto account is flipped to manual
+        here (idempotent migration, runs on every sweep). Manual accounts are
+        never touched. Returns {"locked": n_accounts, "amount": total}."""
         season_id = (season_id or "").strip().lower()
         locked = 0
         total = 0
         with self.db.write() as conn:
+            # Auto-account positions are ALWAYS manual-harvest: yields must
+            # land in spendable liquid, never compound inside the vault.
+            conn.execute(
+                "UPDATE vault_positions SET reinvest = 0 WHERE account_id IN "
+                "(SELECT id FROM bank_accounts WHERE auto_vault = 1)")
             accounts = conn.execute(
                 "SELECT * FROM bank_accounts WHERE auto_vault = 1").fetchall()
             for account in accounts:
                 liquid = int(account["liquid_cash"])
                 if liquid <= 0:
                     continue
-                self._lock_internal(conn, account, season_id, liquid, reinvest=True)
+                self._lock_internal(conn, account, season_id, liquid, reinvest=False)
                 locked += 1
                 total += liquid
         return {"locked": locked, "amount": total}

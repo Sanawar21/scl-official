@@ -1097,3 +1097,31 @@ is live).
   - Fixes the "data points dwarfed by pre-draft allocations" issue
 
 - **Gotcha**: schema changes require user to copy prod `scl.db` locally (see Deployment section)
+
+## Auto-account liquidity redesign — DONE (2026-08-26)
+
+Auto accounts now stay as LIQUID as possible (user decision):
+
+- **All income lands liquid** for auto accounts (was already true) and is only
+  vaulted at the LAST MOMENT — `release_yield_for_match()` now sweeps ALL auto
+  liquid before EVERY release (previously only the first release swept).
+- **Auto positions ALWAYS manual-harvest**: `lock_auto_after_auction` renamed
+  to `bank.sweep_auto_liquid_to_vault(season_id)` — locks with `reinvest=False`
+  AND migrates any existing compound positions of auto accounts to manual
+  (idempotent UPDATE, runs every sweep). So each release pays 7% of principal
+  straight back into spendable liquid; nothing compounds silently in the vault.
+- After a release an auto account holds exactly its 7% payout as liquid;
+  principal accumulates locked until season-end unlock (`force=True` until M12).
+- **Manual accounts untouched**: no sweep, owner's reinvest flag preserved.
+- **UI guard**: `/account/vault/<id>/reinvest` rejects switching an auto
+  account's position to compound; account template hides the toggle for auto
+  accounts (shows a note instead).
+- Callers updated: `admin.complete` (draft end), `finance.release_yield`,
+  `finance.release_yield_for_match` (always sweeps now, not just released==0).
+- Tests: new `tests/test_auto_liquidity.py` (TC1–TC12: income stays liquid,
+  sweep+harvest cycle, compound migration, manual regression, zero-liquid,
+  idempotency, bulk release, scheduler path, season unlock, squad levy).
+  Updated 2 old assertions in `test_finance.py` that encoded compounding.
+- **Gotchas**: `_lock_internal` MERGES positions per account+season (a second
+  lock overwrites the reinvest flag); `season_finance_entries` has FK to
+  seasons — tests must create a real season.

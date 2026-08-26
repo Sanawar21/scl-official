@@ -247,7 +247,8 @@ def test_unlock_amount_releases_vault_capital(app, svc):
 
 def test_auto_account_match_credit_lands_liquid_then_swept_at_release(app, svc, scorer, finance, bank):
     """A match reward for an auto account lands LIQUID; releasing the yield
-    sweeps the full balance into the vault, then applies the 7% step."""
+    sweeps the full balance into a MANUAL-HARVEST position, then pays the 7%
+    step straight back out to liquid (auto = maximum liquidity)."""
     season, players, teams = _setup(app, n_teams=2)
     sid = season["id"]
     a, b = teams[0], teams[1]
@@ -259,8 +260,9 @@ def test_auto_account_match_credit_lands_liquid_then_swept_at_release(app, svc, 
     assert acct["liquid_cash"] == 250 and acct["locked_capital"] == 0
     finance.release_yield(sid, 1)
     acct = bank.get_account(auto_acct["id"])
-    assert acct["liquid_cash"] == 0
-    assert acct["locked_capital"] == 268  # 250 + 7% = 267.5 -> 268
+    assert acct["liquid_cash"] == 18   # manual-harvest payout: 7% of 250
+    assert acct["locked_capital"] == 250  # principal locked until season end
+    assert bank.vault_positions(acct["id"])[0]["reinvest"] == 0
 
 
 def test_vault_position_created_after_release_starts_at_next_release(app, svc, scorer, finance, bank):
@@ -294,8 +296,8 @@ def test_vault_position_created_after_release_starts_at_next_release(app, svc, s
 
 def test_release_yield_sweeps_auto_liquid_and_refuses_repeat(app, svc, scorer, finance, bank):
     """Releasing the yield sweeps every auto account's full liquid into the
-    vault first, applies the compounding step, and refuses a second release of
-    the same match (guarded by the ledger)."""
+    vault first (manual-harvest mode), applies the step out to liquid, and
+    refuses a second release of the same match (guarded by the ledger)."""
     season, players, teams = _setup(app, n_teams=2)
     sid = season["id"]
     a, b = teams[0], teams[1]
@@ -309,8 +311,9 @@ def test_release_yield_sweeps_auto_liquid_and_refuses_repeat(app, svc, scorer, f
     result = finance.release_yield(sid, 1)
     assert result["steps"] >= 1 and result["swept"] == 1250
     acct = bank.get_account(acct["id"])
-    assert acct["liquid_cash"] == 0
-    assert acct["locked_capital"] == 1338  # 1250 * 1.07 = 1337.5 -> 1338
+    assert acct["liquid_cash"] == 88   # 7% of 1250 harvested to liquid
+    assert acct["locked_capital"] == 1250  # principal intact in the vault
+    assert bank.vault_positions(acct["id"])[0]["reinvest"] == 0
     # The release is recorded in the ledger; re-releasing M1 is refused.
     entries = finance.list_finance_entries(sid)
     assert any(e["type"] == "yield_release" for e in entries)

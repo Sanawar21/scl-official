@@ -197,6 +197,13 @@ def vault_reinvest(position_id):
     bank_service = current_app.extensions["bank_service"]
     try:
         position = bank_service.set_reinvest(position_id, request.form.get("reinvest", "1") != "0")
+        # Auto accounts always run manual-harvest — yields must land in liquid.
+        account = bank_service.get_account(position["account_id"])
+        if account.get("auto_vault") and position["reinvest"]:
+            bank_service.set_reinvest(position_id, False)
+            return jsonify({"ok": False,
+                            "error": "Auto accounts always harvest manually "
+                                     "(yield lands in liquid cash)"}), 400
         return jsonify({"ok": True, "position": position})
     except ValueError as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400

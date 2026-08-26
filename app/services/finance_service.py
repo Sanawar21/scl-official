@@ -366,7 +366,8 @@ class FinanceService:
 
         One `season_finance_entries` marker row (team_id NULL) guards the whole
         batch, so re-runs are no-ops and the admin 'pending' count still works.
-        Auto-vault accounts get the money routed straight to the vault."""
+        Money lands in LIQUID cash for every account — auto accounts' liquid is
+        swept into the vault only at the next yield release."""
         season_id = (season_id or "").strip().lower()
         match_id = (match_id or "").strip()
         if not season_id or not match_id:
@@ -438,9 +439,12 @@ class FinanceService:
         Decoupled from match uploads so the admin can notify managers first.
         Order of operations:
           1. every AUTO account's full liquid balance is swept into its season
-             vault position (auto mode = the vault holds all their money),
-          2. the 7% yield step(s) are applied (compounding) for matches
-             last-released+1 .. match_number,
+             vault position in MANUAL-HARVEST mode (auto = maximum liquidity;
+             money is only vaulted at the last moment so it earns the next
+             step),
+          2. the 7% yield step(s) are applied for matches
+             last-released+1 .. match_number (auto positions pay out to
+             liquid; manual positions follow their own reinvest flag),
           3. a `yield_release` ledger entry records the release (idempotency +
              audit; positions created later start after this release).
         """
@@ -452,7 +456,7 @@ class FinanceService:
             released = self.bank._released_through(conn, season_id)
         if match_number <= released:
             raise ValueError(f"Yield already released through match {released}")
-        swept = self.bank.lock_auto_after_auction(season_id)
+        swept = self.bank.sweep_auto_liquid_to_vault(season_id)
         results = self.bank.apply_match_yield(season_id, match_number)
         total = sum(int(r["yield"]) for r in results)
         with self.db.write() as conn:
@@ -514,11 +518,11 @@ class FinanceService:
                                  actor: str = "admin") -> dict:
         """Release the vault yield for a single match (7% step only).
 
-        Unlike `release_yield` (bulk), this does NOT sweep auto accounts —
-        it only applies the yield compounding step for positions that exist.
-        First-ever release still sweeps auto accounts so their capital enters
-        the vault before yield is applied.
-        """
+        Just BEFORE applying the step, every AUTO account's full liquid balance
+        is swept into its season vault position in manual-harvest mode — this
+        is the ONLY moment auto money gets vaulted, so it earns interest on the
+        release and the payout drops straight back into spendable liquid.
+        Manual accounts and manual positions behave exactly as configured."""
         season_id = (season_id or "").strip().lower()
         match_number = int(match_number or 0)
         if match_number < 1:
@@ -527,10 +531,9 @@ class FinanceService:
             released = self.bank._released_through(conn, season_id)
         if match_number <= released:
             raise ValueError(f"Yield already released through match {released}")
-        # On the very first release, sweep auto accounts into the vault
-        swept = {"amount": 0, "locked": 0}
-        if released == 0:
-            swept = self.bank.lock_auto_after_auction(season_id)
+        # Last-moment sweep: auto accounts' liquid earns this release's step,
+        # then the manual-harvest payout returns to liquid immediately after.
+        swept = self.bank.sweep_auto_liquid_to_vault(season_id)
         results = self.bank.apply_match_yield(season_id, match_number)
         total = sum(int(r["yield"]) for r in results)
         with self.db.write() as conn:

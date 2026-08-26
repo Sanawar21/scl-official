@@ -93,11 +93,15 @@
           <span>Current: <strong>{{ pos.locked_capital }}</strong></span>
           <span>Mode: {{ 'compound' if pos.reinvest else 'manual' }}</span>
         </div>
+        {% if account and account.auto_vault %}
+          <div class="muted small" style="margin-top:6px">Auto mode — yields are harvested to your liquid cash each release</div>
+        {% else %}
         <button class="btn btn-small js-reinvest" data-id="{{ pos.id }}"
                 data-reinvest="{{ 0 if pos.reinvest else 1 }}"
                 style="margin-top:6px">
           {% if pos.reinvest %}Switch to manual harvest{% else %}Switch to compounding{% endif %}
         </button>
+        {% endif %}
         <div style="margin-top:6px">
           <div style="background:var(--border);border-radius:4px;height:6px;overflow:hidden">
             <div style="background:var(--primary);height:100%;width:{{ ((pos.locked_capital / pos.principal) * 100)|int if pos.principal > 0 else 0 }}%"></div>
