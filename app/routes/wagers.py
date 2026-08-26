@@ -142,11 +142,15 @@ def bet(wager_id):
 @login_required(role=R.ROLE_ADMIN)
 def admin():
     svc = _wager_service()
+    auction = current_app.extensions["auction_service"]
     wagers = svc.list_wagers()
     for w in wagers:
         w["bets"] = svc.get_wager(w["id"])["bets"]
     house = svc.house_account()
-    return render_template("wagers/admin.html", wagers=wagers, house=house)
+    global_players = auction.list_global_players()
+    seasons = auction.list_seasons()
+    return render_template("wagers/admin.html", wagers=wagers, house=house,
+                           global_players=global_players, seasons=seasons)
 
 
 @wagers_bp.post("/admin/<wager_id>/calibrate")
@@ -265,6 +269,49 @@ def admin_void(wager_id):
     try:
         svc.void(wager_id, user.get("username") or "admin", request.form.get("reason", ""))
         flash("Market voided; all stakes refunded 100%.", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("wagers.admin"))
+
+
+@wagers_bp.post("/admin/create")
+@login_required(role=R.ROLE_ADMIN)
+def admin_create():
+    """Admin creates a wager directly (no player opening stake required)."""
+    svc = _wager_service()
+    user = session.get("user") or {}
+    form = request.form
+    try:
+        svc.admin_create_wager(
+            actor=user.get("username") or "admin",
+            title=form.get("title", ""),
+            description=form.get("description", ""),
+            side_a=form.get("side_a", "Yes"),
+            side_b=form.get("side_b", "No"),
+            season_id=(form.get("season_id") or "").strip() or None,
+        )
+        flash("Wager created.", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("wagers.admin"))
+
+
+@wagers_bp.post("/admin/<wager_id>/bet-behalf")
+@login_required(role=R.ROLE_ADMIN)
+def admin_bet_behalf(wager_id):
+    """Admin places a bet on behalf of a player (deducts from their wallet)."""
+    svc = _wager_service()
+    user = session.get("user") or {}
+    form = request.form
+    try:
+        svc.admin_bet_on_behalf(
+            actor=user.get("username") or "admin",
+            wager_id=wager_id,
+            global_player_id=form.get("global_player_id", ""),
+            side=form.get("side", ""),
+            amount=_safe_int(form.get("amount"), 0),
+        )
+        flash("Bet placed on player's behalf.", "success")
     except ValueError as exc:
         flash(str(exc), "error")
     return redirect(url_for("wagers.admin"))

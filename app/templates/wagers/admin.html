@@ -13,6 +13,27 @@
 </div>
 {{ tabs('wagers') }}
 
+<section class="card">
+  <div class="card-head"><h2>Create Wager</h2></div>
+  <form method="post" action="{{ url_for('wagers.admin_create') }}">
+    <div class="row">
+      <input type="text" name="title" placeholder="Market title (e.g. Royales win Match 5)" required style="min-width:240px">
+    </div>
+    <div class="row">
+      <input type="text" name="description" placeholder="Optional description" style="min-width:240px">
+    </div>
+    <div class="row">
+      <label>Side A <input type="text" name="side_a" value="Yes" style="width:80px"></label>
+      <label>Side B <input type="text" name="side_b" value="No" style="width:80px"></label>
+      <select name="season_id" style="width:auto">
+        <option value="">— season (optional) —</option>
+        {% for s in seasons %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+      </select>
+      <button class="btn btn-small btn-primary" type="submit">Create wager</button>
+    </div>
+  </form>
+</section>
+
 {% for w in wagers %}
   <section class="card">
     <div class="card-head">
@@ -125,6 +146,28 @@
           </tbody>
         </table>
       </div>
+    {% endif %}
+
+    {% if w.status in ('proposed', 'calibrating', 'vetted', 'frozen') %}
+      <details style="margin-top:8px">
+        <summary class="btn btn-small">Bet on behalf of player</summary>
+        <form method="post" action="{{ url_for('wagers.admin_bet_behalf', wager_id=w.id) }}" style="margin-top:6px">
+          <div class="row">
+            <select name="global_player_id" required style="min-width:180px">
+              <option value="">— choose player —</option>
+              {% for gp in global_players %}
+                <option value="{{ gp.id }}">{{ gp.name }} ({{ gp.tier }})</option>
+              {% endfor %}
+            </select>
+            <select name="side" required style="width:auto">
+              <option value="{{ w.side_a }}">{{ w.side_a }}</option>
+              <option value="{{ w.side_b }}">{{ w.side_b }}</option>
+            </select>
+            <input type="number" name="amount" placeholder="amount" min="1" required style="width:100px">
+            <button class="btn btn-small btn-primary" type="submit">Place bet</button>
+          </div>
+        </form>
+      </details>
     {% endif %}
 
     {% if w.status == 'resolved' %}

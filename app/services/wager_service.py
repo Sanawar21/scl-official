@@ -279,6 +279,77 @@ class WagerService:
         return self.get_wager(wager_id)
 
     # ------------------------------------------------------------------
+    # admin: create wager + bet on behalf of players
+    # ------------------------------------------------------------------
+    def admin_create_wager(self, actor: str, title: str, description: str,
+                           side_a: str, side_b: str,
+                           season_id: str = None) -> dict:
+        """Admin creates a wager directly (no opening stake from a player)."""
+        title = (title or "").strip()
+        side_a = (side_a or "").strip() or "Yes"
+        side_b = (side_b or "").strip() or "No"
+        if not title:
+            raise ValueError("A title is required")
+        if len(title) > 200:
+            raise ValueError("Title is too long")
+        if side_a == side_b:
+            raise ValueError("The two sides must be different")
+        wager_id = secrets.token_hex(8)
+        with self.db.write() as conn:
+            conn.execute(
+                "INSERT INTO wagers (id, season_id, title, description, side_a, side_b, status, "
+                "accepting_bets, initiator_user_id, initiator_name, house_probability, "
+                "calibration_estimates, house_injected, history, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, 'proposed', 0, NULL, ?, NULL, '[]', 0, '[]', ?, ?)",
+                (wager_id, (season_id or "").strip() or None, title,
+                 (description or "").strip(), side_a, side_b, actor, _now(), _now()),
+            )
+            self._history(conn, wager_id, "propose", actor, "created by admin")
+        return self.get_wager(wager_id)
+
+    def admin_bet_on_behalf(self, actor: str, wager_id: str,
+                            global_player_id: str, side: str, amount: int) -> dict:
+        """Admin places a bet on behalf of a player, deducting from their wallet."""
+        amount = int(amount or 0)
+        if amount <= 0:
+            raise ValueError("Bet amount must be positive")
+        side = (side or "").strip()
+        global_player_id = (global_player_id or "").strip()
+        if not global_player_id:
+            raise ValueError("Player is required")
+        bet_id = secrets.token_hex(8)
+        with self.db.write() as conn:
+            wager = self._get_wager_row(conn, wager_id)
+            self._require_status(wager, (STATUS_PROPOSED, STATUS_CALIBRATING,
+                                         STATUS_VETTED, STATUS_FROZEN))
+            if side not in (wager["side_a"], wager["side_b"]):
+                raise ValueError("Invalid side for this market")
+            # Get player name for the bet record
+            gp = conn.execute("SELECT name FROM global_players WHERE id = ?",
+                              (global_player_id,)).fetchone()
+            player_name = gp["name"] if gp else global_player_id
+            account = self.bank.get_or_create_account("player", global_player_id, conn=conn)
+            if int(account["liquid_cash"]) < amount:
+                raise ValueError(f"Insufficient liquid cash ({account['liquid_cash']})")
+            account = self.bank.adjust(account["id"], -amount,
+                                       f"Bet on '{wager['title']}' ({side}) by admin",
+                                       tx_type="wager_stake", conn=conn)
+            stake_tx = conn.execute(
+                "SELECT id FROM bank_transactions WHERE account_id = ? ORDER BY rowid DESC LIMIT 1",
+                (account["id"],),
+            ).fetchone()
+            # We store user_id as NULL for admin-initiated bets; username holds the player name
+            conn.execute(
+                "INSERT INTO wager_bets (id, wager_id, user_id, username, side, amount, status, "
+                "stake_tx_id, created_at) VALUES (?, ?, NULL, ?, ?, ?, 'open', ?, ?)",
+                (bet_id, wager_id, player_name, side, amount,
+                 stake_tx["id"] if stake_tx else None, _now()),
+            )
+            self._history(conn, wager_id, "bet", actor,
+                          f"{amount} on {side} for {player_name}")
+        return self.get_wager(wager_id)
+
+    # ------------------------------------------------------------------
     # admin: calibration & lifecycle
     # ------------------------------------------------------------------
     def calibrate(self, wager_id: str, actor: str, estimate) -> dict:
