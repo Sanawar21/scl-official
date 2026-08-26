@@ -22,6 +22,8 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          timeout: 600
+          command_timeout: 600
           script: |
             set -e
             cd /root/scl-official
@@ -35,7 +37,7 @@ jobs:
             if [ ! -d .venv ]; then
               python3 -m venv .venv
             fi
-            ./.venv/bin/pip install -r requirements.txt --quiet
+            ./.venv/bin/pip install -r requirements.txt --quiet --no-cache-dir 2>&1 | tail -5
 
             # 3. Stop the old server — kill by PID file / screen session / port
             #    only, never by process name. (A name-based pkill can match the
