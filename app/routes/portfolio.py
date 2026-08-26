@@ -27,12 +27,17 @@ def _account_data(db, bank_service, user):
     # active wagers (money committed)
     wager_bets = []
     with db.read() as conn:
+        # Match by login user_id OR by player name (for admin-placed bets).
+        gp_name = conn.execute("SELECT name FROM global_players WHERE id = ?",
+                               (user["global_player_id"],)).fetchone()
+        player_name = gp_name["name"] if gp_name else None
         rows = conn.execute(
             "SELECT b.*, w.title, w.status AS wager_status, w.side_a, w.side_b, "
             "w.winning_side "
             "FROM wager_bets b JOIN wagers w ON w.id = b.wager_id "
-            "WHERE b.user_id = ? AND b.status = 'open' ORDER BY b.created_at DESC",
-            (user["id"],),
+            "WHERE b.status = 'open' AND (b.user_id = ? OR b.username = ?) "
+            "ORDER BY b.created_at DESC",
+            (user["id"], player_name or "__none__"),
         ).fetchall()
         wager_bets = rows_to_dicts(rows)
 
@@ -207,14 +212,17 @@ def public_account_view(owner_id):
     vaults = bank_service.vault_positions(account["id"])
     liquid = int(account["liquid_cash"])
     locked = int(account["locked_capital"])
-    # wager exposure
+    # wager exposure — match by login user_id or player name
     with db.read() as conn:
+        gp_name = conn.execute("SELECT name FROM global_players WHERE id = ?",
+                               (owner_id,)).fetchone()
+        player_name = gp_name["name"] if gp_name else None
         bets = conn.execute(
             "SELECT b.*, w.title, w.status AS wager_status "
             "FROM wager_bets b JOIN wagers w ON w.id = b.wager_id "
-            "WHERE b.user_id = ? AND b.status = 'open' "
+            "WHERE b.status = 'open' AND (b.user_id = ? OR b.username = ?) "
             "ORDER BY b.created_at DESC",
-            (owner_id,),
+            (owner_id, player_name or "__none__"),
         ).fetchall()
         wager_bets = rows_to_dicts(bets)
     wager_committed = sum(int(b["amount"]) for b in wager_bets)
