@@ -517,7 +517,27 @@ class WagerService:
             pot = winning_stakes + sum(int(b["amount"]) for b in losers) + int(wager["house_injected"] or 0)
 
             if not winners:
-                raise ValueError("Nobody wagered on the winning side — void the market instead")
+                # House takes the entire losing pot — no payouts needed.
+                house = self.bank.get_or_create_account(HOUSE_TYPE, HOUSE_ID, conn=conn)
+                rake = sum(int(b["amount"]) for b in losers) + int(wager["house_injected"] or 0)
+                if rake > 0:
+                    self.bank.adjust(house["id"], rake,
+                                     f"House rake from '{wager['title']}' (no winners)",
+                                     tx_type="house_rake", conn=conn)
+                for bet in losers:
+                    conn.execute(
+                        "UPDATE wager_bets SET status = 'settled', payout = 0, settled_at = ? "
+                        "WHERE id = ?",
+                        (_now(), bet["id"]),
+                    )
+                conn.execute(
+                    "UPDATE wagers SET status = 'resolved', winning_side = ?, accepting_bets = 0, "
+                    "resolved_at = ?, updated_at = ? WHERE id = ?",
+                    (winning_side, _now(), _now(), wager_id),
+                )
+                self._history(conn, wager_id, "resolve", actor,
+                              f"{winning_side} won — no bets on winning side, house takes {rake}")
+                return self.get_wager(wager_id)
 
             fair = self._fair_odds(wager, winning_side)
             guaranteed = int(round(winning_stakes * fair))
