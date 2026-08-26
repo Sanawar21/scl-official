@@ -78,7 +78,7 @@ class BankService:
             if not account:
                 raise ValueError("Account not found")
             new_balance = int(account["liquid_cash"]) + int(amount)
-            if new_balance < 0:
+            if new_balance < 0 and account["owner_type"] != "house":
                 raise ValueError("Insufficient liquid cash")
             c.execute(
                 "UPDATE bank_accounts SET liquid_cash = ? WHERE id = ?",

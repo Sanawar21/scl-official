@@ -192,23 +192,22 @@ def test_resolve_house_guarantee_topup(app, wager, bank):
     assert w["history"][-1]["note"].startswith("No won")
 
 
-def test_resolve_auto_injects_partial_house(app, wager, bank):
-    """House can't fully cover → injects what it has, pays pro-rata."""
+def test_resolve_infinite_house_covers_shortfall(app, wager, bank):
+    """House has infinite bankroll — always pays fair odds."""
     season, players, _ = _setup(app, n_teams=2)
     house = bank.get_or_create_account("house", "house")
-    bank.adjust(house["id"], 50, "small house balance")
 
     alice = _linked_user(app, "alice", players[0]["global_player_id"])
     bob = _linked_user(app, "bob", players[1]["global_player_id"])
     w = _open_market(app, wager, alice, side="Yes", amount=200, estimate=25)
     wager.place_bet(bob, w["id"], "No", 100)
-    # pot = 300 + 50(auto-inject) = 350; guaranteed(No) = 400 > 350 -> pro-rata.
+    # pot = 300; guaranteed(No) = 100 * 4 = 400 > 300 -> house tops up 100.
+    # Bob gets 400 (fair odds). House rake = 300 + 0 + 100 - 400 = 0.
     w = wager.resolve(w["id"], "admin", "No")
 
     by_user = {b["username"]: b for b in w["bets"]}
-    assert by_user["bob"]["payout"] == 350  # 100 * 350/100 = 350
+    assert by_user["bob"]["payout"] == 400
     assert by_user["alice"]["payout"] == 0
-    assert bank.get_account(house["id"])["liquid_cash"] == 0  # injected 50, got 0 back
     assert w["status"] == "resolved"
 
 

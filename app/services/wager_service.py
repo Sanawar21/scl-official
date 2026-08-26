@@ -556,38 +556,26 @@ class WagerService:
             house = self.bank.get_or_create_account(HOUSE_TYPE, HOUSE_ID, conn=conn)
 
             # --- Payout model: each side is independent ---
-            # Winners receive their stake × fair odds. The house takes the
-            # remainder of the losing pot (not redistributed to winners).
-            # If the house can't cover the full guaranteed amount, it injects
-            # what it has and winners split proportionally from what's available.
-            injected_this_resolve = 0
+            # Winners always receive stake × fair odds. The house has infinite
+            # bankroll — covers any shortfall and takes the remainder as rake.
+            injected = 0
             if guaranteed > pot:
-                top_up = guaranteed - pot
-                available = int(house["liquid_cash"])
-                injected_this_resolve = min(top_up, available)
-                if injected_this_resolve > 0:
-                    self.bank.adjust(house["id"], -injected_this_resolve,
-                                     f"Guarantee top-up for '{wager['title']}'",
-                                     tx_type="house_inject", conn=conn)
-                pot += injected_this_resolve
+                injected = guaranteed - pot
+                self.bank.adjust(house["id"], -injected,
+                                 f"Guarantee top-up for '{wager['title']}'",
+                                 tx_type="house_inject", conn=conn)
 
-            if guaranteed <= pot:
-                # House fully covers (or pot is fat) — pay at fair odds.
-                payouts = {b["id"]: int(round(int(b["amount"]) * fair)) for b in winners}
-            else:
-                # House couldn't fully cover — proportional payout from available pot.
-                payouts = {b["id"]: int(round(int(b["amount"]) * pot / winning_stakes))
-                           for b in winners}
-            # House keeps the remainder of the losing pot.
+            # Winners get fair odds — always.
+            payouts = {b["id"]: int(round(int(b["amount"]) * fair)) for b in winners}
             total_payout = sum(payouts.values())
-            loser_stakes = sum(int(b["amount"]) for b in losers)
-            house_profit = winning_stakes + loser_stakes + int(wager["house_injected"] or 0) + injected_this_resolve - total_payout
-            house_note = f"; House auto-injected {injected_this_resolve}" if injected_this_resolve else ""
-            if house_profit > 0:
-                self.bank.adjust(house["id"], house_profit,
+            # Rake = total money in pot minus what winners get paid.
+            rake = pot + injected - total_payout
+            house_note = f"; House topped up {injected}" if injected else ""
+            if rake > 0:
+                self.bank.adjust(house["id"], rake,
                                  f"House rake from '{wager['title']}'",
                                  tx_type="house_rake", conn=conn)
-                house_note += f"; House rake {house_profit}" if not house_note else f", rake {house_profit}"
+                house_note += f", rake {rake}" if house_note else f"; House rake {rake}"
 
             for bet in winners:
                 self._credit(conn, bet, payouts[bet["id"]], "wager_payout",
