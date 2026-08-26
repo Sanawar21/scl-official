@@ -184,8 +184,8 @@ def test_teams_index_and_detail(page, base_url):
 
 def test_player_profile_stats(page, base_url):
     page.goto(base_url + "/leaderboards")
-    page.click("label[for='lb-fantasy']")
-    link = page.locator("#panel-fantasy a").first
+    page.click("label[for='lb-bat']")
+    link = page.locator("#panel-bat a").first
     link.click()
     page.wait_for_load_state("networkidle")
     body = page.locator("body").inner_text()

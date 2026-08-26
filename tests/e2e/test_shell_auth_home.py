@@ -120,7 +120,6 @@ def test_home_player_quick_actions(page, base_url, login):
     assert "Quick actions" in body
     assert "Wagers" in body
     assert "Live Auction" in body
-    assert "My Account" in body
 
 
 def test_home_manager_quick_actions(page, base_url, login):

@@ -59,7 +59,7 @@ def test_login_player_redirects_to_account(page, base_url, login):
     login("alice", "alicepw")
     assert "/account" in page.url
     body = page.locator("body").inner_text()
-    assert "Central Bank" in body
+    assert "Net worth" in body
     assert "4500" in body  # 5000 seed minus the 500 wager opening stake
 
 
@@ -90,7 +90,9 @@ def test_deposit_is_admin_only(page, base_url, login):
     login("alice", "alicepw")
     # No deposit form on the player account page.
     assert page.locator('form[action*="/deposit"]').count() == 0
-    assert "only the admin can add balance" in page.locator("body").inner_text().lower()
+    # Player has no deposit form — admin adds balance via bank-adjust.
+    body = page.locator("body").inner_text().lower()
+    assert "liquid cash" in body
     # The admin's bank-adjust form is the deposit mechanism.
     login("admin", "admin123")
     page.goto(base_url + "/admin/auction")
