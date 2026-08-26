@@ -371,6 +371,28 @@ class WagerService:
                           f"estimate {estimate}% (consensus {round(house_probability, 2)}%)")
         return self.get_wager(wager_id)
 
+    def remove_estimate(self, wager_id: str, actor: str, index: int) -> dict:
+        """Remove a calibration estimate by its index in the estimates list."""
+        with self.db.write() as conn:
+            wager = self._get_wager_row(conn, wager_id)
+            self._require_status(wager, (STATUS_PROPOSED, STATUS_CALIBRATING))
+            estimates = json_loads(wager["calibration_estimates"], [])
+            if index < 0 or index >= len(estimates):
+                raise ValueError("Invalid estimate index")
+            removed = estimates.pop(index)
+            if estimates:
+                house_probability = sum(e["estimate"] for e in estimates) / len(estimates)
+            else:
+                house_probability = None
+            conn.execute(
+                "UPDATE wagers SET house_probability = ?, calibration_estimates = ?, "
+                "updated_at = ? WHERE id = ?",
+                (house_probability, json_dumps(estimates), _now(), wager_id),
+            )
+            self._history(conn, wager_id, "remove_estimate", actor,
+                          f"removed {removed['admin']}'s estimate of {removed['estimate']}%")
+        return self.get_wager(wager_id)
+
     def finalize_calibration(self, wager_id: str, actor: str) -> dict:
         with self.db.write() as conn:
             wager = self._get_wager_row(conn, wager_id)

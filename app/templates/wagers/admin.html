@@ -138,15 +138,43 @@
     {% if w.status in ('proposed', 'calibrating') %}
       <details open>
         <summary class="small muted" style="cursor:pointer;margin-top:8px">Calibration</summary>
-        <form method="post" action="{{ url_for('wagers.admin_calibrate', wager_id=w.id) }}" class="row" style="margin-top:6px">
-          <input type="number" name="estimate" placeholder="blind estimate %" min="1" max="99" step="0.01" required style="width:110px">
-          <button class="btn btn-small" type="submit">Record estimate</button>
-        </form>
+        <div style="margin-top:6px">
+          <p class="small" style="margin:0 0 6px 0">
+            Enter your estimate of the probability that <b>{{ w.side_b }}</b> wins.
+            For example, if you think {{ w.side_b }} has a 60% chance, enter <b>60</b>.
+            The fair odds are calculated from the average of all admin estimates.
+          </p>
+          <div class="row" style="align-items:flex-end;gap:8px;flex-wrap:wrap">
+            <div>
+              <label class="small muted" style="display:block;margin-bottom:2px">{{ w.side_b }} win probability (%)</label>
+              <input type="number" name="estimate" placeholder="e.g. 60" min="1" max="99" step="0.01" required style="width:100px">
+            </div>
+            <button class="btn btn-small btn-primary" type="submit" formaction="{{ url_for('wagers.admin_calibrate', wager_id=w.id) }}">Add estimate</button>
+          </div>
+        </div>
         {% if w.calibration_estimates %}
-          <p class="muted small">Estimates: {% for e in w.calibration_estimates %}{{ e.admin }}={{ e.estimate }}% {% endfor %}
-            (average {{ '%.2f'|format(w.house_probability) }}%)</p>
+          <div style="margin-top:8px">
+            <p class="small muted" style="margin:0 0 4px 0">Estimates submitted (click ✕ to remove):</p>
+            {% for e in w.calibration_estimates %}
+              <div class="row" style="align-items:center;gap:6px;margin-bottom:3px">
+                <span class="tag">{{ e.admin }}</span>
+                <b>{{ e.estimate }}%</b>
+                <form method="post" action="{{ url_for('wagers.admin_remove_estimate', wager_id=w.id, index=loop.index0) }}">
+                  <button class="btn btn-tiny btn-danger" type="submit" title="Remove this estimate"
+                          onclick="return confirm('Remove {{ e.admin }}'s estimate of {{ e.estimate }}%?')">✕</button>
+                </form>
+              </div>
+            {% endfor %}
+            <p class="small" style="margin:4px 0 0 0">
+              Consensus: <b>{{ '%.2f'|format(w.house_probability) }}%</b> for {{ w.side_b }}
+              → {{ w.side_a }} fair <b>{{ '%.2f'|format(100 / (100 - w.house_probability)) }}x</b> ·
+              {{ w.side_b }} fair <b>{{ '%.2f'|format(100 / w.house_probability) }}x</b>
+            </p>
+          </div>
+        {% else %}
+          <p class="muted small" style="margin-top:4px">No estimates yet.</p>
         {% endif %}
-        <div class="row" style="margin-top:6px">
+        <div class="row" style="margin-top:8px">
           <form method="post" action="{{ url_for('wagers.admin_finalize', wager_id=w.id) }}">
             <button class="btn btn-small btn-primary" type="submit">Finalize (open betting)</button>
           </form>

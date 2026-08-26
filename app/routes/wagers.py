@@ -168,6 +168,19 @@ def admin_calibrate(wager_id):
     return redirect(url_for("wagers.admin"))
 
 
+@wagers_bp.post("/admin/<wager_id>/estimate/<int:index>/remove")
+@login_required(role=R.ROLE_ADMIN)
+def admin_remove_estimate(wager_id, index):
+    svc = _wager_service()
+    user = session.get("user") or {}
+    try:
+        svc.remove_estimate(wager_id, user.get("username") or "admin", index)
+        flash("Estimate removed.", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("wagers.admin"))
+
+
 @wagers_bp.post("/admin/<wager_id>/finalize")
 @login_required(role=R.ROLE_ADMIN)
 def admin_finalize(wager_id):
