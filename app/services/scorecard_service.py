@@ -147,6 +147,7 @@ def _team_banner(banner_path):
             ("TOPPADDING", (0, 0), (-1, -1), 4),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
             ("BACKGROUND", (0, 0), (-1, -1), C_WHITE),
         ]))
         return band
