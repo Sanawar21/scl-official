@@ -523,21 +523,22 @@ class WagerService:
             guaranteed = int(round(winning_stakes * fair))
             house = self.bank.get_or_create_account(HOUSE_TYPE, HOUSE_ID, conn=conn)
 
+            # Auto-inject from house wallet if needed — never block resolution.
+            injected_this_resolve = 0
             if guaranteed > pot:
                 top_up = guaranteed - pot
-                if int(house["liquid_cash"]) < top_up:
-                    raise ValueError(
-                        f"House cannot guarantee payouts: needs {top_up} but has only "
-                        f"{house['liquid_cash']} liquid. Inject House funds or void the market.")
-                self.bank.adjust(house["id"], -top_up,
-                                 f"Guarantee top-up for '{wager['title']}'",
-                                 tx_type="house_inject", conn=conn)
-                payouts = {b["id"]: int(round(int(b["amount"]) * fair)) for b in winners}
-                house_note = f"; House topped up {top_up}"
-            else:
-                payouts = {b["id"]: int(round(int(b["amount"]) * pot / winning_stakes))
-                           for b in winners}
-                house_note = ""
+                available = int(house["liquid_cash"])
+                injected_this_resolve = min(top_up, available)
+                if injected_this_resolve > 0:
+                    self.bank.adjust(house["id"], -injected_this_resolve,
+                                     f"Guarantee top-up for '{wager['title']}'",
+                                     tx_type="house_inject", conn=conn)
+                pot += injected_this_resolve
+
+            # Winners split the pot pro-rata — covers full house cover, partial, and fat pot.
+            payouts = {b["id"]: int(round(int(b["amount"]) * pot / winning_stakes))
+                       for b in winners}
+            house_note = f"; House auto-injected {injected_this_resolve}" if injected_this_resolve else ""
 
             for bet in winners:
                 self._credit(conn, bet, payouts[bet["id"]], "wager_payout",

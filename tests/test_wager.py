@@ -188,7 +188,8 @@ def test_resolve_house_guarantee_topup(app, wager, bank):
     assert w["history"][-1]["note"].startswith("No won")
 
 
-def test_resolve_blocks_when_house_cannot_guarantee(app, wager, bank):
+def test_resolve_auto_injects_partial_house(app, wager, bank):
+    """House can't fully cover → injects what it has, pays pro-rata."""
     season, players, _ = _setup(app, n_teams=2)
     house = bank.get_or_create_account("house", "house")
     bank.adjust(house["id"], 50, "small house balance")
@@ -197,8 +198,14 @@ def test_resolve_blocks_when_house_cannot_guarantee(app, wager, bank):
     bob = _linked_user(app, "bob", players[1]["global_player_id"])
     w = _open_market(app, wager, alice, side="Yes", amount=200, estimate=25)
     wager.place_bet(bob, w["id"], "No", 100)
-    with pytest.raises(ValueError):
-        wager.resolve(w["id"], "admin", "No")
+    # pot = 300 + 50(auto-inject) = 350; guaranteed(No) = 400 > 350 -> pro-rata.
+    w = wager.resolve(w["id"], "admin", "No")
+
+    by_user = {b["username"]: b for b in w["bets"]}
+    assert by_user["bob"]["payout"] == 350  # 100 * 350/100 = 350
+    assert by_user["alice"]["payout"] == 0
+    assert bank.get_account(house["id"])["liquid_cash"] == 0
+    assert w["status"] == "resolved"
 
 
 def test_void_refunds_100_percent(app, wager):
