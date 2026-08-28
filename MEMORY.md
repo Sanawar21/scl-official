@@ -291,8 +291,12 @@ Update this file whenever you learn something durable. Keep it current as the bu
   (opens betting) → peer bets → house inject → resolve | void; veto = pre-open bankruptcy gate.
 - Payout (doc-faithful): winners split the pot **proportionally**; if pot < `Σ stake × 100/p(side)`
   the House tops up the difference (solvency-checked against the house account). Void/veto refund 100%.
-- House = `bank_accounts` row (`house:house`), topped up via admin bank adjust.
+- House = `bank_accounts` row (`house:house`), infinite balance (overdraft exempt from bank guard).
 - Stakes/payouts/refunds go through `bank_transactions` (`wager_stake/payout/refund`, `house_inject`).
+- Admin can create wagers + place bets on behalf of players from `/wagers/admin`.
+- `vault_adjust()` — admin can directly inject (liquid→vault) or withdraw (vault→liquid) any account's vault.
+- `adjust()` auto-draws from vault when liquid cash is insufficient for a deduction (e.g. fines). Error
+  only when both liquid + vault are still insufficient.
 
 ## Gotchas learned (don't rediscover)
 
