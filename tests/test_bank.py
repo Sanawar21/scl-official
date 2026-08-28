@@ -148,3 +148,79 @@ def test_vault_lock_insufficient_funds(app, bank):
     account = _account(app, bank)
     with pytest.raises(ValueError):
         bank.lock_to_vault(account["id"], "season-2", 100, reinvest=True)
+
+
+def test_adjust_auto_draws_from_vault_when_liquid_short(app, bank):
+    """When liquid cash is insufficient for a deduction, the shortfall is
+    automatically pulled from vault locked capital."""
+    account = _account(app, bank)
+    bank.adjust(account["id"], 5000, "funds")
+    bank.lock_to_vault(account["id"], "season-2", 3000, reinvest=True)
+    account = bank.get_account(account["id"])
+    assert account["liquid_cash"] == 2000
+    assert account["locked_capital"] == 3000
+    # Try to deduct 2500 — liquid only has 2000, so 500 should come from vault
+    account = bank.adjust(account["id"], -2500, "big fine")
+    assert account["liquid_cash"] == 0  # 2000 - 2500 + 500 from vault
+    assert account["locked_capital"] == 2500  # 3000 - 500
+    # Verify the log mentions vault auto-draw
+    txns = bank.transactions(account["id"])
+    last = txns[0]
+    assert "vault auto-draw" in last["comment"]
+
+
+def test_adjust_vault_draw_exact_shortfall(app, bank):
+    """Deduction equals liquid + vault — account drains to zero."""
+    account = _account(app, bank)
+    bank.adjust(account["id"], 3000, "funds")
+    bank.lock_to_vault(account["id"], "season-2", 2000, reinvest=True)
+    # liquid=1000, vault=2000 — deduct 3000
+    account = bank.adjust(account["id"], -3000, "total drain")
+    assert account["liquid_cash"] == 0
+    assert account["locked_capital"] == 0
+
+
+def test_adjust_vault_draw_insufficient_even_with_vault(app, bank):
+    """Deduction exceeds liquid + vault — error raised."""
+    account = _account(app, bank)
+    bank.adjust(account["id"], 1000, "funds")
+    bank.lock_to_vault(account["id"], "season-2", 500, reinvest=True)
+    # liquid=500, vault=500 — deduct 2000 should fail
+    with pytest.raises(ValueError, match="Insufficient funds"):
+        bank.adjust(account["id"], -2000, "too much")
+
+
+def test_vault_adjust_admin_inject(app, bank):
+    """Admin injects money from liquid into vault."""
+    account = _account(app, bank)
+    bank.adjust(account["id"], 5000, "funds")
+    account = bank.vault_adjust(account["id"], "season-2", 2000, "admin inject")
+    assert account["liquid_cash"] == 3000
+    assert account["locked_capital"] == 2000
+
+
+def test_vault_adjust_admin_withdraw(app, bank):
+    """Admin withdraws money from vault back to liquid."""
+    account = _account(app, bank)
+    bank.adjust(account["id"], 5000, "funds")
+    bank.lock_to_vault(account["id"], "season-2", 3000, reinvest=True)
+    account = bank.vault_adjust(account["id"], "season-2", -1000, "admin withdraw")
+    assert account["liquid_cash"] == 3000  # 2000 + 1000
+    assert account["locked_capital"] == 2000  # 3000 - 1000
+
+
+def test_vault_adjust_admin_insufficient_liquid(app, bank):
+    """Admin inject fails if liquid is insufficient."""
+    account = _account(app, bank)
+    bank.adjust(account["id"], 500, "funds")
+    with pytest.raises(ValueError, match="Insufficient liquid"):
+        bank.vault_adjust(account["id"], "season-2", 1000, "too much")
+
+
+def test_vault_adjust_admin_insufficient_vault(app, bank):
+    """Admin withdraw fails if vault is insufficient."""
+    account = _account(app, bank)
+    bank.adjust(account["id"], 5000, "funds")
+    bank.lock_to_vault(account["id"], "season-2", 500, reinvest=True)
+    with pytest.raises(ValueError, match="Insufficient vault"):
+        bank.vault_adjust(account["id"], "season-2", -1000, "too much")

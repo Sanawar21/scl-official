@@ -701,6 +701,33 @@ def bank_adjust():
     return redirect(url_for("admin.auction", season=_season_id()))
 
 
+@admin_bp.post("/bank/vault-adjust")
+@login_required(role=R.ROLE_ADMIN)
+def bank_vault_adjust():
+    """Admin: directly inject or withdraw funds from an account's vault."""
+    bank_service = current_app.extensions["bank_service"]
+    account_ref = request.form.get("account_id", "")
+    amount = _safe_int(request.form.get("amount"), 0)
+    comment = request.form.get("comment", "")
+    season = _season_id() or _latest_season_id()
+    try:
+        if ":" in account_ref:
+            owner_type, owner_id = account_ref.split(":", 1)
+            account = bank_service.get_or_create_account(owner_type, owner_id)
+            account_id = account["id"]
+        else:
+            account_id = account_ref
+        account = bank_service.vault_adjust(account_id, season, amount, comment)
+        flash(
+            f"Vault adjusted. Liquid: {account['liquid_cash']}, "
+            f"Locked: {account['locked_capital']}.",
+            "success",
+        )
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("admin.auction", season=_season_id()))
+
+
 @admin_bp.post("/account/<account_id>/auto/set")
 @login_required(role=R.ROLE_ADMIN)
 def account_auto_set(account_id):

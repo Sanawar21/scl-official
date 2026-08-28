@@ -435,7 +435,41 @@
     <button class="btn btn-small btn-primary" type="submit">Adjust account</button>
   </form>
   <p class="muted small">Grants, fines and bonuses all go through here — enter a comment so the
-    ledger stays meaningful. A manager's wallet IS their team's purse.</p>
+    ledger stays meaningful. If liquid cash is insufficient for a deduction,
+    the shortfall is pulled from the vault automatically.</p>
+</section>
+
+<section class="card" id="vault-adjust">
+  <h2>Vault adjust (direct inject / withdraw)</h2>
+  <form method="post" action="{{ url_for('admin.bank_vault_adjust') }}">
+    <input type="hidden" name="season" value="{{ season_id }}">
+    <label for="va-account">Account</label>
+    <select name="account_id" id="va-account" required>
+      <option value="">— account —</option>
+      {% for t in state.teams %}
+        {% set gp_id = t.manager_player_id %}
+        {% if gp_id %}
+          <option value="player:{{ gp_id }}">{{ t.manager_name }} ({{ t.name }} manager)</option>
+        {% endif %}
+      {% endfor %}
+      {% for gp in global_players %}
+        <option value="player:{{ gp.id }}">{{ gp.name }} (player)</option>
+      {% endfor %}
+    </select>
+    <div class="grid" style="margin:6px 0">
+      <div>
+        <label for="va-amount">Amount (positive = inject, negative = withdraw)</label>
+        <input type="number" name="amount" id="va-amount" placeholder="e.g. 1000 or -500" required>
+      </div>
+      <div>
+        <label for="va-comment">Reason</label>
+        <input type="text" name="comment" id="va-comment" placeholder="e.g. admin vault inject, emergency withdrawal…" required>
+      </div>
+    </div>
+    <button class="btn btn-small btn-primary" type="submit">Adjust vault</button>
+  </form>
+  <p class="muted small">Directly move money into or out of the vault. Positive amounts pull from liquid
+    cash and lock them in the vault. Negative amounts release vault capital back to liquid.</p>
 </section>
 
 {% endif %}

@@ -72,19 +72,56 @@ class BankService:
     def adjust(self, account_id: str, amount: int, comment: str, tx_type: str = "adjust",
                conn=None) -> dict:
         """amount may be negative for a deduction. Pass `conn` to run inside a
-        caller's write transaction (same connection, atomic with the caller's work)."""
+        caller's write transaction (same connection, atomic with the caller's work).
+
+        If a deduction exceeds liquid cash and the account has locked vault
+        capital, the shortfall is pulled from the vault automatically."""
         def _impl(c):
             account = c.execute("SELECT * FROM bank_accounts WHERE id = ?", (account_id,)).fetchone()
             if not account:
                 raise ValueError("Account not found")
-            new_balance = int(account["liquid_cash"]) + int(amount)
-            if new_balance < 0 and account["owner_type"] != "house":
-                raise ValueError("Insufficient liquid cash")
+            liquid = int(account["liquid_cash"])
+            locked = int(account["locked_capital"])
+            new_liquid = liquid + int(amount)
+
+            # --- auto-draw from vault when liquid is short ---
+            vault_take = 0
+            if new_liquid < 0 and account["owner_type"] != "house":
+                shortfall = abs(new_liquid)
+                vault_take = min(shortfall, locked)
+                if vault_take < shortfall:
+                    raise ValueError(
+                        f"Insufficient funds: liquid {liquid}, vault {locked}, "
+                        f"need {abs(int(amount))}"
+                    )
+                new_liquid += vault_take
+                # pull from vault position(s) — latest season first
+                remaining = vault_take
+                positions = c.execute(
+                    "SELECT * FROM vault_positions WHERE account_id = ? ORDER BY created_at DESC",
+                    (account_id,),
+                ).fetchall()
+                for pos in positions:
+                    if remaining <= 0:
+                        break
+                    take = min(remaining, int(pos["locked_capital"]))
+                    if take <= 0:
+                        continue
+                    c.execute(
+                        "UPDATE vault_positions SET locked_capital = ?, principal = MAX(0, principal - ?) WHERE id = ?",
+                        (int(pos["locked_capital"]) - take, take, pos["id"]),
+                    )
+                    remaining -= take
+
+            new_locked = locked - vault_take
             c.execute(
-                "UPDATE bank_accounts SET liquid_cash = ? WHERE id = ?",
-                (new_balance, account_id),
+                "UPDATE bank_accounts SET liquid_cash = ?, locked_capital = ? WHERE id = ?",
+                (new_liquid, new_locked, account_id),
             )
-            self._log(c, account_id, tx_type, amount, new_balance, comment)
+            log_comment = comment or ""
+            if vault_take > 0:
+                log_comment = f"{log_comment} (vault auto-draw: {vault_take})".strip()
+            self._log(c, account_id, tx_type, amount, new_liquid, log_comment)
             return row_to_dict(c.execute(
                 "SELECT * FROM bank_accounts WHERE id = ?", (account_id,)
             ).fetchone())
@@ -355,6 +392,67 @@ class BankService:
             return row_to_dict(conn.execute(
                 "SELECT * FROM vault_positions WHERE id = ?", (position_id,)
             ).fetchone())
+
+    def vault_adjust(self, account_id: str, season_id: str, amount: int,
+                     comment: str = "") -> dict:
+        """Admin: directly add/remove funds from an account's vault.
+
+        Positive amount = inject money into vault (liquid -> locked).
+        Negative amount = withdraw money from vault (locked -> liquid).
+        Creates a vault position for the season if one doesn't exist."""
+        amount = int(amount)
+        if amount == 0:
+            raise ValueError("Amount must be non-zero")
+        with self.db.write() as conn:
+            account = conn.execute(
+                "SELECT * FROM bank_accounts WHERE id = ?", (account_id,)
+            ).fetchone()
+            if not account:
+                raise ValueError("Account not found")
+            liquid = int(account["liquid_cash"])
+            locked = int(account["locked_capital"])
+            if amount > 0:
+                # inject into vault — pull from liquid
+                if liquid < amount:
+                    raise ValueError(
+                        f"Insufficient liquid cash: have {liquid}, need {amount}"
+                    )
+                self._lock_internal(conn, account, season_id, amount, reinvest=True)
+                self._log(conn, account_id, "vault_admin_inject", amount,
+                          liquid - amount, comment or f"Admin injected {amount} into vault")
+            else:
+                # withdraw from vault — push to liquid
+                withdraw = abs(amount)
+                if locked < withdraw:
+                    raise ValueError(
+                        f"Insufficient vault balance: have {locked}, need {withdraw}"
+                    )
+                # pull from vault position(s) — latest season first
+                remaining = withdraw
+                positions = conn.execute(
+                    "SELECT * FROM vault_positions WHERE account_id = ? ORDER BY created_at DESC",
+                    (account_id,),
+                ).fetchall()
+                for pos in positions:
+                    if remaining <= 0:
+                        break
+                    take = min(remaining, int(pos["locked_capital"]))
+                    if take <= 0:
+                        continue
+                    conn.execute(
+                        "UPDATE vault_positions SET locked_capital = ?, principal = MAX(0, principal - ?) WHERE id = ?",
+                        (int(pos["locked_capital"]) - take, take, pos["id"]),
+                    )
+                    remaining -= take
+                new_liquid = liquid + withdraw
+                new_locked = locked - withdraw
+                conn.execute(
+                    "UPDATE bank_accounts SET liquid_cash = ?, locked_capital = ? WHERE id = ?",
+                    (new_liquid, new_locked, account_id),
+                )
+                self._log(conn, account_id, "vault_admin_withdraw", -withdraw,
+                          new_liquid, comment or f"Admin withdrew {withdraw} from vault")
+        return self.get_account(account_id)
 
     def apply_match_yield(self, season_id: str, match_number: int) -> list:
         """Apply the 7% yield for every match step up to `match_number`.
