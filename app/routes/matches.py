@@ -7,7 +7,8 @@ from flask import (Blueprint, current_app, flash, jsonify, make_response, redire
 
 from .. import rules as R
 from ..authz import login_required
-from ..services.scorer_service import MatchOverwriteConfirmationRequired, team_profile_slug
+from ..services.scorer_service import (
+    MatchOverwriteConfirmationRequired, player_profile_slug, team_profile_slug)
 
 matches_bp = Blueprint("matches", __name__)
 
@@ -291,6 +292,53 @@ def teams_index():
                 "logo_url": branding.scl_url("logo"),
             })
     return render_template("teams/index.html", teams=teams)
+
+
+@matches_bp.get("/players")
+def players_index():
+    """Every player across all seasons, with a career snapshot (like /teams)."""
+    svc = _scorer_service()
+    players = []
+    with current_app.extensions["db"].read() as conn:
+        gp_rows = conn.execute("SELECT * FROM global_players ORDER BY name").fetchall()
+        stats_by_pid = {}
+        for r in conn.execute(
+            "SELECT player_id, COUNT(*) AS matches, SUM(runs) AS runs, SUM(wickets) AS wickets, "
+            "SUM(sixes) AS sixes, SUM(fantasy_score) AS fantasy "
+            "FROM match_player_stats WHERE player_id IS NOT NULL AND player_id != '' "
+            "GROUP BY player_id").fetchall():
+            stats_by_pid[r["player_id"]] = r
+        team_by_mgr = {}
+        for r in conn.execute(
+            "SELECT name, manager_player_id FROM global_teams "
+            "WHERE manager_player_id IS NOT NULL AND manager_player_id != ''").fetchall():
+            team_by_mgr.setdefault(r["manager_player_id"], r["name"])
+        gp_by_id = {gp["id"]: gp for gp in gp_rows}
+        # Players with career rows but no global row yet (historical data) still
+        # resolve to a profile page, so include them under their stored name.
+        names = {gp["id"]: gp["name"] for gp in gp_rows}
+        for r in conn.execute(
+            "SELECT DISTINCT player_id, player_name FROM match_player_stats").fetchall():
+            if r["player_id"] and r["player_id"] not in names:
+                names[r["player_id"]] = r["player_name"] or r["player_id"]
+    for pid, pname in names.items():
+        gp = gp_by_id.get(pid)
+        stats = stats_by_pid.get(pid)
+        players.append({
+            "player_id": pid,
+            "name": pname,
+            "slug": player_profile_slug(pid, pname),
+            "tier": gp["tier"] if gp else "",
+            "speciality": gp["speciality"] if gp else "",
+            "team_managed": team_by_mgr.get(pid) or "",
+            "matches": int(stats["matches"] or 0) if stats else 0,
+            "runs": int(stats["runs"] or 0) if stats else 0,
+            "wickets": int(stats["wickets"] or 0) if stats else 0,
+            "sixes": int(stats["sixes"] or 0) if stats else 0,
+            "fantasy": int(stats["fantasy"] or 0) if stats else 0,
+        })
+    players.sort(key=lambda p: p["name"].lower())
+    return render_template("players/index.html", players=players)
 
 
 @matches_bp.get("/teams/<slug>")

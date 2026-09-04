@@ -141,13 +141,14 @@
   {% if txns %}
   <div class="table-wrap">
     <table>
-      <thead><tr><th>When</th><th>Type</th><th>Amount</th></tr></thead>
+      <thead><tr><th>When</th><th>Type</th><th>Amount</th><th>Comment</th></tr></thead>
       <tbody>
         {% for t in txns %}
           <tr>
             <td class="muted">{{ t.created_at|pkt }}</td>
             <td><span class="tag">{{ t.type }}</span></td>
             <td>{{ t.amount }}</td>
+            <td class="muted">{% if t.comment %}{{ t.comment }}{% else %}—{% endif %}</td>
           </tr>
         {% endfor %}
       </tbody>

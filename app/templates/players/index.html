@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Players{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Players</h1>
+  <p class="page-sub">Every player across all seasons</p>
+</div>
+
+{% if not players %}
+  <div class="empty"><div class="empty-title">No players yet</div>
+    <p class="small">Players appear here once the admin adds them.</p></div>
+{% else %}
+  <div class="grid">
+    {% for p in players %}
+      <a class="stat-tile" style="text-decoration:none; display:flex; align-items:center; gap:10px"
+         href="{{ url_for('matches.player_detail', slug=p.slug) }}">
+        <span style="flex:1;min-width:0">
+          <span class="stat-value" style="font-size:17px;display:block">{{ p.name }}</span>
+          <span class="small muted" style="display:block">
+            {% if p.team_managed %}Manages <b>{{ p.team_managed }}</b>{% endif %}
+            {{ p.matches }} match{{ 'es' if p.matches != 1 else '' }} · {{ p.runs }} runs · {{ p.wickets }} wkts · {{ p.sixes }} sixes
+          </span>
+          <span class="small muted">View profile →</span>
+        </span>
+        <span style="align-self:flex-start; display:flex; flex-direction:column; gap:4px; align-items:flex-end">
+          {% if p.tier %}<span class="tag tag-active">{{ p.tier }}</span>{% endif %}
+          {% if p.speciality %}<span class="chip chip-info">{{ p.speciality.replace('_', ' ') }}</span>{% endif %}
+        </span>
+      </a>
+    {% endfor %}
+  </div>
+{% endif %}
+{% endblock %}

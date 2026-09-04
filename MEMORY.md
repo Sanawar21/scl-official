@@ -1145,3 +1145,17 @@ Auto accounts now stay as LIQUID as possible (user decision):
 - Service methods: `wager_service.admin_create_wager()` and `wager_service.admin_bet_on_behalf()`.
 - Routes: `wagers.admin_create` (POST) and `wagers.admin_bet_behalf` (POST).
 - Admin template shows global player list + seasons in the create form and bet-on-behalf forms.
+
+## Nav cleanup + Players directory + public account comments — DONE (2026-09-04)
+
+- Navbar More dropdown no longer lists Wagers (it stays in the top-level row for
+  logged-in players/managers and admin, and in the mobile bottom bar); added a
+  **Players** link there too (Live, Players, Teams, Scorer, Docs, Changelog).
+- New public `/players` directory (`matches.players_index` + `players/index.html`):
+  every player across all seasons with a career snapshot (matches/runs/wkts/sixes),
+  tier + speciality chips, and \"Manages <team>\" for managers — each links to the
+  existing `/players/<slug>` profile. Players present only in match stats (no global
+  row) are included under their stored name so every reachable profile is listed.
+- Public portfolio Recent activity (`portfolio/public_account.html`) now shows the
+  transaction **comment** column — admin adjust notes like \"credit saved\" are visible
+  for audit trail (mirrors the private /account Transactions table).

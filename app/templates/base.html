@@ -11,8 +11,8 @@
 {% set role = current_user.role if current_user else 'anon' %}
 
 {% macro more_links() %}
-  <a href="{{ url_for('wagers.board') }}">Wagers</a>
   <a href="{{ url_for('viewer.live') }}">Live</a>
+  <a href="{{ url_for('matches.players_index') }}">Players</a>
   <a href="{{ url_for('matches.teams_index') }}">Teams</a>
   <a href="{{ url_for('matches.scorer_page') }}">Scorer</a>
   <a href="{{ url_for('viewer.docs_index') }}">Docs</a>
