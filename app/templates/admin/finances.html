@@ -140,9 +140,9 @@
       ≥ 12 matches are finalized.</p>
     {% if yield_schedule %}
     <h3>Yield schedule</h3>
-    <p class="muted small">Release yield per match after uploading the CSV. Notify managers first, then release.
-      The first release sweeps auto accounts into the vault; subsequent releases only compound.
-      You can release now or schedule for later.</p>
+    <p class="muted small">      Release yield per match after uploading the CSV. Notify managers first, then release.
+      Each release sweeps auto accounts' liquid into the vault moments before the yield step,
+      then pays the step straight back to spendable liquid. You can release now or schedule for later.</p>
     <div class="table-wrap">
       <table>
         <thead><tr>
@@ -220,6 +220,11 @@
       <input type="hidden" name="season_id" value="{{ season_id }}">
       <label class="checkbox-label"><input type="checkbox" name="force" value="1"> force</label>
       <button class="btn btn-small btn-primary" type="submit">Unlock vault (M12)</button>
+    </form>
+    <form method="post" action="{{ url_for('admin.finances_auto_release') }}" class="row" style="margin-top:6px">
+      <input type="hidden" name="season_id" value="{{ season_id }}">
+      <button class="btn btn-small" type="submit">Return auto balances to liquid</button>
+      <span class="muted small">Auto accounts only — undoes the old draft-time lock; manual vaults untouched.</span>
     </form>
     {% if vault_positions %}
       <h3>Positions</h3>

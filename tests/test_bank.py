@@ -114,6 +114,38 @@ def test_sweep_auto_liquid_to_vault_locks_remaining_liquid(app, bank):
     assert bank.vault_positions(b["id"]) == []
 
 
+def test_release_auto_vault_capital_returns_liquid_and_keeps_manual(app, bank):
+    """Reverse of the sweep (one-time rescue for the old draft-time lock): auto
+    accounts get their season vault capital back to spendable liquid and the
+    empty position is removed so the next release recreates it cleanly. Manual
+    accounts and their positions are never touched."""
+    with app.extensions["db"].write() as conn:
+        conn.execute("INSERT INTO global_players (id, name, tier, speciality, created_at) "
+                     "VALUES ('gp-a2', 'A2', 'gold', 'BATTER', '2026-01-01')")
+        conn.execute("INSERT INTO global_players (id, name, tier, speciality, created_at) "
+                     "VALUES ('gp-b2', 'B2', 'silver', 'BOWLER', '2026-01-01')")
+    bank.fund_all_players(10000)  # both land liquid, auto by default
+    b = bank.account_for_owner("player", "gp-b2")
+    bank.set_auto(b["id"], False)  # B opts out of auto
+
+    swept = bank.sweep_auto_liquid_to_vault("season-2")
+    assert swept == {"locked": 1, "amount": 10000}
+    a = bank.account_for_owner("player", "gp-a2")
+    assert a["liquid_cash"] == 0 and a["locked_capital"] == 10000
+
+    result = bank.release_auto_vault_capital("season-2")
+    assert result == {"released": 1, "amount": 10000}
+    a = bank.account_for_owner("player", "gp-a2")
+    assert a["liquid_cash"] == 10000 and a["locked_capital"] == 0
+    assert bank.vault_positions(a["id"]) == [], "empty position removed for a clean restart"
+    # Manual account untouched.
+    b = bank.account_for_owner("player", "gp-b2")
+    assert b["liquid_cash"] == 10000 and b["locked_capital"] == 0
+    assert bank.vault_positions(b["id"]) == []
+    # Idempotent: nothing left to release.
+    assert bank.release_auto_vault_capital("season-2") == {"released": 0, "amount": 0}
+
+
 def test_vault_lock_and_compounding_yield(app, bank):
     account = _account(app, bank)
     bank.adjust(account["id"], 10000, "funds")

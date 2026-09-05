@@ -444,18 +444,16 @@ def complete(season_id):
     auction_service = current_app.extensions["auction_service"]
     try:
         auction_service.complete_draft(season_id)
-        # S2: automatically apply the squad-cost levy to non-spenders, then
-        # sweep auto accounts' leftover liquid into the vault (auto mode is
-        # the default; their money stays liquid through the auction, locks
-        # after — in manual-harvest mode so yields pay out to liquid).
+        # S2: automatically apply the squad-cost levy to non-spenders. Auto
+        # accounts KEEP their leftover liquid — under the auto-liquidity model
+        # their money is only vaulted at the very last moment, right before a
+        # yield release (sweep_auto_liquid_to_vault runs inside the release),
+        # so it stays spendable between auction and match 1.
         finance = current_app.extensions["finance_service"]
         levy = finance.apply_squad_levy(season_id)
-        bank = current_app.extensions["bank_service"]
-        vault = bank.sweep_auto_liquid_to_vault(season_id)
         if levy.get("applied"):
             flash(f"Draft completed; squad-cost levy {levy['levy']:,} charged to "
-                  f"{levy['charged']} wallets ({levy['exempt']} exempt). "
-                  f"{vault['locked']} auto accounts' funds locked in the vault.", "success")
+                  f"{levy['charged']} wallets ({levy['exempt']} exempt).", "success")
         else:
             flash("Draft completed; incomplete teams filled with penalties.", "success")
     except ValueError as exc:
@@ -1080,6 +1078,28 @@ def finances_unlock():
         results = bank.unlock_vault(season_id, force=_boolish(request.form.get("force")))
         released = sum(r["released"] for r in results)
         flash(f"Vault unlocked: {len(results)} position(s), {released} released to liquid.", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("admin.finances", season=season_id))
+
+
+@admin_bp.post("/finances/auto-release")
+@login_required(role=R.ROLE_ADMIN)
+def finances_auto_release():
+    """Return AUTO accounts' season vault capital back to spendable liquid.
+
+    One-time rescue for seasons whose draft-completion used to lock auto
+    accounts' whole balance (fixed — the draft no longer sweeps them). Auto
+    balances should stay liquid until the moment before a yield release."""
+    bank = current_app.extensions["bank_service"]
+    season_id = (request.form.get("season_id") or "").strip().lower()
+    try:
+        result = bank.release_auto_vault_capital(season_id)
+        if result["released"]:
+            flash(f"Returned {result['amount']:,} to liquid across "
+                  f"{result['released']} auto account(s).", "success")
+        else:
+            flash("No auto-account vault balances to return.", "info")
     except ValueError as exc:
         flash(str(exc), "error")
     return redirect(url_for("admin.finances", season=season_id))

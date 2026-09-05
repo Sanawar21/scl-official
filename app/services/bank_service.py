@@ -380,6 +380,52 @@ class BankService:
                 total += liquid
         return {"locked": locked, "amount": total}
 
+    def release_auto_vault_capital(self, season_id: str) -> dict:
+        """Return every AUTO account's season vault capital back to liquid cash.
+
+        Auto accounts are only supposed to be vaulted for the few moments
+        around a yield release (see `sweep_auto_liquid_to_vault`) — their money
+        stays spendable otherwise. Older drafts swept them at completion and
+        locked the whole season's liquidity by mistake; this reverses that.
+
+        The (now empty) season position is removed so the next yield release
+        recreates it cleanly from whatever liquid is around at that moment —
+        nothing is lost, since capital that was locked but never released has
+        earned no yield. Manual accounts and their positions are never touched.
+        Returns {"released": n_positions, "amount": total}."""
+        season_id = (season_id or "").strip().lower()
+        released = 0
+        total = 0
+        with self.db.write() as conn:
+            accounts = conn.execute(
+                "SELECT * FROM bank_accounts WHERE auto_vault = 1").fetchall()
+            for account in accounts:
+                position = conn.execute(
+                    "SELECT * FROM vault_positions WHERE account_id = ? AND season_id = ? "
+                    "AND unlocked = 0",
+                    (account["id"], season_id),
+                ).fetchone()
+                if not position:
+                    continue
+                amount = int(position["locked_capital"])
+                if amount <= 0:
+                    continue
+                account = conn.execute(
+                    "SELECT * FROM bank_accounts WHERE id = ?", (account["id"],)).fetchone()
+                new_liquid = int(account["liquid_cash"]) + amount
+                new_locked = int(account["locked_capital"]) - amount
+                conn.execute(
+                    "DELETE FROM vault_positions WHERE id = ?", (position["id"],))
+                conn.execute(
+                    "UPDATE bank_accounts SET liquid_cash = ?, locked_capital = ? WHERE id = ?",
+                    (new_liquid, new_locked, account["id"]),
+                )
+                self._log(conn, account["id"], "vault_auto_release", amount, new_liquid,
+                          f"Auto capital returned to liquid (season {season_id})")
+                released += 1
+                total += amount
+        return {"released": released, "amount": total}
+
     def set_reinvest(self, position_id: str, reinvest: bool) -> dict:
         with self.db.write() as conn:
             position = conn.execute("SELECT * FROM vault_positions WHERE id = ?", (position_id,)).fetchone()

@@ -1159,3 +1159,18 @@ Auto accounts now stay as LIQUID as possible (user decision):
 - Public portfolio Recent activity (`portfolio/public_account.html`) now shows the
   transaction **comment** column — admin adjust notes like \"credit saved\" are visible
   for audit trail (mirrors the private /account Transactions table).
+
+## Auto-liquidity draft-lock bug — FIXED (2026-09-05)
+
+- The draft-completion admin action (`/season/<id>/complete`) used to sweep every auto
+  account's leftover liquid into the vault — locking the whole season's liquidity from
+  match 1. Removed: auto accounts keep liquid; they are only vaulted at the last moment
+  before a yield release (the sweep already runs inside `release_yield` /
+  `release_yield_for_match`).
+- New rescue action for already-locked seasons: admin Finance > Vault > "Return auto
+  balances to liquid" → `bank.release_auto_vault_capital(season_id)` (route
+  `admin.finances_auto_release`). Auto-only, manual vaults untouched; deletes the now-empty
+  season position so the next release recreates it cleanly. Idempotent.
+- NOTE: a plain force-unlock (`finances_unlock` + force) at season start would leave stale
+  principal on positions and overpay later manual-harvest yields — use the auto-release
+  button instead for pre-season unlocks.
