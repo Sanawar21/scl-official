@@ -20,6 +20,7 @@
   <a href="{{ url_for('matches.scorer_page') }}">Scorer</a>
   <a href="{{ url_for('viewer.docs_index') }}">Docs</a>
   <a href="{{ url_for('viewer.sponsorship') }}">Sponsorship</a>
+  <a href="{{ url_for('portfolio.public_portfolio') }}">Portfolios</a>
   <a href="{{ url_for('viewer.changelog') }}">Changelog</a>
 {% endmacro %}
 
@@ -30,7 +31,14 @@
   <a href="{{ url_for('matches.league_table') }}">Table</a>
   <a href="{{ url_for('matches.leaderboards') }}">Top</a>
   <a href="{{ url_for('matches.finances_index') }}">Finances</a>
-  <a href="{{ url_for('portfolio.public_portfolio') }}">Portfolios</a>
+  {% if not flat %}
+    <div class="nav-more" id="nav-more">
+      <button type="button" class="nav-more-btn" id="nav-more-btn" aria-expanded="false">More ▾</button>
+      <div class="nav-more-menu" id="nav-more-menu">
+        {{ more_links() }}
+      </div>
+    </div>
+  {% endif %}
   {% if role == 'manager' %}
     <a href="{{ url_for('manager.dashboard') }}">My Team</a>
   {% endif %}
@@ -44,16 +52,6 @@
     <a href="{{ url_for('wagers.admin') }}">Wagers</a>
   {% elif role != 'anon' %}
     <a href="{{ url_for('wagers.board') }}">Wagers</a>
-  {% endif %}
-  {% if flat %}
-    {{ more_links() }}
-  {% else %}
-    <div class="nav-more" id="nav-more">
-      <button type="button" class="nav-more-btn" id="nav-more-btn" aria-expanded="false">More ▾</button>
-      <div class="nav-more-menu" id="nav-more-menu">
-        {{ more_links() }}
-      </div>
-    </div>
   {% endif %}
 {% endmacro %}
 
@@ -87,7 +85,7 @@
   <div class="nav-inner">
     <a class="brand" href="{{ url_for('viewer.home') }}">
       <img class="brand-mark" src="{{ url_for('viewer.branding_asset', relpath='scl/logo-only-dark-bg-square.JPG') }}" alt="SCL">
-      <span class="brand-word">SCL <span class="brand-volt">Section-C</span></span>
+      <span class="brand-word">SCL</span>
       <span class="brand-sponsor">powered by Chandia CC</span>
     </a>
     <div class="nav-links">
@@ -110,7 +108,7 @@
     <div class="drawer-head">
       <span class="brand" style="color:var(--text)">
         <img class="brand-mark" src="{{ url_for('viewer.branding_asset', relpath='scl/logo-only-light-bg-square.JPG') }}" alt="SCL">
-        <span class="brand-word">SCL <span style="color:var(--primary)">Section-C</span></span>
+        <span class="brand-word">SCL</span>
         <span class="brand-sponsor">powered by Chandia CC</span>
       </span>
       <button class="drawer-close" id="drawer-close" aria-label="Close menu">✕</button>
