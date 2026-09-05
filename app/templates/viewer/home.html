@@ -89,30 +89,8 @@
 </section>
 {% endif %}
 
-<div class="grid">
-  <section class="card">
-    <h2>Published Seasons</h2>
-    {% if published %}
-      <ul class="season-list">
-        {% for snap in published %}
-          <li>
-            <a href="{{ url_for('viewer.published', slug=snap.season_id) }}">
-              {{ snap.name }}
-            </a>
-            <span class="muted small">— {{ snap.season_name }} · {{ snap.published_at[:10] }}</span>
-          </li>
-        {% endfor %}
-      </ul>
-    {% else %}
-      <div class="empty">
-        <div class="empty-title">No published seasons yet</div>
-        <p class="small">Once an auction finishes, the admin can publish the season for everyone.</p>
-      </div>
-    {% endif %}
-  </section>
-
-  <section class="card">
-    <h2>Seasons</h2>
+<section class="card">
+  <h2>Seasons</h2>
     {% if seasons %}
       <ul class="season-list">
         {% for s in seasons %}
@@ -129,5 +107,5 @@
       </div>
     {% endif %}
   </section>
-</div>
+
 {% endblock %}
