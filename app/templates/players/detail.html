@@ -33,8 +33,8 @@
             <span class="tag tag-active">#{{ stat.rank }}</span>
             <span class="small muted">of {{ stat.of }}</span>
           </div>
-        {% else %}
-          <div style="margin-top:4px"><span class="tag">—</span></div>
+        {% elif stat.bar and stat.value and stat.value != "—" %}
+          <div style="margin-top:4px"><span class="tag">not ranked</span></div>
         {% endif %}
       </div>
     {% endfor %}
@@ -44,8 +44,10 @@
 
 <p class="small muted" style="margin:-6px 0 12px">
   <b>Innings batted</b> = matches where the player faced at least one ball. Ranks compare this player
-  against every other player in the current scope. Qualifiers: strike rate needs 40+ runs; economy needs
-  2+ overs bowled (season) or 5+ overs (all seasons); averages/best only count qualifiers.
+  against every other player in the current scope. Qualifiers (for ranking only — the figure always
+  shows): strike rate needs 40+ runs; economy needs 2+ overs bowled (season) or 5+ overs (all seasons);
+  batting average needs a dismissal; bowling average & best bowling need a wicket. A stat marked
+  <span class="tag">not ranked</span> means the player's figure is shown but doesn't meet that bar.
 </p>
 
 {% if profile.per_season %}
@@ -66,7 +68,7 @@
             <td>{{ '%.2f'|format(s.strike_rate) if s.strike_rate is not none else '—' }}</td>
             <td>{{ s.wickets }}</td>
             <td>{{ '%.2f'|format(s.economy) if s.economy is not none else '—' }}</td>
-            <td>{% if s.best_wkts %}{{ s.best_wkts }}/{{ s.best_runs }}{% else %}—{% endif %}</td>
+            <td>{% if s.best_runs is not none %}{{ s.best_wkts }}/{{ s.best_runs }}{% else %}—{% endif %}</td>
           </tr>
         {% endfor %}
       </tbody>

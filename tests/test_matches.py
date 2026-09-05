@@ -491,6 +491,70 @@ def test_player_profile_season_scope_innings_and_ranks(app, scorer):
     assert "Season 2" in season_body  # switch is still offered while scoped
 
 
+def test_player_profile_unqualified_stats_show_figures_unranked(app, scorer):
+    """Stats whose qualifier isn't met still display the figure (SR under the
+    40-run bar, economy under the overs bar, best bowling without a wicket)
+    but carry rank None; true wicket-takers keep their best-bowling rank."""
+    season, _, teams = _setup(app, n_teams=2)
+    sid = season["id"]
+    t1 = teams[0]["id"]
+    t2 = teams[1]["id"]
+    with app.extensions["db"].write() as conn:
+        conn.execute(
+            "INSERT INTO match_registry (match_key, season_id, match_id, created_at, updated_at) "
+            "VALUES ('k1', ?, 'M1', '2026-01-01', '2026-01-01')", (sid,))
+        conn.execute(
+            "INSERT INTO match_registry (match_key, season_id, match_id, created_at, updated_at) "
+            "VALUES ('k2', ?, 'M2', '2026-01-02', '2026-01-02')", (sid,))
+        # Chloe: 30 runs off 25 (SR exists but < 40 runs -> unranked), one over
+        # 0/9 (under the 2-over economy bar, best bowling 0/9 unranked).
+        conn.execute(
+            "INSERT INTO match_player_stats (id, match_key, season_id, player_id, "
+            "player_name, team_id, team_name, runs, balls_faced, dismissed, "
+            "wickets, balls_bowled, runs_conceded) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            ("c1", "k1", sid, "gp-chloe", "Chloe", t1, "Thunder",
+             30, 25, 1, 0, 6, 9))
+        # Dan: a proper wicket spell 1/3 in the same season.
+        conn.execute(
+            "INSERT INTO match_player_stats (id, match_key, season_id, player_id, "
+            "player_name, team_id, team_name, runs, balls_faced, dismissed, "
+            "wickets, balls_bowled, runs_conceded) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            ("d1", "k2", sid, "gp-dan", "Dan", t2, "Blaze",
+             0, 0, 0, 1, 6, 3))
+
+    slug = player_profile_slug("gp-chloe", "Chloe")
+    prof = scorer.player_profile(slug, sid)
+
+    def _row(profile, group, label):
+        for grp in profile["stat_groups"]:
+            if grp["group"] != group:
+                continue
+            for r in grp["rows"]:
+                if r["label"] == label:
+                    return r
+        raise AssertionError(f"stat row {label!r} missing")
+
+    sr = _row(prof, "Batting", "Strike rate")
+    assert sr["rank"] is None and sr["value"] == "120.00"
+    assert _row(prof, "Batting", "Runs")["rank"] == 1  # only scorer with runs
+    econ = _row(prof, "Bowling", "Economy")
+    assert econ["rank"] is None and econ["value"] == "9.00"
+    best = _row(prof, "Bowling", "Best bowling")
+    assert best["rank"] is None and best["value"] == "0/9"
+    assert prof["global_stats"]["best_wkts"] == 0
+    assert prof["global_stats"]["best_runs"] == 9
+
+    # Dan qualifies for best bowling and ranks #1 among wicket-takers.
+    dan_prof = scorer.player_profile(player_profile_slug("gp-dan", "Dan"), sid)
+    dan_best = _row(dan_prof, "Bowling", "Best bowling")
+    assert dan_best["rank"] == 1 and dan_best["of"] == 1
+    assert dan_best["value"] == "1/3"
+
+    # Route smoke: figure renders while the "not ranked" badge shows.
+    body = app.test_client().get(f"/players/{slug}?season={sid}").get_data(as_text=True)
+    assert "not ranked" in body
+
+
 # ----------------------------------------------------------------------
 # routes
 # ----------------------------------------------------------------------

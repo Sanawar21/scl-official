@@ -129,7 +129,9 @@ def _aggregate_player_stats(rows) -> dict:
       ball (balls_faced > 0) — a non-striker who never faced is not an innings.
     - not_out counts faced innings that ended without dismissal.
     - highest is the best single-match score (ties prefer a not-out);
-      best_wkts/best_runs is the best bowling figures (ties prefer fewer runs).
+      best_wkts/best_runs is the best bowling spell (most wickets, ties prefer
+      fewer runs) — a 0-wicket spell still counts once the player bowled, so
+      wicketless bowlers get figures like 0/9.
     - averages / strike rate / economy are None when there is nothing to
       divide by (the UI renders those as "—").
     """
@@ -159,12 +161,16 @@ def _aggregate_player_stats(rows) -> dict:
             agg["highest_not_out"] = not dismissed
         wickets = _safe_int(r.get("wickets"))
         conceded = _safe_int(r.get("runs_conceded"))
-        agg["balls_bowled"] += _safe_int(r.get("balls_bowled"))
+        bowled_balls = _safe_int(r.get("balls_bowled"))
+        agg["balls_bowled"] += bowled_balls
         agg["runs_conceded"] += conceded
         agg["wickets"] += wickets
-        if wickets > agg["best_wkts"] or (
-                wickets == agg["best_wkts"] and wickets > 0
-                and (agg["best_runs"] is None or conceded < agg["best_runs"])):
+        # Best spell only from rows where the player actually bowled (a batting-
+        # only row would otherwise count as a 0-wicket 0-run "spell").
+        if bowled_balls > 0 and (
+                wickets > agg["best_wkts"] or (
+                    wickets == agg["best_wkts"]
+                    and (agg["best_runs"] is None or conceded < agg["best_runs"]))):
             agg["best_wkts"] = wickets
             agg["best_runs"] = conceded
     agg["strike_rate"] = round(agg["runs"] * 100.0 / agg["balls_faced"], 2) if agg["balls_faced"] else None
@@ -1469,17 +1475,21 @@ class ScorerService:
         values share a rank). The pool is only players meeting the metric's
         qualifier, mirroring the leaderboard thresholds: strike rate needs 40+
         runs, economy needs 2+ overs in a season or 5+ across all seasons.
-        A stat the player doesn't qualify for gets rank None (UI shows "—").
+        A figure is always shown when it can be computed; only the RANK is
+        withheld when the player misses the qualifier (rank None -> no badge).
         """
         economy_min = 12 if in_season else 30
 
-        def _stat(label, get, fmt=None, qual=None, lower=False):
+        def _stat(label, get, fmt=None, qual=None, lower=False, bar=False):
+            """bar=True marks a ranking-qualifier stat (SR needs 40+ runs,
+            economy needs the overs bar, averages/best need a dismissal or
+            wicket): its figure is shown but the row is explicitly unranked
+            when the bar isn't met. Plain counts are never "bar" rows."""
             fmt = fmt or (lambda v: str(int(v or 0)))
             qual = qual or (lambda a: get(a) is not None and get(a) > 0)
             pool = [a for a in all_agg.values() if qual(a)]
-            mine = agg if qual(agg) else None
-            if mine is not None:
-                value = get(mine)
+            value = get(agg)   # display figure whenever it can be computed
+            if qual(agg) and value is not None:
                 if lower:
                     rank = 1 + sum(1 for a in pool if get(a) < value)
                 else:
@@ -1487,8 +1497,8 @@ class ScorerService:
                 of = len(pool)
             else:
                 rank, of = None, len(pool)
-            value = get(agg) if mine is not None else None
-            return {"label": label, "value": fmt(value), "rank": rank, "of": of}
+            return {"label": label, "value": fmt(value), "rank": rank, "of": of,
+                    "bar": bar}
 
         def _hs(v):
             if not v:
@@ -1511,9 +1521,9 @@ class ScorerService:
             _stat("Highest score", lambda a: a["highest"], _hs,
                   lambda a: (a["highest"] or 0) > 0),
             _stat("Batting average", lambda a: a["batting_average"], _fmt_rate,
-                  lambda a: (a["dismissed"] or 0) > 0),
+                  lambda a: (a["dismissed"] or 0) > 0, bar=True),
             _stat("Strike rate", lambda a: a["strike_rate"], _fmt_rate,
-                  lambda a: (a["runs"] or 0) >= 40),
+                  lambda a: (a["runs"] or 0) >= 40, bar=True),
             _stat("Not outs", lambda a: a["not_out"]),
             _stat("Fours", lambda a: a["fours"]),
             _stat("Sixes", lambda a: a["sixes"]),
@@ -1522,11 +1532,14 @@ class ScorerService:
             _stat("Wickets", lambda a: a["wickets"]),
             _stat("Overs bowled", lambda a: a["balls_bowled"], _overs),
             _stat("Economy", lambda a: a["economy"], _fmt_rate,
-                  lambda a: (a["balls_bowled"] or 0) >= economy_min, lower=True),
+                  lambda a: (a["balls_bowled"] or 0) >= economy_min, lower=True,
+                  bar=True),
             _stat("Bowling average", lambda a: a["bowling_average"], _fmt_rate,
-                  lambda a: (a["wickets"] or 0) > 0, lower=True),
-            _stat("Best bowling", lambda a: (a["best_wkts"], -(a["best_runs"] or 0)),
-                  _best, lambda a: (a["best_wkts"] or 0) > 0),
+                  lambda a: (a["wickets"] or 0) > 0, lower=True, bar=True),
+            _stat("Best bowling",
+                  lambda a: ((a["best_wkts"], -(a["best_runs"] or 0))
+                             if a["best_runs"] is not None else None),
+                  _best, lambda a: (a["best_wkts"] or 0) > 0, bar=True),
         ]
         return [
             {"group": "Batting", "rows": batting},

@@ -1201,3 +1201,13 @@ Auto accounts now stay as LIQUID as possible (user decision):
   Avg/SR/Wkts/Econ/Best) with per-season profile links.
 - Central `_aggregate_player_stats()` + `_player_rank_rows()` in scorer_service;
   `player_profile(slug, season_id=\"\")` scopes rows + rank pool per season.
+
+## Player-stats display semantics fixed (2026-09-05)
+
+- Figures always show when computable; qualifiers gate only the RANK badge,
+  not the value: SR/econ/averages/best rows show the number and a "not ranked"
+  tag when the minimum bar is missed. Rows carry `bar: true` so plain zero
+  counts (e.g. Fours: 0) render no badge.
+- Best bowling now records a 0-wicket spell once a player has bowled
+  (most wickets, then fewest runs), so wicketless bowlers display e.g. "0/9"
+  instead of a dash; ranking for best bowling still requires a wicket.
