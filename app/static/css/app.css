@@ -83,6 +83,7 @@ h1, h2, h3 { line-height: 1.25; }
   color: #fff;
   letter-spacing: 0.5px;
   text-decoration: none;
+  gap: 6px;
 }
 .brand:hover { text-decoration: none; }
 .brand .brand-mark {
@@ -95,6 +96,15 @@ h1, h2, h3 { line-height: 1.25; }
   display: inline-block;
 }
 .brand .brand-volt { color: var(--scl-volt); }
+.brand .brand-sponsor {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  color: rgba(255, 255, 255, 0.75);
+  text-transform: uppercase;
+  border-left: 1px solid rgba(255, 255, 255, 0.25);
+  padding-left: 8px;
+}
 .nav-links { display: flex; gap: 4px; align-items: center; flex-wrap: nowrap; }
 .nav-links a {
   color: rgba(255, 255, 255, 0.85);
@@ -228,6 +238,13 @@ h1, h2, h3 { line-height: 1.25; }
   width: auto;
   border-radius: 5px;
   display: inline-block;
+}
+.drawer-head .brand-sponsor {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  color: var(--muted);
+  text-transform: uppercase;
 }
 .drawer-close {
   background: none;

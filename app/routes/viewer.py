@@ -7,6 +7,9 @@ from ..db import json_loads
 from ..services.doc_service import DOCS, DOCS_ROOT, md_to_html, read_doc
 from ..services import doc_service
 from ..services.branding_service import BrandingService
+from ..services.changelog_service import ChangelogService
+
+SPONSORSHIP_ANNOUNCED_AT = "2026-09-04"
 
 viewer_bp = Blueprint("viewer", __name__)
 
@@ -181,6 +184,42 @@ def api_state():
     if not season_id:
         return jsonify({"ok": False, "error": "No seasons"}), 404
     return jsonify(auction_service.get_state(season_id))
+
+
+@viewer_bp.get("/sponsorship")
+def sponsorship():
+    return render_template("viewer/sponsorship.html", announced_at=SPONSORSHIP_ANNOUNCED_AT,
+                           active="docs")
+
+
+def _ensure_sponsorship_changelog():
+    svc: ChangelogService = current_app.extensions["changelog_service"]
+    entries = svc.list_entries(limit=50)
+    if not any(e.get("title") == "SCL powered by Chandia CC — official sponsorship announced"
+               for e in entries):
+        svc.add_entry(
+            title="SCL powered by Chandia CC — official sponsorship announced",
+            body=("Effective " + SPONSORSHIP_ANNOUNCED_AT + ", SCL entered into an official technology "
+                  "partnership and sponsorship agreement with Chandia Cricket Club (Option B: Strategic "
+                  "Sponsorship & Branding Recognition). Chandia CC delivers the full SCL technical "
+                  "ecosystem — website, auction platform, stats tracking, and match management — and "
+                  "receives prominent dual-brand recognition across every SCL asset (favicon, app icon, "
+                  "social avatars, hero banners, scoreboards, overlays, and broadcasts).\n\n"
+                  "The \"SCL powered by Chandia CC\" wordmark is now shown in the site identity and the "
+                  "browser favicon. A dedicated season-appreciation post is published every season "
+                  "without exception.\n\n"
+                  "Signed: Asadullah Nizami (Vice President, SCL) and Muhammad Sanawar Saeed "
+                  "(Manager, Chandia CC), September 4, 2026."),
+            change_date=SPONSORSHIP_ANNOUNCED_AT,
+            author="SCL Management",
+        )
+
+
+@viewer_bp.before_request
+def _seed_sponsorship_announcement():
+    if request.endpoint in ("viewer.sponsorship", "viewer.docs_index", "viewer.home",
+                           "viewer.changelog"):
+        _ensure_sponsorship_changelog()
 
 
 @viewer_bp.get("/season/<slug>")

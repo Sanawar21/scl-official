@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Sponsorship - SCL{% endblock %}
+{% block content %}
+<div class="brand-band">
+  <img class="band-mark" src="{{ url_for('viewer.branding_asset', relpath='scl/full.jpg') }}" alt="SCL">
+  <h1>SCL Powered by Chandia CC</h1>
+  <p class="band-sub">Official Technology Partnership &amp; Sponsorship - Section-C Cricket League.</p>
+</div>
+
+<div class="grid">
+  <section class="card">
+    <div class="card-head"><h2>Announcement</h2></div>
+    <p class="muted small">Effective <b>{{ announced_at }}</b>, the Section-C Cricket League entered into an
+      official technology partnership and sponsorship agreement with Chandia Cricket Club.
+      Chandia CC provides the full technical ecosystem for SCL - website, auction platform, stats
+      tracking, and match management - and in return receives prominent dual-brand recognition across
+      every SCL asset.</p>
+    <p class="muted small">The SCL wordmark is shown alongside Chandia CC as the league's technology
+      sponsor on the website, scoreboards, broadcast graphics, social media, and the browser favicon.</p>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Agreement at a glance</h2></div>
+    <table class="table-wrap">
+      <tr><th>Term</th><td>Three (3) consecutive tournament seasons, commencing {{ announced_at }}</td></tr>
+      <tr><th>Services</th><td>Core website infrastructure, auction technology, stats tracking system, and ongoing maintenance</td></tr>
+      <tr><th>Recognition</th><td>"SCL powered by Chandia CC" branding on all tournament assets, digital platforms, media channels, and public broadcasts</td></tr>
+      <tr><th>Dual-brand lockup</th><td>Official branding featuring Chandia CC accents within the primary SCL lockup, shown on scoreboards, overlays, and broadcasts</td></tr>
+      <tr><th>Assets</th><td>SCL wordmark shown with Chandia CC on hero banners, social avatars (1:1), app icons, and favicons</td></tr>
+      <tr><th>Appreciation</th><td>A dedicated appreciation post recognizing Chandia CC's contribution is published every season, without exception</td></tr>
+      <tr><th>League control</th><td>SCL Management retains full authority over league policy, rules, and schedules. The sponsorship confers no operational control or board votes.</td></tr>
+    </table>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Why Chandia CC</h2></div>
+    <p class="muted small">For the two seasons prior to this agreement, Chandia Cricket Club provided the
+      entire SCL technical ecosystem on a voluntary basis. This agreement formalizes that relationship
+      for the upcoming three-season term with full branding recognition under Option B
+      (Strategic Sponsorship &amp; Branding Recognition).</p>
+    <p class="muted small">Every feature you use on this platform - the auction room, real-time live
+      board, match scorer, league tables, leaderboards, vault, and wagers - is delivered and maintained
+      by Chandia CC as SCL's technology partner.</p>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Season appreciation</h2></div>
+    <p class="muted small">This page serves as the standing public acknowledgment of the partnership.
+      A dedicated appreciation post recognizing Chandia CC's technological contribution is published on
+      this platform at the conclusion of every season, without exception.</p>
+    <p class="muted small" style="margin-top:10px">Current partnership status:
+      <span class="tag tag-active">active</span></p>
+  </section>
+</div>
+
+<p class="muted small" style="margin-top:12px">
+  The full participation documents - rule book, vault, wagers, and economy guides - are available in
+  the <a href="{{ url_for('viewer.docs_index') }}">Documents</a> section.
+</p>
+{% endblock %}

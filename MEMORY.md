@@ -1211,3 +1211,11 @@ Auto accounts now stay as LIQUID as possible (user decision):
 - Best bowling now records a 0-wicket spell once a player has bowled
   (most wickets, then fewest runs), so wicketless bowlers display e.g. "0/9"
   instead of a dash; ranking for best bowling still requires a wicket.
+
+## Season 3 docs — DONE (2026-09-05)
+
+- Replaced S2 rulebook with S3 V7 (10 sections) in `docs/SCL_RULEBOOK.md`
+- Updated all companion guides (Vault, Economy, Wagers) to S3
+- Key S3 changes: no 10k carry-over, 25% sub clause, relegation, transfer windows, Technical Review, expanded penalty table
+- Static PDFs deleted (regenerated on-demand at /docs/<slug>/pdf)
+- 13/13 doc tests pass
