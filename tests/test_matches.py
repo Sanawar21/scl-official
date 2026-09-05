@@ -3,7 +3,7 @@ import io
 
 import pytest
 
-from app.services.scorer_service import team_profile_slug
+from app.services.scorer_service import player_profile_slug, team_profile_slug
 from tests.conftest import _setup
 
 CSV_HEADER = [
@@ -401,6 +401,94 @@ def test_leaderboards_all_seasons_aggregate(app, scorer):
     # Latest season first (created_at DESC).
     slugs = [s["slug"] for s in scorer.list_match_seasons()]
     assert slugs == ["s2", season["id"]]
+
+
+def test_player_profile_season_scope_innings_and_ranks(app, scorer):
+    """Profile stat lines: innings batted counts matches where the player faced
+    >= 1 ball, season scoping filters rows, and every stat carries a league
+    rank vs the same scope (leaderboard qualifiers included)."""
+    season, _, teams = _setup(app, n_teams=2)
+    sid = season["id"]
+    t1 = teams[0]["id"]
+    t2 = teams[1]["id"]
+    with app.extensions["db"].write() as conn:
+        conn.execute("INSERT INTO seasons (id, name, status, created_at) "
+                     "VALUES ('s2', 'Season 2', 'active', '2099-01-02T00:00:00')")
+        for key, season_id in (("k1", sid), ("k2", "s2"), ("k3", sid), ("k4", sid)):
+            conn.execute(
+                "INSERT INTO match_registry (match_key, season_id, match_id, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (key, season_id, key, "2026-01-01", "2026-01-01"))
+        # Alice: M1 (40 off 25, out; 2/20 bowling), M2 in s2 (20*, not out;
+        # 1/12), M3 (run out without facing a ball: 0 faced, dismissed).
+        alice_rows = [
+            ("a1", "k1", sid, 40, 25, 1, 2, 18, 20),
+            ("a2", "k2", "s2", 20, 10, 0, 1, 6, 12),
+            ("a3", "k3", sid, 0, 0, 1, 0, 0, 0),
+        ]
+        for row_id, key, season_id, runs, balls, dismissed, wkts, bowl_balls, conceded in alice_rows:
+            conn.execute(
+                "INSERT INTO match_player_stats (id, match_key, season_id, player_id, "
+                "player_name, team_id, team_name, runs, balls_faced, dismissed, "
+                "wickets, balls_bowled, runs_conceded) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (row_id, key, season_id, "gp-alice", "Alice", t1, "Thunder",
+                 runs, balls, dismissed, wkts, bowl_balls, conceded))
+        # Bob beats Alice's run tally in the same season (80) for rank checks.
+        conn.execute(
+            "INSERT INTO match_player_stats (id, match_key, season_id, player_id, "
+            "player_name, team_id, team_name, runs, balls_faced, dismissed, "
+            "wickets, balls_bowled, runs_conceded) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            ("b1", "k4", sid, "gp-bob", "Bob", t2, "Blaze", 80, 30, 1, 0, 0, 0))
+
+    slug = player_profile_slug("gp-alice", "Alice")
+    all_p = scorer.player_profile(slug)
+    g = all_p["global_stats"]
+    assert g["matches"] == 3
+    assert g["innings_batted"] == 2, "run-out before facing is not an innings"
+    assert g["not_out"] == 1
+    assert g["dismissed"] == 2
+    assert g["runs"] == 60
+    assert g["highest"] == 40 and not g["highest_not_out"]
+    assert g["best_wkts"] == 2 and g["best_runs"] == 20
+    assert round(g["batting_average"], 2) == 30.0
+    assert len(all_p["per_season"]) == 2
+
+    def _row(profile, group, label):
+        for grp in profile["stat_groups"]:
+            if grp["group"] != group:
+                continue
+            for r in grp["rows"]:
+                if r["label"] == label:
+                    return r
+        raise AssertionError(f"stat row {label!r} missing")
+
+    runs_row = _row(all_p, "Batting", "Runs")
+    assert runs_row["rank"] == 2 and runs_row["of"] == 2  # Bob 80 ahead
+    # All-scope economy: 24 balls bowled < 30 -> doesn't qualify -> no rank.
+    assert _row(all_p, "Bowling", "Economy")["rank"] is None
+
+    # Season scope: only the sid matches count, ranks recompute in that scope.
+    s1_p = scorer.player_profile(slug, sid)
+    assert s1_p["global_stats"]["matches"] == 2
+    assert s1_p["global_stats"]["innings_batted"] == 1
+    assert s1_p["global_stats"]["runs"] == 40
+    assert s1_p["per_season"] == []
+    assert _row(s1_p, "Batting", "Runs")["rank"] == 2
+    # 18 balls >= 12 in a season -> economy qualifies, Alice is the only one.
+    econ = _row(s1_p, "Bowling", "Economy")
+    assert econ["rank"] == 1 and econ["of"] == 1
+    assert round(float(econ["value"]), 2) == round(20 * 6.0 / 18, 2)
+
+    # Route smoke: directory + profile honour the season filter and render the
+    # ranked stat groups.
+    c = app.test_client()
+    assert c.get("/players").status_code == 200
+    assert c.get(f"/players?season={sid}").status_code == 200
+    body = c.get(f"/players/{slug}").get_data(as_text=True)
+    for needle in ("Innings batted", "Batting", "Bowling", "All seasons", "Season 2"):
+        assert needle in body
+    season_body = c.get(f"/players/{slug}?season={sid}").get_data(as_text=True)
+    assert "Season 2" in season_body  # switch is still offered while scoped
 
 
 # ----------------------------------------------------------------------

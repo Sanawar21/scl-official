@@ -113,6 +113,68 @@ def _season_sort_key(slug: str):
     return (10 ** 9 - 1, safe)
 
 
+def _overs_display(balls: int) -> str:
+    balls = max(0, int(balls or 0))
+    return f"{balls // 6}.{balls % 6}"
+
+
+def _fmt_rate(value, digits: int = 2) -> str:
+    return "—" if value is None else f"{value:.{digits}f}"
+
+
+def _aggregate_player_stats(rows) -> dict:
+    """Aggregate a player's per-match rows (row dicts) into one stat line.
+
+    - innings_batted counts only matches where the player FACED at least one
+      ball (balls_faced > 0) — a non-striker who never faced is not an innings.
+    - not_out counts faced innings that ended without dismissal.
+    - highest is the best single-match score (ties prefer a not-out);
+      best_wkts/best_runs is the best bowling figures (ties prefer fewer runs).
+    - averages / strike rate / economy are None when there is nothing to
+      divide by (the UI renders those as "—").
+    """
+    agg = {
+        "matches": 0, "innings_batted": 0, "not_out": 0, "dismissed": 0,
+        "runs": 0, "balls_faced": 0, "fours": 0, "sixes": 0, "highest": 0,
+        "highest_not_out": False, "balls_bowled": 0, "runs_conceded": 0,
+        "wickets": 0, "best_wkts": 0, "best_runs": None,
+    }
+    for r in rows:
+        dismissed = _safe_int(r.get("dismissed"))
+        faced = _safe_int(r.get("balls_faced")) > 0
+        runs = _safe_int(r.get("runs"))
+        agg["matches"] += 1
+        if faced:
+            agg["innings_batted"] += 1
+            if not dismissed:
+                agg["not_out"] += 1
+        agg["dismissed"] += dismissed
+        agg["runs"] += runs
+        agg["balls_faced"] += _safe_int(r.get("balls_faced"))
+        agg["fours"] += _safe_int(r.get("fours"))
+        agg["sixes"] += _safe_int(r.get("sixes"))
+        if runs > agg["highest"] or (runs == agg["highest"] and runs > 0
+                                      and not dismissed and not agg["highest_not_out"]):
+            agg["highest"] = runs
+            agg["highest_not_out"] = not dismissed
+        wickets = _safe_int(r.get("wickets"))
+        conceded = _safe_int(r.get("runs_conceded"))
+        agg["balls_bowled"] += _safe_int(r.get("balls_bowled"))
+        agg["runs_conceded"] += conceded
+        agg["wickets"] += wickets
+        if wickets > agg["best_wkts"] or (
+                wickets == agg["best_wkts"] and wickets > 0
+                and (agg["best_runs"] is None or conceded < agg["best_runs"])):
+            agg["best_wkts"] = wickets
+            agg["best_runs"] = conceded
+    agg["strike_rate"] = round(agg["runs"] * 100.0 / agg["balls_faced"], 2) if agg["balls_faced"] else None
+    agg["batting_average"] = round(agg["runs"] / agg["dismissed"], 2) if agg["dismissed"] else None
+    agg["economy"] = round(agg["runs_conceded"] * 6.0 / agg["balls_bowled"], 2) if agg["balls_bowled"] else None
+    agg["bowling_average"] = round(agg["runs_conceded"] / agg["wickets"], 2) if agg["wickets"] else None
+    agg["overs_bowled"] = _overs_display(agg["balls_bowled"])
+    return agg
+
+
 class ScorerService:
     DEFAULT_CONFIG = {
         "title": "SCL Scorer",
@@ -1400,7 +1462,87 @@ class ScorerService:
             "squads": squads,
         }
 
-    def player_profile(self, player_slug: str) -> dict:
+    def _player_rank_rows(self, agg: dict, all_agg: dict, in_season: bool) -> list:
+        """Ranked stat lines for a player vs every other player in the scope.
+
+        Rank = 1 + the number of players strictly better on that metric (equal
+        values share a rank). The pool is only players meeting the metric's
+        qualifier, mirroring the leaderboard thresholds: strike rate needs 40+
+        runs, economy needs 2+ overs in a season or 5+ across all seasons.
+        A stat the player doesn't qualify for gets rank None (UI shows "—").
+        """
+        economy_min = 12 if in_season else 30
+
+        def _stat(label, get, fmt=None, qual=None, lower=False):
+            fmt = fmt or (lambda v: str(int(v or 0)))
+            qual = qual or (lambda a: get(a) is not None and get(a) > 0)
+            pool = [a for a in all_agg.values() if qual(a)]
+            mine = agg if qual(agg) else None
+            if mine is not None:
+                value = get(mine)
+                if lower:
+                    rank = 1 + sum(1 for a in pool if get(a) < value)
+                else:
+                    rank = 1 + sum(1 for a in pool if get(a) > value)
+                of = len(pool)
+            else:
+                rank, of = None, len(pool)
+            value = get(agg) if mine is not None else None
+            return {"label": label, "value": fmt(value), "rank": rank, "of": of}
+
+        def _hs(v):
+            if not v:
+                return "—"
+            return f"{v}{'*' if agg['highest_not_out'] else ''}"
+
+        def _best(v):
+            if not v:
+                return "—"
+            return f"{v[0]}/{ -v[1]}"
+
+        def _overs(v):
+            return _overs_display(v)
+
+        batting = [
+            _stat("Matches", lambda a: a["matches"]),
+            _stat("Innings batted", lambda a: a["innings_batted"]),
+            _stat("Runs", lambda a: a["runs"]),
+            _stat("Balls faced", lambda a: a["balls_faced"]),
+            _stat("Highest score", lambda a: a["highest"], _hs,
+                  lambda a: (a["highest"] or 0) > 0),
+            _stat("Batting average", lambda a: a["batting_average"], _fmt_rate,
+                  lambda a: (a["dismissed"] or 0) > 0),
+            _stat("Strike rate", lambda a: a["strike_rate"], _fmt_rate,
+                  lambda a: (a["runs"] or 0) >= 40),
+            _stat("Not outs", lambda a: a["not_out"]),
+            _stat("Fours", lambda a: a["fours"]),
+            _stat("Sixes", lambda a: a["sixes"]),
+        ]
+        bowling = [
+            _stat("Wickets", lambda a: a["wickets"]),
+            _stat("Overs bowled", lambda a: a["balls_bowled"], _overs),
+            _stat("Economy", lambda a: a["economy"], _fmt_rate,
+                  lambda a: (a["balls_bowled"] or 0) >= economy_min, lower=True),
+            _stat("Bowling average", lambda a: a["bowling_average"], _fmt_rate,
+                  lambda a: (a["wickets"] or 0) > 0, lower=True),
+            _stat("Best bowling", lambda a: (a["best_wkts"], -(a["best_runs"] or 0)),
+                  _best, lambda a: (a["best_wkts"] or 0) > 0),
+        ]
+        return [
+            {"group": "Batting", "rows": batting},
+            {"group": "Bowling", "rows": bowling},
+        ]
+
+    def player_profile(self, player_slug: str, season_id: str = "") -> dict:
+        """Profile stats for one player, optionally scoped to a season.
+
+        The stat line follows the SCL definitions (innings batted = matches
+        faced >= 1 ball) and every stat carries a rank vs all other players in
+        the same scope. All-seasons view additionally returns per-season and
+        per-team lines; a season scope returns just that season's stat line and
+        match log.
+        """
+        season_id = (season_id or "").strip().lower()
         with self.db.read() as conn:
             global_row = conn.execute(
                 "SELECT * FROM global_players").fetchall()
@@ -1417,38 +1559,31 @@ class ScorerService:
 
         meta = next((g for g in global_row if g["id"] == pid), None)
         meta = row_to_dict(meta) if meta else {}
-        agg = {"matches": 0, "runs": 0, "balls_faced": 0, "dismissed": 0,
-               "wickets": 0, "balls_bowled": 0, "runs_conceded": 0,
-               "fours": 0, "sixes": 0}
+
+        # All rows in scope, grouped per player to form the rank pool.
+        scope_rows = [row_to_dict(r) for r in player_rows
+                      if not season_id or (r["season_id"] or "").strip().lower() == season_id]
+        by_pid = defaultdict(list)
+        for r in scope_rows:
+            by_pid[r["player_id"]].append(r)
+        all_agg = {p: _aggregate_player_stats(rows) for p, rows in by_pid.items()}
+        agg = all_agg.get(pid) or _aggregate_player_stats([])
+        matches_list = by_pid.get(pid, [])
+        matches_list.sort(key=lambda m: m.get("created_at") or "")
+
+        # Per-season / per-team lines (kept for the all-seasons view).
         per_season = {}
         per_team = {}
-        matches_list = []
-        for r in player_rows:
-            if r["player_id"] != pid:
-                continue
-            r = row_to_dict(r)
-            matches_list.append(r)
-            agg["matches"] += 1
-            agg["runs"] += _safe_int(r["runs"])
-            agg["balls_faced"] += _safe_int(r["balls_faced"])
-            agg["dismissed"] += _safe_int(r["dismissed"])
-            agg["wickets"] += _safe_int(r["wickets"])
-            agg["balls_bowled"] += _safe_int(r["balls_bowled"])
-            agg["runs_conceded"] += _safe_int(r["runs_conceded"])
-            agg["fours"] += _safe_int(r["fours"])
-            agg["sixes"] += _safe_int(r["sixes"])
-            for bucket, key in ((per_season, r["season_id"]), (per_team, r["team_id"])):
-                e = bucket.setdefault(key, {"key": key, "matches": 0, "runs": 0, "wickets": 0})
-                e["matches"] += 1
-                e["runs"] += _safe_int(r["runs"])
-                e["wickets"] += _safe_int(r["wickets"])
-        for bucket in (per_season, per_team):
-            for e in bucket.values():
-                e.pop("key", None)
-        agg["strike_rate"] = round(agg["runs"] * 100.0 / agg["balls_faced"], 2) if agg["balls_faced"] else 0.0
-        agg["batting_average"] = round(agg["runs"] / agg["dismissed"], 2) if agg["dismissed"] else 0.0
-        agg["economy"] = round(agg["runs_conceded"] * 6.0 / agg["balls_bowled"], 2) if agg["balls_bowled"] else 0.0
-        matches_list.sort(key=lambda m: m.get("created_at") or "")
+        if not season_id:
+            by_season = defaultdict(list)
+            by_team = defaultdict(list)
+            for r in matches_list:
+                by_season[r["season_id"]].append(r)
+                by_team[r["team_id"]].append(r)
+            per_season = {sid: _aggregate_player_stats(rows)
+                          for sid, rows in by_season.items()}
+            per_team = {tid: _aggregate_player_stats(rows)
+                        for tid, rows in by_team.items()}
 
         name = meta.get("name") or (matches_list[0]["player_name"] if matches_list else pid)
         return {
@@ -1456,6 +1591,8 @@ class ScorerService:
             "player_name": name,
             "player_slug": player_profile_slug(pid, name),
             "meta": {k: meta.get(k) for k in ("name", "tier", "speciality")},
+            "scope_season": season_id,
+            "stat_groups": self._player_rank_rows(agg, all_agg, bool(season_id)),
             "global_stats": agg,
             "per_season": sorted(per_season.items(), key=lambda kv: _season_sort_key(kv[0])),
             "per_team": sorted(per_team.items(), key=lambda kv: kv[0]),

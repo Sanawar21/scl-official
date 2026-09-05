@@ -3,32 +3,71 @@
 {% block content %}
 <div class="page-head">
   <h1>{{ profile.player_name }}</h1>
+  {% if match_seasons %}
+    <div class="season-switch">
+      <a class="{% if not season_id %}active{% endif %}"
+         href="{{ url_for('matches.player_detail', slug=profile.player_slug) }}">All seasons</a>
+      {% for s in match_seasons %}
+        <a class="{% if s.slug == season_id %}active{% endif %}"
+           href="{{ url_for('matches.player_detail', slug=profile.player_slug, season=s.slug) }}">{{ s.name }}</a>
+      {% endfor %}
+    </div>
+  {% endif %}
   <div class="row">
     {% if profile.meta.speciality %}<span class="chip chip-info">{{ profile.meta.speciality }}</span>{% endif %}
     {% if profile.meta.tier %}<span class="tag tag-active">{{ profile.meta.tier }}</span>{% endif %}
   </div>
+  <p class="page-sub">{% if season_id %}{{ scope_name }} statistics{% else %}Career statistics across all seasons{% endif %}</p>
 </div>
 
+{% for group in profile.stat_groups %}
 <section class="card">
-  <div class="card-head"><h2>Career</h2></div>
-  <div class="stat-row">
-    <div class="stat-tile"><div class="stat-label">Matches</div><div class="stat-value">{{ profile.global_stats.matches }}</div></div>
-    <div class="stat-tile"><div class="stat-label">Runs</div><div class="stat-value">{{ profile.global_stats.runs }}</div></div>
-    <div class="stat-tile"><div class="stat-label">SR</div><div class="stat-value">{{ '%.2f'|format(profile.global_stats.strike_rate) if profile.global_stats.balls_faced else '—' }}</div></div>
-    <div class="stat-tile"><div class="stat-label">Wickets</div><div class="stat-value">{{ profile.global_stats.wickets }}</div></div>
-    <div class="stat-tile"><div class="stat-label">Econ</div><div class="stat-value">{{ '%.2f'|format(profile.global_stats.economy) if profile.global_stats.balls_bowled else '—' }}</div></div>
+  <div class="card-head"><h2>{{ group.group }}</h2></div>
+  <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(170px,1fr))">
+    {% for stat in group.rows %}
+      <div class="stat-tile">
+        <div class="stat-label">{{ stat.label }}</div>
+        <div class="stat-value">{{ stat.value }}</div>
+        {% if stat.rank is not none %}
+          <div style="margin-top:4px;display:flex;gap:6px;align-items:center" title="Ranked {{ stat.rank }} of {{ stat.of }} qualified players">
+            <span class="tag tag-active">#{{ stat.rank }}</span>
+            <span class="small muted">of {{ stat.of }}</span>
+          </div>
+        {% else %}
+          <div style="margin-top:4px"><span class="tag">—</span></div>
+        {% endif %}
+      </div>
+    {% endfor %}
   </div>
 </section>
+{% endfor %}
+
+<p class="small muted" style="margin:-6px 0 12px">
+  <b>Innings batted</b> = matches where the player faced at least one ball. Ranks compare this player
+  against every other player in the current scope. Qualifiers: strike rate needs 40+ runs; economy needs
+  2+ overs bowled (season) or 5+ overs (all seasons); averages/best only count qualifiers.
+</p>
 
 {% if profile.per_season %}
 <section class="card">
   <div class="card-head"><h2>By season</h2></div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Season</th><th>M</th><th>Runs</th><th>Wkts</th></tr></thead>
+      <thead><tr><th>Season</th><th>M</th><th>Inns</th><th>Runs</th><th>HS</th><th>Avg</th><th>SR</th><th>Wkts</th><th>Econ</th><th>Best</th></tr></thead>
       <tbody>
         {% for season, s in profile.per_season %}
-          <tr><td>{{ season }}</td><td>{{ s.matches }}</td><td>{{ s.runs }}</td><td>{{ s.wickets }}</td></tr>
+          <tr>
+            <td><a href="{{ url_for('matches.player_detail', slug=profile.player_slug, season=season) }}">{{ season }}</a></td>
+            <td>{{ s.matches }}</td>
+            <td>{{ s.innings_batted }}</td>
+            <td>{{ s.runs }}</td>
+            <td>{% if s.highest %}{{ s.highest }}{% if s.highest_not_out %}*{% endif %}{% else %}—{% endif %}</td>
+            <td>{{ '%.2f'|format(s.batting_average) if s.batting_average is not none else '—' }}</td>
+            <td>{{ '%.2f'|format(s.strike_rate) if s.strike_rate is not none else '—' }}</td>
+            <td>{{ s.wickets }}</td>
+            <td>{{ '%.2f'|format(s.economy) if s.economy is not none else '—' }}</td>
+            <td>{% if s.best_wkts %}{{ s.best_wkts }}/{{ s.best_runs }}{% else %}—{% endif %}</td>
+          </tr>
         {% endfor %}
       </tbody>
     </table>
@@ -38,16 +77,21 @@
 
 {% if profile.matches %}
 <section class="card">
-  <div class="card-head"><h2>Match log</h2></div>
+  <div class="card-head"><h2>Match log</h2>
+    {% if season_id %}<span class="tag">{{ scope_name }}</span>{% endif %}
+  </div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Season</th><th>Team</th><th>Bat</th><th>Bowl</th></tr></thead>
+      <thead><tr>
+        {% if not season_id %}<th>Season</th>{% endif %}
+        <th>Team</th><th>Bat</th><th>Bowl</th>
+      </tr></thead>
       <tbody>
         {% for m in profile.matches %}
           <tr>
-            <td class="muted">{{ m.season_id }}</td>
+            {% if not season_id %}<td class="muted">{{ m.season_id }}</td>{% endif %}
             <td>{{ m.team_name }}</td>
-            <td>{{ m.runs }} ({{ m.balls_faced }}b){% if m.dismissed %}*{% endif %}</td>
+            <td>{{ m.runs }} ({{ m.balls_faced }}b){% if not m.dismissed and m.balls_faced %}*{% endif %}</td>
             <td>{{ m.wickets }}/{{ m.runs_conceded }} ({{ m.balls_bowled }}b)</td>
           </tr>
         {% endfor %}
@@ -55,5 +99,10 @@
     </table>
   </div>
 </section>
+{% endif %}
+
+{% if not profile.matches %}
+  <div class="empty"><div class="empty-title">No match data{% if season_id %} in {{ scope_name }}{% endif %}</div>
+    <p class="small">This player hasn't appeared in any scored match yet.</p></div>
 {% endif %}
 {% endblock %}

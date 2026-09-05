@@ -1188,3 +1188,16 @@ Auto accounts now stay as LIQUID as possible (user decision):
 - Existing DBs keep the old columns dormant (harmless — code never reads/writes them);
   fresh DBs get the clean schema. A manual VACUUM/rebuild is only needed if you ever
   want to physically drop them.
+
+## Player stats revamp — DONE (2026-09-05)
+
+- /players/<player> now has a season filter (All seasons + each match season) and
+  ranked stat tiles: innings batted (matches faced >= 1 ball), runs, HS, avg, SR,
+  not outs, fours, sixes, balls faced; bowling: wickets, overs, economy, bowling
+  avg, best figures. Every stat shows a league rank vs the same scope (SR needs
+  40+ runs; economy 2+ overs/season or 5+ all-seasons — leaderboard thresholds).
+- /players directory got the same season filter and carries the scope into profile
+  links. All-seasons profile keeps a per-season table (now richer: M/Inns/Runs/HS/
+  Avg/SR/Wkts/Econ/Best) with per-season profile links.
+- Central `_aggregate_player_stats()` + `_player_rank_rows()` in scorer_service;
+  `player_profile(slug, season_id=\"\")` scopes rows + rank pool per season.

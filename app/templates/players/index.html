@@ -3,7 +3,17 @@
 {% block content %}
 <div class="page-head">
   <h1>Players</h1>
-  <p class="page-sub">Every player across all seasons</p>
+  {% if match_seasons %}
+    <div class="season-switch">
+      <a class="{% if not season_id %}active{% endif %}"
+         href="{{ url_for('matches.players_index') }}">All seasons</a>
+      {% for s in match_seasons %}
+        <a class="{% if s.slug == season_id %}active{% endif %}"
+           href="{{ url_for('matches.players_index', season=s.slug) }}">{{ s.name }}</a>
+      {% endfor %}
+    </div>
+  {% endif %}
+  <p class="page-sub">{% if season_id %}{{ scope_name }} statistics{% else %}Every player across all seasons{% endif %}</p>
 </div>
 
 {% if not players %}
@@ -13,7 +23,7 @@
   <div class="grid">
     {% for p in players %}
       <a class="stat-tile" style="text-decoration:none; display:flex; align-items:center; gap:10px"
-         href="{{ url_for('matches.player_detail', slug=p.slug) }}">
+         href="{% if season_id %}{{ url_for('matches.player_detail', slug=p.slug, season=season_id) }}{% else %}{{ url_for('matches.player_detail', slug=p.slug) }}{% endif %}">
         <span style="flex:1;min-width:0">
           <span class="stat-value" style="font-size:17px;display:block">{{ p.name }}</span>
           <span class="small muted" style="display:block">

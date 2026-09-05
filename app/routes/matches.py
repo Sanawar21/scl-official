@@ -294,10 +294,28 @@ def teams_index():
     return render_template("teams/index.html", teams=teams)
 
 
+def _players_scope():
+    """Resolve ?season for the player directory / profiles.
+
+    '' means all seasons (the default); anything else must be a real match
+    season slug, otherwise it falls back to all seasons."""
+    svc = _scorer_service()
+    requested = (request.args.get("season") or "").strip().lower()
+    season_id = "" if requested in ("", "all") else requested
+    match_seasons = svc.list_match_seasons()
+    if season_id and not any(s["slug"] == season_id for s in match_seasons):
+        season_id = ""
+    scope_name = next((s["name"] for s in match_seasons if s["slug"] == season_id), "")
+    return season_id, match_seasons, scope_name
+
+
 @matches_bp.get("/players")
 def players_index():
-    """Every player across all seasons, with a career snapshot (like /teams)."""
+    """Player directory — everyone, optionally scoped to one season."""
     svc = _scorer_service()
+    season_id, match_seasons, scope_name = _players_scope()
+    where = " AND season_id = ?" if season_id else ""
+    params = (season_id,) if season_id else ()
     players = []
     with current_app.extensions["db"].read() as conn:
         gp_rows = conn.execute("SELECT * FROM global_players ORDER BY name").fetchall()
@@ -305,8 +323,8 @@ def players_index():
         for r in conn.execute(
             "SELECT player_id, COUNT(*) AS matches, SUM(runs) AS runs, SUM(wickets) AS wickets, "
             "SUM(sixes) AS sixes "
-            "FROM match_player_stats WHERE player_id IS NOT NULL AND player_id != '' "
-            "GROUP BY player_id").fetchall():
+            "FROM match_player_stats WHERE player_id IS NOT NULL AND player_id != ''"
+            + where + " GROUP BY player_id", params).fetchall():
             stats_by_pid[r["player_id"]] = r
         team_by_mgr = {}
         for r in conn.execute(
@@ -314,11 +332,12 @@ def players_index():
             "WHERE manager_player_id IS NOT NULL AND manager_player_id != ''").fetchall():
             team_by_mgr.setdefault(r["manager_player_id"], r["name"])
         gp_by_id = {gp["id"]: gp for gp in gp_rows}
-        # Players with career rows but no global row yet (historical data) still
+        # Players with stat rows but no global row yet (historical data) still
         # resolve to a profile page, so include them under their stored name.
         names = {gp["id"]: gp["name"] for gp in gp_rows}
         for r in conn.execute(
-            "SELECT DISTINCT player_id, player_name FROM match_player_stats").fetchall():
+            "SELECT DISTINCT player_id, player_name FROM match_player_stats WHERE "
+            "player_id IS NOT NULL AND player_id != ''" + where, params).fetchall():
             if r["player_id"] and r["player_id"] not in names:
                 names[r["player_id"]] = r["player_name"] or r["player_id"]
     for pid, pname in names.items():
@@ -337,7 +356,8 @@ def players_index():
             "sixes": int(stats["sixes"] or 0) if stats else 0,
         })
     players.sort(key=lambda p: p["name"].lower())
-    return render_template("players/index.html", players=players)
+    return render_template("players/index.html", players=players, season_id=season_id,
+                           match_seasons=match_seasons, scope_name=scope_name)
 
 
 @matches_bp.get("/teams/<slug>")
@@ -356,11 +376,13 @@ def team_detail(slug):
 @matches_bp.get("/players/<slug>")
 def player_detail(slug):
     svc = _scorer_service()
-    profile = svc.player_profile(slug)
+    season_id, match_seasons, scope_name = _players_scope()
+    profile = svc.player_profile(slug, season_id)
     if not profile:
         flash("Player not found.", "error")
-        return redirect(url_for("matches.teams_index"))
-    return render_template("players/detail.html", profile=profile)
+        return redirect(url_for("matches.players_index"))
+    return render_template("players/detail.html", profile=profile, season_id=season_id,
+                           match_seasons=match_seasons, scope_name=scope_name)
 
 
 # ----------------------------------------------------------------------
