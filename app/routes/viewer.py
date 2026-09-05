@@ -57,7 +57,7 @@ def doc_pdf(slug):
         path.parent.mkdir(parents=True, exist_ok=True)
         doc = next((d for d in DOCS if d["slug"] == slug), {})
         path.write_bytes(doc_service.md_to_pdf(md, doc.get("title", slug),
-                                               "Official SCL Season 2 document"))
+                                               "Official SCL Season 3 document"))
     return send_file(path, mimetype="application/pdf", as_attachment=False,
                      download_name=f"SCL-{slug}.pdf")
 

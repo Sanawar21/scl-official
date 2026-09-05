@@ -336,26 +336,26 @@ DOCS_ROOT = Path(__file__).resolve().parents[2] / "docs"
 DOCS = [
     {
         "slug": "rulebook",
-        "title": "SCL Season 2 — Official Rule Book",
+        "title": "SCL Season 3 — Official Rule Book",
         "summary": "The binding rules: format, standings, draft, teams, discipline, fines.",
         "file": "SCL_RULEBOOK.md",
     },
     {
         "slug": "vault",
-        "title": "The Vault — S2 Guide",
+        "title": "The Vault — S3 Guide",
         "summary": "7% per-match yield, the Iron Lock, compounding vs manual harvest, auto mode.",
         "file": "SCL_VAULT_GUIDE.md",
     },
     {
         "slug": "wagers",
-        "title": "Wager & Risk Management — S2 Guide",
+        "title": "Wager & Risk Management — S3 Guide",
         "summary": "Pooled Yes/No markets, calibration, the automatic House guarantee, integrity.",
         "file": "SCL_WAGERS_GUIDE.md",
     },
     {
         "slug": "economy",
-        "title": "The SCL Economy — S2 Guide",
-        "summary": "Wallets, the universal 10k, match credits, the squad levy, fines.",
+        "title": "The SCL Economy — S3 Guide",
+        "summary": "Wallets, carry-over funding, match credits, the squad levy, fines.",
         "file": "SCL_ECONOMY_GUIDE.md",
     },
 ]

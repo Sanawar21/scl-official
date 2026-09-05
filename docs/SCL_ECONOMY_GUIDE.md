@@ -1,8 +1,8 @@
-# The SCL Economy — Season 2 Guide
+# The SCL Economy — Season 3 Guide
 
 **Section-C Cricket League · Official Money & Wallet Mechanics**
 
-Season 2 runs on a **single wallet system**: every player has one bank account, and for
+Season 3 runs on a **single wallet system**: every player has one bank account, and for
 managers **that account IS the team's money**. There is no separate team purse — the
 team starts with its manager's wallet and everything flows through it.
 
@@ -22,16 +22,17 @@ team starts with its manager's wallet and everything flows through it.
 
 ---
 
-## 2. Season 2 funding — the universal 10k
+## 2. Season 3 funding — carry-over wallets
 
-- **Every player is funded 10,000** before the S2 auction.
+- The universal 10,000 pre-auction cash injection from Season 2 will **not** be repeated.
+- Teams operate strictly on **carry-over wallets** — whatever balance you ended S2 with
+  is what you bring into S3.
 - **There is no tier purse.** Platinum/Gold/Silver teams all start from their manager's
-  10k — the auction is a test of judgment, not of starting pockets.
-- This is done **once**, before the auction, by the admin (**Fund all players**).
+  wallet — the auction is a test of judgment, not of starting pockets.
 
 ### 2.1 Pre-auction balancing grants
-- The admins may **gift weak managers extra funds before the auction** to balance the
-  field — e.g. a first-time or struggling manager may receive a top-up on top of the 10k.
+- The admins may **gift weaker managers extra funds before the auction** to balance the
+  field — e.g. a first-time or struggling manager may receive a top-up.
 - These grants are at the **admin's discretion**, applied per team, and are recorded with
   a comment (visible in the ledger). They happen **before** the auction so the extra
   money is available for bidding.
@@ -43,7 +44,7 @@ team starts with its manager's wallet and everything flows through it.
 
 | Source | Amount | Notes |
 |---|---|---|
-| **Universal funding** | 10,000 | Once, before the auction |
+| **Carry-over balance** | variable | From S2 closing balance |
 | **Match credit** | **250 to every player** | Per finalized match — the economy's heartbeat; auto-vaulted if auto mode is on |
 | **Vault yield** | 7% per match | Compounding unless manual harvest (Vault Guide) |
 | **Wager payouts** | variable | Winners get ≥ fair odds (Wagers Guide) |
@@ -59,7 +60,7 @@ team starts with its manager's wallet and everything flows through it.
 | **Wager stakes** | your stake | Into the Yes/No pool; refunded or paid at resolution |
 | **Vault locks** | your choice | Liquid → locked capital |
 | **Fines** | see table | Field invasions, missed umpiring, etc. |
-| **Player release** | 50% of auction price | Substitution Release Clause |
+| **Player release** | 25% of replacement player's auction price | Substitution Release Clause |
 | **Sponsored announcements** | 200 per post | Match promotion / trash talk (Rule Book §6) |
 
 ---
@@ -83,7 +84,7 @@ teams that sat out the auction still contribute their share of the market value.
 
 ## 6. Auto mode — the hands-free option
 
-- **Auto mode ON**: everything that comes in (grants, the 10k, the 250/match credits)
+- **Auto mode ON**: everything that comes in (grants, the 250/match credits)
   goes **straight into your vault** and compounds at 7% per match. You never manage cash.
 - **Auto mode OFF**: money lands in liquid cash; you manage bids, stakes, and locks
   yourself.
@@ -92,7 +93,7 @@ teams that sat out the auction still contribute their share of the market value.
 
 ---
 
-## 7. Fines & penalties (Season 2)
+## 7. Fines & penalties (Season 3)
 
 | Violation | Fine |
 |---|---|
@@ -106,14 +107,14 @@ teams that sat out the auction still contribute their share of the market value.
 ## 8. Money model at a glance
 
 ```
-Admin grants ─┐
-10k funding ──┤
-250/match ────┼──► WALLET (liquid) ──► vault lock ──► VAULT (7%/match, iron lock)
-Wager payouts ─┘          │
-                          ├──► auction bids (players)
-                          ├──► wager stakes (Yes/No pools)
-                          ├──► fines / releases / sponsored posts
-                          └──► squad-cost levy (draft end, non-spenders)
+Admin grants ─────┐
+Carry-over ───────┤
+250/match ────────┼──► WALLET (liquid) ──► vault lock ──► VAULT (7%/match, iron lock)
+Wager payouts ────┘          │
+                             ├──► auction bids (players)
+                             ├──► wager stakes (Yes/No pools)
+                             ├──► fines / releases / sponsored posts
+                             └──► squad-cost levy (draft end, non-spenders)
 ```
 
 ---
@@ -122,7 +123,7 @@ Wager payouts ─┘          │
 
 | Thing | Number |
 |---|---|
-| Universal funding | 10,000 |
+| Carry-over balance | variable |
 | Match credit (every player) | 250 |
 | Vault yield | 7% per match (cap 12 matches) |
 | Platinum / Gold / Silver base | 3,000 / 2,000 / 1,000 |
@@ -133,8 +134,8 @@ Wager payouts ─┘          │
 | Umpiring quota | 3 matches (else 1,500 fine) |
 | Field invasion | 500 |
 | Sponsored announcement | 200 |
-| Player release | 50% of auction price |
+| Player release | 25% of replacement player's auction price |
 
 ---
 
-_Section-C Cricket League · SCL Season 2 · Official Documentation_
+_Section-C Cricket League · SCL Season 3 · Official Documentation_

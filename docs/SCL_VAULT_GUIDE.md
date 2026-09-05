@@ -1,4 +1,4 @@
-# The Vault — SCL Season 2 Guide
+# The Vault — SCL Season 3 Guide
 
 **Section-C Cricket League · Official Mechanics & Rules**
 
@@ -119,4 +119,4 @@ A **2,000 unit deposit** with reinvestment ON grows like this:
 
 ---
 
-_Section-C Cricket League · SCL Season 2 · Official Documentation_
+_Section-C Cricket League · SCL Season 3 · Official Documentation_

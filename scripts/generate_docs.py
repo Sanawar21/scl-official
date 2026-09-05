@@ -29,7 +29,7 @@ def build(slug: str = None) -> None:
         if md is None:
             print(f"!! Missing source for {doc['slug']} ({doc['file']})")
             continue
-        pdf = md_to_pdf(md, doc["title"], "Official SCL Season 2 document")
+        pdf = md_to_pdf(md, doc["title"], "Official SCL Season 3 document")
         out = STATIC_DOCS / f"{doc['slug']}.pdf"
         out.write_bytes(pdf)
         print(f"  {out.name}: {len(pdf):,} bytes")

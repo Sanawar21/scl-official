@@ -65,7 +65,7 @@ def test_md_to_pdf_handles_all_real_docs():
     for d in DOCS:
         md = read_doc(d["slug"])
         assert md is not None, d["slug"]
-        pdf = md_to_pdf(md, d["title"], "Official SCL Season 2 document")
+        pdf = md_to_pdf(md, d["title"], "Official SCL Season 3 document")
         assert pdf[:4] == b"%PDF"
         assert len(pdf) > 3000
 

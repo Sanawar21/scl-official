@@ -1,4 +1,4 @@
-# Wager & Risk Management — SCL Season 2 Guide
+# Wager & Risk Management — SCL Season 3 Guide
 
 **Section-C Cricket League · Operational Protocol**
 
@@ -95,7 +95,7 @@ everyone.
 | **Ambiguous / impossible condition** | Market voided — **100% refunds** |
 | **Mid-wager news breaks** (injury, weather, lineup) | Pools are **frozen**; a Phase 2 market may open with updated odds |
 | **Admins disagree on risk** | Mathematical average of blind estimates is used |
-| **Nobody bets the winning side** | Market is voided rather than resolved (per platform rules) |
+| **Nobody bets the winning side** | Market is voided; House retains pot |
 | **House can't cover the guarantee** | Resolution is blocked until House funds are topped up by admin |
 
 ---
@@ -115,4 +115,4 @@ everyone.
 
 ---
 
-_Section-C Cricket League · SCL Season 2 · Official Regulatory Framework · Updated July 2026_
+_Section-C Cricket League · SCL Season 3 · Official Regulatory Framework · Updated August 2026_
