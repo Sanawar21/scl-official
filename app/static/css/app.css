@@ -576,11 +576,9 @@ th { color: var(--muted); font-size: 11.5px; text-transform: uppercase; letter-s
 .tab-panel-visible { display: block; }
 #lb-bat:checked ~ #panel-bat,
 #lb-bowl:checked ~ #panel-bowl,
-#lb-fantasy:checked ~ #panel-fantasy,
 #lb-sixes:checked ~ #panel-sixes,
 #lb-sr:checked ~ #panel-sr,
-#lb-econ:checked ~ #panel-econ,
-#lb-team:checked ~ #panel-team { display: block; }
+#lb-econ:checked ~ #panel-econ { display: block; }
 #balls-tab-1:checked ~ #panel-1,
 #balls-tab-2:checked ~ #panel-2,
 #balls-tab-3:checked ~ #panel-3 { display: block; }

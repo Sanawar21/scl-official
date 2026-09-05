@@ -353,14 +353,14 @@ def test_leaderboards_rankings(app, scorer):
         conn.execute(
             "INSERT INTO match_player_stats (id, match_key, season_id, player_id, player_name, "
             "team_id, team_name, runs, balls_faced, fours, sixes, dismissed, wickets, "
-            "balls_bowled, runs_conceded, fantasy_score, innings_batted) "
-            "VALUES ('p1', ?, ?, 'gp-alice', 'Alice', ?, 'Thunder', 60, 30, 6, 2, 1, 0, 0, 0, 40, 1)",
+            "balls_bowled, runs_conceded, innings_batted) "
+            "VALUES ('p1', ?, ?, 'gp-alice', 'Alice', ?, 'Thunder', 60, 30, 6, 2, 1, 0, 0, 0, 1)",
             (f"{sid}:m1", sid, a))
         conn.execute(
             "INSERT INTO match_player_stats (id, match_key, season_id, player_id, player_name, "
             "team_id, team_name, runs, balls_faced, dismissed, wickets, balls_bowled, "
-            "runs_conceded, fantasy_score) "
-            "VALUES ('p2', ?, ?, 'gp-cara', 'Cara', ?, 'Blaze', 10, 20, 1, 3, 18, 12, 55)",
+            "runs_conceded) "
+            "VALUES ('p2', ?, ?, 'gp-cara', 'Cara', ?, 'Blaze', 10, 20, 1, 3, 18, 12)",
             (f"{sid}:m1", sid, b))
     boards = scorer.leaderboards(season["id"])
     assert boards["batters"][0]["player_name"] == "Alice"
@@ -389,8 +389,8 @@ def test_leaderboards_all_seasons_aggregate(app, scorer):
             conn.execute(
                 "INSERT INTO match_player_stats (id, match_key, season_id, player_id, player_name, "
                 "team_id, team_name, runs, balls_faced, fours, sixes, dismissed, wickets, "
-                "balls_bowled, runs_conceded, fantasy_score, innings_batted) "
-                "VALUES (?, ?, ?, 'gp-alice', 'Alice', ?, 'Thunder', 30, 15, 3, ?, 0, 0, 0, 0, 20, 1)",
+                "balls_bowled, runs_conceded, innings_batted) "
+                "VALUES (?, ?, ?, 'gp-alice', 'Alice', ?, 'Thunder', 30, 15, 3, ?, 0, 0, 0, 0, 1)",
                 (f"p-{sixes}", mkey, "s2" if mkey.startswith("s2") else sid, a, sixes))
     all_boards = scorer.leaderboards("")
     alice = next(p for p in all_boards["sixes"] if p["player_name"] == "Alice")
@@ -449,8 +449,8 @@ def test_summary_page_shows_team_branding(app, scorer):
         conn.execute(
             "INSERT INTO match_player_stats (id, match_key, season_id, player_id, player_name, "
             "team_id, team_name, runs, balls_faced, dismissed, wickets, balls_bowled, "
-            "runs_conceded, fantasy_score) "
-            "VALUES ('ps1', ?, ?, 'gp-alice', 'Alice', ?, 'Thunder', 60, 30, 0, 0, 0, 0, 40)",
+            "runs_conceded) "
+            "VALUES ('ps1', ?, ?, 'gp-alice', 'Alice', ?, 'Thunder', 60, 30, 0, 0, 0, 0)",
             (key, season["id"], a))
     c = app.test_client()
     html = c.get(f"/matches/{season['id']}/M1").get_data(as_text=True)

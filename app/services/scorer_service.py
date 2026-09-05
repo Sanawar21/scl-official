@@ -5,8 +5,6 @@
   overwrite confirmation, undo.
 - On-demand league table (points 2/1/0 -> NRR -> head-to-head -> boundaries),
   leaderboards, match summaries, and team/player profiles.
-Fantasy points use the ported scoreCard formula (per-ball points, tier multipliers,
-matchup upsets, 25pt match bonus; substitutes score 0).
 """
 import csv
 import io
@@ -132,33 +130,6 @@ class ScorerService:
         "Extras Type", "Dismissed Batter", "Dismissed Batter ID",
         "Progressive Runs", "Progressive Wickets", "Match Toss", "Match Result",
     )
-
-    FANTASY_TIERS = {
-        "S": {"value": 1, "reward": 1.1, "penalty": 0.9},
-        "G": {"value": 2, "reward": 1.0, "penalty": 1.0},
-        "P": {"value": 3, "reward": 0.9, "penalty": 1.1},
-    }
-    FANTASY_BAT_POINTS = {0: -3, 1: 0, 2: +1, 3: +2, 4: +4, 6: +6, "OUT": -7}
-    FANTASY_BOWL_POINTS = {0: +3, 1: +1, 2: 0, 3: -2, 4: -4, 6: -5, "WICKET": +8}
-    FANTASY_MATCH_BONUS_POINTS = 25.0
-    FANTASY_PLAYER_ROLES = {
-        "ahmad": "BATTER", "qambar": "ALL_ROUNDER", "osama": "BOWLER",
-        "talha": "BOWLER", "hashir": "BATTER", "mashaal": "ALL_ROUNDER",
-        "yousuf": "BOWLER", "azen": "ALL_ROUNDER", "moiz": "ALL_ROUNDER",
-        "sanawar": "BOWLER", "asad": "BOWLER", "baloch": "BATTER",
-        "hassan": "ALL_ROUNDER", "owais": "BATTER", "umar": "BOWLER",
-        "anas": "BOWLER", "hassin": "BOWLER",
-    }
-    FANTASY_PLAYER_TIERS = {
-        "ahmad": "G", "qambar": "P", "osama": "G", "talha": "G", "hashir": "S",
-        "mashaal": "G", "yousuf": "S", "azen": "P", "moiz": "G", "sanawar": "G",
-        "asad": "S", "baloch": "S", "hassan": "P", "owais": "P", "umar": "G",
-        "anas": "S", "hassin": "S",
-    }
-    TIER_TO_FANTASY_CODE = {
-        "silver": "S", "gold": "G", "platinum": "P", "s": "S", "g": "G", "p": "P",
-    }
-    FANTASY_CODE_TO_TIER = {"S": "silver", "G": "gold", "P": "platinum"}
 
     def __init__(self, db, config_path: str = None):
         self.db = db
@@ -478,8 +449,8 @@ class ScorerService:
         conn.execute(
             "INSERT INTO match_stats (match_key, season_id, match_id, result, toss, "
             "winner_team_id, delivery_rows, team_rows, player_rows, source_file, uploaded_by, "
-            "uploaded_at, include_in_fantasy_points, delivery_log) VALUES (?, ?, ?, ?, '', ?, 0, 2, 0, "
-            "'walkover', 'admin', ?, 0, '[]')",
+            "uploaded_at, delivery_log) VALUES (?, ?, ?, ?, '', ?, 0, 2, 0, "
+            "'walkover', 'admin', ?, '[]')",
             (match_key, reg["season_id"], match_id, f"{winner_name} won by walkover",
              winner, _now()))
 
@@ -559,8 +530,7 @@ class ScorerService:
 
     def import_match_csv(self, file_storage, season_id: str, match_id_override: str = "",
                          venue_override: str = "", match_date: str = "",
-                         uploaded_by: str = "admin", confirm_overwrite: bool = False,
-                         include_in_fantasy_points: bool = True) -> dict:
+                         uploaded_by: str = "admin", confirm_overwrite: bool = False) -> dict:
         season_id = (season_id or "").strip().lower()
         if not season_id:
             raise ValueError("Season is required")
@@ -599,8 +569,7 @@ class ScorerService:
 
         self._archive_csv(season_id, match_id, rows)
         derived = self._derive_match_stats(rows, season_id, file_name, uploaded_by,
-                                           match_date, include_in_fantasy_points,
-                                           substitution_ins)
+                                           match_date, substitution_ins)
         self._persist_match_stats(derived)
         return derived
 
@@ -614,7 +583,7 @@ class ScorerService:
         return {"ok": True, "match_key": key, "removed_rows": removed}
 
     # ------------------------------------------------------------------
-    # derivation (ball-by-ball -> team/player rows + fantasy)
+    # derivation (ball-by-ball -> team/player rows)
     # ------------------------------------------------------------------
     def _batter_order_values(self, rows: list, maps: dict) -> dict:
         """player_id -> call-up order (1, 2, ...) per the scorer's 'Batter Order'.
@@ -665,8 +634,7 @@ class ScorerService:
         return result
 
     def _derive_match_stats(self, rows, season_id: str, source_file: str, uploaded_by: str,
-                            match_date: str = "", include_in_fantasy_points: bool = True,
-                            substitution_ins=None):
+                            match_date: str = "", substitution_ins=None):
         first = rows[0]
         match_id = (first.get("Match ID") or "").strip() or "unknown"
         match_name = (first.get("Match") or "").strip()
@@ -690,7 +658,7 @@ class ScorerService:
                     "balls_faced": 0, "wickets_lost": 0, "fours": 0, "sixes": 0,
                     "wides_faced": 0, "noballs_faced": 0, "runs_conceded": 0,
                     "balls_bowled": 0, "wickets_taken": 0, "wides_bowled": 0,
-                    "noballs_bowled": 0, "fantasy_points": 0,
+                    "noballs_bowled": 0,
                 }
             return team_rows[team_id]
 
@@ -703,8 +671,7 @@ class ScorerService:
             tier = (meta.get("tier") or "").strip().lower()
             role = _speciality_to_role(meta.get("speciality") or role_hint)
             if not tier:
-                tier = self.FANTASY_CODE_TO_TIER.get(
-                    self._tier_to_fantasy_code("", pname), "gold")
+                tier = "gold"
             if player_id not in player_rows:
                 player_rows[player_id] = {
                     "player_id": player_id, "player_name": pname, "team_id": team_id,
@@ -713,8 +680,7 @@ class ScorerService:
                     "runs": 0, "balls_faced": 0, "fours": 0, "sixes": 0,
                     "innings_bowled": 0, "balls_bowled": 0, "runs_conceded": 0,
                     "wickets": 0, "wides": 0, "noballs": 0, "strike_rate": 0.0,
-                    "economy": 0.0, "fantasy_score": 0, "fantasy_bat_points": 0.0,
-                    "fantasy_bowl_points": 0.0,
+                    "economy": 0.0,
                 }
             return player_rows[player_id]
 
@@ -797,20 +763,6 @@ class ScorerService:
                     dismissed["innings_batted"] = 1
                     dismissed["dismissed"] = 1
 
-        fantasy = self._calculate_fantasy_scores(rows, player_rows, substitution_ins)
-        for player_id, f in fantasy.items():
-            if player_id not in player_rows:
-                continue
-            score = _round_nearest_int(_safe_float(f.get("score")) + self.FANTASY_MATCH_BONUS_POINTS)
-            if f.get("is_substitute"):
-                score = 0
-            player_rows[player_id]["fantasy_score"] = score
-            player_rows[player_id]["fantasy_bat_points"] = f.get("bat_pts", 0.0)
-            player_rows[player_id]["fantasy_bowl_points"] = f.get("bowl_pts", 0.0)
-            team_id = player_rows[player_id]["team_id"]
-            if team_id in team_rows:
-                team_rows[team_id]["fantasy_points"] += score
-
         for p in player_rows.values():
             if p["innings_batted"] and not p["dismissed"]:
                 p["not_out"] = 1
@@ -844,7 +796,6 @@ class ScorerService:
             "delivery_rows": len(rows), "team_rows": len(team_rows),
             "player_rows": len(player_rows), "source_file": source_file,
             "uploaded_by": uploaded_by, "uploaded_at": _now(),
-            "include_in_fantasy_points": 1 if include_in_fantasy_points else 0,
         }
         return {"match_key": key, "match_row": match_row,
                 "team_rows": list(team_rows.values()),
@@ -877,197 +828,40 @@ class ScorerService:
             conn.execute(
                 "INSERT INTO match_stats (match_key, season_id, match_id, result, toss, "
                 "winner_team_id, delivery_rows, team_rows, player_rows, source_file, "
-                "uploaded_by, uploaded_at, include_in_fantasy_points, delivery_log) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "uploaded_by, uploaded_at, delivery_log) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (m["match_key"], m["season_id"], m["match_id"], m["result"], m["toss"],
                  m["winner_team_id"], m["delivery_rows"], m["team_rows"], m["player_rows"],
                  m["source_file"], m["uploaded_by"], m["uploaded_at"],
-                 m["include_in_fantasy_points"], derived.get("delivery_log") or "[]"))
+                 derived.get("delivery_log") or "[]"))
             for t in derived["team_rows"]:
                 conn.execute(
                     "INSERT INTO match_team_stats (id, match_key, season_id, team_id, team_name, "
                     "runs_scored, balls_faced, wickets_lost, fours, sixes, wides_faced, "
                     "noballs_faced, runs_conceded, balls_bowled, wickets_taken, wides_bowled, "
                     "noballs_bowled, overs_faced, overs_bowled, run_rate_for, run_rate_against, "
-                    "result, wins, losses, ties, no_results, fantasy_points) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "result, wins, losses, ties, no_results) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (secrets.token_hex(8), key, m["season_id"], t["team_id"], t["team_name"],
                      t["runs_scored"], t["balls_faced"], t["wickets_lost"], t["fours"],
                      t["sixes"], t["wides_faced"], t["noballs_faced"], t["runs_conceded"],
                      t["balls_bowled"], t["wickets_taken"], t["wides_bowled"], t["noballs_bowled"],
                      t["overs_faced"], t["overs_bowled"], t["run_rate_for"], t["run_rate_against"],
-                     t["result"], t["wins"], t["losses"], t["ties"], t["no_results"],
-                     t["fantasy_points"]))
+                     t["result"], t["wins"], t["losses"], t["ties"], t["no_results"]))
             for p in derived["player_rows"]:
                 conn.execute(
                     "INSERT INTO match_player_stats (id, match_key, season_id, player_id, "
                     "player_name, team_id, team_name, role, tier, matches, innings_batted, "
                     "not_out, dismissed, runs, balls_faced, fours, sixes, innings_bowled, "
                     "balls_bowled, runs_conceded, wickets, wides, noballs, strike_rate, economy, "
-                    "fantasy_score, fantasy_bat_points, fantasy_bowl_points, batter_order) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "batter_order) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (secrets.token_hex(8), key, m["season_id"], p["player_id"], p["player_name"],
                      p["team_id"], p["team_name"], p["role"], p["tier"], p["matches"],
                      p["innings_batted"], p["not_out"], p["dismissed"], p["runs"],
                      p["balls_faced"], p["fours"], p["sixes"], p["innings_bowled"],
                      p["balls_bowled"], p["runs_conceded"], p["wickets"], p["wides"],
-                     p["noballs"], p["strike_rate"], p["economy"], p["fantasy_score"],
-                     p["fantasy_bat_points"], p["fantasy_bowl_points"], p["batter_order"]))
-
-    # ------------------------------------------------------------------
-    # fantasy
-    # ------------------------------------------------------------------
-    def _tier_to_fantasy_code(self, tier: str, fallback_name: str = ""):
-        code = self.TIER_TO_FANTASY_CODE.get((tier or "").strip().lower())
-        if code:
-            return code
-        return self.FANTASY_PLAYER_TIERS.get(_norm(fallback_name), "G")
-
-    def _fantasy_role_for_player(self, player_id, player_name, player_rows):
-        meta = player_rows.get(player_id, {})
-        role = _speciality_to_role(meta.get("role"))
-        if role != "ALL_ROUNDER":
-            return role
-        return _speciality_to_role(self.FANTASY_PLAYER_ROLES.get(_norm(player_name), "ALL_ROUNDER"))
-
-    def _fantasy_matchup_multiplier(self, bat_tier, bowl_tier, role, base_points):
-        bat_val = self.FANTASY_TIERS[bat_tier]["value"]
-        bowl_val = self.FANTASY_TIERS[bowl_tier]["value"]
-        diff = abs(bat_val - bowl_val)
-        if diff == 0:
-            return 1.0
-        upset_mult = 1.15 if diff == 1 else 1.65
-        expected_mult = 1.0 / upset_mult
-        is_positive = base_points > 0
-        batter_won = is_positive if role == "BATTER" else not is_positive
-        if batter_won:
-            return upset_mult if bat_val < bowl_val else expected_mult
-        return upset_mult if bowl_val < bat_val else expected_mult
-
-    def _calculate_fantasy_scores(self, rows, player_rows, substitution_ins=None):
-        players = {}
-        substitute = set()
-        observed = {}
-        for row in rows:
-            for name_key, id_key in (("Batter", "Batter ID"), ("Bowler", "Bowler ID"),
-                                     ("Dismissed Batter", "Dismissed Batter ID")):
-                name = (row.get(name_key) or "").strip()
-                pid = (row.get(id_key) or "").strip()
-                if name and pid and name != "None":
-                    observed[_norm(name)] = pid
-
-        for row in rows:
-            details = (row.get("Substitution Details") or "").strip()
-            if not details or details == "None":
-                continue
-            for entry in details.split("|"):
-                if "->" not in entry:
-                    continue
-                incoming_name = entry.split("->", 1)[1].split("(", 1)[0].strip()
-                incoming_id = observed.get(_norm(incoming_name), "")
-                if incoming_id:
-                    substitute.add(incoming_id)
-        for incoming_name in (substitution_ins or set()):
-            incoming_id = observed.get(_norm(incoming_name), "")
-            if incoming_id:
-                substitute.add(incoming_id)
-
-        for row in rows:
-            batter_id = (row.get("Batter ID") or "").strip()
-            bowler_id = (row.get("Bowler ID") or "").strip()
-            dismissed_id = (row.get("Dismissed Batter ID") or "").strip()
-            dismissed_name = (row.get("Dismissed Batter") or "").strip()
-            runs_bat = _safe_int(row.get("Runs Bat"))
-            runs_extra = _safe_int(row.get("Runs Extra"))
-            extras_type = (row.get("Extras Type") or "None").strip() or "None"
-            is_wicket = bool(dismissed_id and dismissed_name != "None")
-            is_striker_out = dismissed_id == batter_id
-            is_valid_ball = (row.get("Valid Ball?") or "").strip() == "Yes"
-            is_wide = extras_type == "Wide"
-            is_no_ball = extras_type == "No Ball"
-
-            init_ids = [pid for pid in (batter_id, bowler_id) if pid]
-            if is_wicket and dismissed_id and dismissed_id not in init_ids:
-                init_ids.append(dismissed_id)
-
-            for pid in init_ids:
-                if pid in players:
-                    continue
-                meta = player_rows.get(pid, {})
-                players[pid] = {
-                    "role": self._fantasy_role_for_player(pid, meta.get("player_name") or "", player_rows),
-                    "batting_points": 0.0, "bowling_points": 0.0,
-                    "balls_faced": 0, "balls_bowled": 0,
-                    "team": (row.get("Batting Team ID") or "").strip()
-                    if pid == batter_id else (row.get("Bowling Team ID") or "").strip(),
-                }
-
-            if not batter_id or not bowler_id:
-                continue
-
-            bat_tier = self._tier_to_fantasy_code(
-                player_rows.get(batter_id, {}).get("tier", ""), player_rows.get(batter_id, {}).get("player_name", ""))
-            bowl_tier = self._tier_to_fantasy_code(
-                player_rows.get(bowler_id, {}).get("tier", ""), player_rows.get(bowler_id, {}).get("player_name", ""))
-
-            if not is_wide:
-                players[batter_id]["balls_faced"] += 1
-                bat_role = players[batter_id]["role"]
-                bat_base = self.FANTASY_BAT_POINTS["OUT"] if is_striker_out \
-                    else self.FANTASY_BAT_POINTS.get(runs_bat, 0)
-                bat_role_mult = 1.2 if bat_role == "BOWLER" else 1.0
-                matchup = self._fantasy_matchup_multiplier(bat_tier, bowl_tier, "BATTER", bat_base)
-                mult = self.FANTASY_TIERS[bat_tier]["reward"] if bat_base >= 0 \
-                    else self.FANTASY_TIERS[bat_tier]["penalty"]
-                players[batter_id]["batting_points"] += bat_base * mult * matchup * bat_role_mult
-
-            if is_wicket and dismissed_id and not is_striker_out and dismissed_id in players:
-                ns_tier = self._tier_to_fantasy_code(
-                    player_rows.get(dismissed_id, {}).get("tier", ""),
-                    player_rows.get(dismissed_id, {}).get("player_name", ""))
-                ns_matchup = self._fantasy_matchup_multiplier(ns_tier, bowl_tier, "BATTER",
-                                                              self.FANTASY_BAT_POINTS["OUT"])
-                players[dismissed_id]["batting_points"] += (
-                    self.FANTASY_BAT_POINTS["OUT"] * self.FANTASY_TIERS[ns_tier]["penalty"]
-                    * ns_matchup)
-
-            players[bowler_id]["balls_bowled"] += 1
-            bowl_role = players[bowler_id]["role"]
-            bowl_base = 0
-            if is_wicket:
-                bowl_base = self.FANTASY_BOWL_POINTS["WICKET"]
-            elif is_valid_ball:
-                bowl_base = self.FANTASY_BOWL_POINTS.get(runs_bat, 0)
-            elif is_wide:
-                bowl_base = -1.5
-                if runs_extra > 1:
-                    extra = runs_extra - 1
-                    if extra in self.FANTASY_BOWL_POINTS and self.FANTASY_BOWL_POINTS[extra] < 0:
-                        bowl_base += self.FANTASY_BOWL_POINTS[extra]
-            elif is_no_ball:
-                bowl_base = -2.5
-                if runs_bat > 0 and self.FANTASY_BOWL_POINTS.get(runs_bat, 0) < 0:
-                    bowl_base += self.FANTASY_BOWL_POINTS[runs_bat]
-
-            bowl_role_mult = 1.2 if bowl_role == "BATTER" else 1.0
-            bowl_matchup = self._fantasy_matchup_multiplier(bat_tier, bowl_tier, "BOWLER", bowl_base)
-            mult = self.FANTASY_TIERS[bowl_tier]["reward"] if bowl_base >= 0 \
-                else self.FANTASY_TIERS[bowl_tier]["penalty"]
-            players[bowler_id]["bowling_points"] += bowl_base * mult * bowl_matchup * bowl_role_mult
-
-        results = {}
-        for pid, stats in players.items():
-            if pid in substitute:
-                results[pid] = {"score": 0.0, "bat_pts": 0.0, "bowl_pts": 0.0,
-                                "is_substitute": True, "role": stats["role"]}
-                continue
-            total_balls = stats["balls_faced"] + stats["balls_bowled"]
-            if total_balls == 0 and stats["batting_points"] == 0.0 and stats["bowling_points"] == 0.0:
-                continue
-            results[pid] = {"score": stats["batting_points"] + stats["bowling_points"],
-                            "bat_pts": stats["batting_points"], "bowl_pts": stats["bowling_points"],
-                            "is_substitute": False, "role": stats["role"]}
-        return results
+                     p["noballs"], p["strike_rate"], p["economy"], p["batter_order"]))
 
     # ------------------------------------------------------------------
     # league table, leaderboards, summaries, profiles
@@ -1202,7 +996,7 @@ class ScorerService:
                 "player_id": pid, "player_name": r["player_name"], "matches": 0,
                 "runs": 0, "balls_faced": 0, "fours": 0, "sixes": 0, "dismissed": 0,
                 "wickets": 0, "balls_bowled": 0, "runs_conceded": 0,
-                "fantasy_score": 0, "innings_batted": 0,
+                "innings_batted": 0,
             })
             p["matches"] += 1
             p["runs"] += _safe_int(r["runs"])
@@ -1213,7 +1007,6 @@ class ScorerService:
             p["wickets"] += _safe_int(r["wickets"])
             p["balls_bowled"] += _safe_int(r["balls_bowled"])
             p["runs_conceded"] += _safe_int(r["runs_conceded"])
-            p["fantasy_score"] += _safe_int(r["fantasy_score"])
             p["innings_batted"] += 1
 
         players = list(player_agg.values())
@@ -1227,12 +1020,11 @@ class ScorerService:
             tid = r["team_id"]
             t = team_agg.setdefault(tid, {
                 "team_id": tid, "team_name": r["team_name"], "matches": 0,
-                "runs": 0, "wickets": 0, "fantasy_points": 0,
+                "runs": 0, "wickets": 0,
             })
             t["matches"] += 1
             t["runs"] += _safe_int(r["runs_scored"])
             t["wickets"] += _safe_int(r["wickets_taken"])
-            t["fantasy_points"] += _safe_int(r["fantasy_points"])
         teams = list(team_agg.values())
 
         def top(items, key, reverse=True, predicate=None):
@@ -1339,9 +1131,6 @@ class ScorerService:
         for sec in sections:
             sec["fow"] = fow.get(sec["team_name"], [])
 
-        fantasy = sorted(player_rows,
-                         key=lambda p: (_safe_int(p["fantasy_score"]), _safe_int(p["runs"]),
-                                        _safe_int(p["wickets"])), reverse=True)
         winner_name = ""
         if match_row.get("winner_team_id"):
             winner_name = next((t["team_name"] for t in team_rows
@@ -1360,7 +1149,6 @@ class ScorerService:
             "winner_name": winner_name,
             "has_uploaded_data": bool(match_row),
             "team_sections": sections,
-            "fantasy_leaderboard": fantasy,
             "registry": registry,
             "delivery_log": delivery_log,
         }
@@ -1533,13 +1321,13 @@ class ScorerService:
         per_season = {}
         totals = {"matches": 0, "wins": 0, "losses": 0, "ties": 0, "no_results": 0,
                   "points": 0, "runs_for": 0, "balls_for": 0, "runs_against": 0,
-                  "balls_against": 0, "fantasy_points": 0}
+                  "balls_against": 0}
         for r in rows:
             season = r["season_id"]
             e = per_season.setdefault(season, {
                 "season_id": season, "matches": 0, "wins": 0, "losses": 0, "ties": 0,
                 "no_results": 0, "points": 0, "runs_for": 0, "balls_for": 0,
-                "runs_against": 0, "balls_against": 0, "fantasy_points": 0,
+                "runs_against": 0, "balls_against": 0,
             })
             wins = _safe_int(r["wins"]); losses = _safe_int(r["losses"])
             ties = _safe_int(r["ties"]); nrs = _safe_int(r["no_results"])
@@ -1556,7 +1344,6 @@ class ScorerService:
             e["balls_for"] += _safe_int(r["balls_faced"])
             e["runs_against"] += _safe_int(r["runs_conceded"])
             e["balls_against"] += _safe_int(r["balls_bowled"])
-            e["fantasy_points"] += _safe_int(r["fantasy_points"])
         for e in per_season.values():
             e["run_rate_for"] = round((e["runs_for"] * 6.0 / e["balls_for"]) if e["balls_for"] else 0.0, 2)
             e["run_rate_against"] = round((e["runs_against"] * 6.0 / e["balls_against"]) if e["balls_against"] else 0.0, 2)
@@ -1632,7 +1419,7 @@ class ScorerService:
         meta = row_to_dict(meta) if meta else {}
         agg = {"matches": 0, "runs": 0, "balls_faced": 0, "dismissed": 0,
                "wickets": 0, "balls_bowled": 0, "runs_conceded": 0,
-               "fantasy_score": 0, "fours": 0, "sixes": 0}
+               "fours": 0, "sixes": 0}
         per_season = {}
         per_team = {}
         matches_list = []
@@ -1648,16 +1435,13 @@ class ScorerService:
             agg["wickets"] += _safe_int(r["wickets"])
             agg["balls_bowled"] += _safe_int(r["balls_bowled"])
             agg["runs_conceded"] += _safe_int(r["runs_conceded"])
-            agg["fantasy_score"] += _safe_int(r["fantasy_score"])
             agg["fours"] += _safe_int(r["fours"])
             agg["sixes"] += _safe_int(r["sixes"])
             for bucket, key in ((per_season, r["season_id"]), (per_team, r["team_id"])):
-                e = bucket.setdefault(key, {"key": key, "matches": 0, "runs": 0, "wickets": 0,
-                                            "fantasy_score": 0})
+                e = bucket.setdefault(key, {"key": key, "matches": 0, "runs": 0, "wickets": 0})
                 e["matches"] += 1
                 e["runs"] += _safe_int(r["runs"])
                 e["wickets"] += _safe_int(r["wickets"])
-                e["fantasy_score"] += _safe_int(r["fantasy_score"])
         for bucket in (per_season, per_team):
             for e in bucket.values():
                 e.pop("key", None)

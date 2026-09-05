@@ -93,7 +93,6 @@
       '<div class="stat-tile"><div class="stat-label">SR</div><div class="stat-value">' + two(s.strike_rate) + "</div></div>" +
       '<div class="stat-tile"><div class="stat-label">Wkts</div><div class="stat-value">' + esc(s.wickets) + "</div></div>" +
       '<div class="stat-tile"><div class="stat-label">Econ</div><div class="stat-value">' + two(s.economy) + "</div></div>" +
-      '<div class="stat-tile"><div class="stat-label">Fantasy</div><div class="stat-value">' + esc(s.fantasy_score) + "</div></div>" +
       "</div>";
   }
 

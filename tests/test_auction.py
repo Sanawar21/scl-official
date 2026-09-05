@@ -493,16 +493,16 @@ def test_called_up_player_carries_career_stats(app, svc):
         conn.execute(
             "INSERT INTO match_player_stats (id, match_key, season_id, player_id, player_name, "
             "team_id, team_name, matches, runs, balls_faced, dismissed, wickets, balls_bowled, "
-            "runs_conceded, fours, sixes, fantasy_score) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "runs_conceded, fours, sixes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             ("mps1", "mk1", sid, gpid, "Alice", "t1", "Thunder",
-             3, 142, 95, 2, 5, 18, 26, 14, 4, 96),
+             3, 142, 95, 2, 5, 18, 26, 14, 4),
         )
         conn.execute(
             "INSERT INTO match_player_stats (id, match_key, season_id, player_id, player_name, "
             "team_id, team_name, matches, runs, balls_faced, dismissed, wickets, balls_bowled, "
-            "runs_conceded, fours, sixes, fantasy_score) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "runs_conceded, fours, sixes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             ("mps2", "mk2", sid, gpid, "Alice", "t1", "Thunder",
-             1, 58, 40, 0, 1, 6, 9, 6, 2, 40),
+             1, 58, 40, 0, 1, 6, 9, 6, 2),
         )
 
     svc.set_phase(sid, "phase_a_platinum")
@@ -518,7 +518,6 @@ def test_called_up_player_carries_career_stats(app, svc):
     assert stats["runs_conceded"] == 35
     assert stats["fours"] == 20
     assert stats["sixes"] == 6
-    assert stats["fantasy_score"] == 136
     assert round(stats["strike_rate"], 2) == round(200 * 100.0 / 135, 2)
     # avg only over dismissed innings (2); econ over balls bowled.
     assert stats["batting_average"] == 100.0

@@ -9,7 +9,6 @@ CSV on disk — the imported match is the single source of truth.
 - Fall of Wickets comes from the stored ball-by-ball `delivery_log`;
 - the revenue section lists the real `season_finance_entries` for the match
   (rewards, adjustments, transfers) instead of hardcoded numbers;
-- fantasy points were already computed at import (DB tiers), no duplicated math.
 """
 
 from collections import defaultdict
@@ -271,35 +270,6 @@ def _team_section(section, fow, branding=None):
     return elements
 
 
-def _fantasy_section(leaderboard):
-    elements = [_subheader("FANTASY POINTS LEADERBOARD")]
-    fan_cols = ["Player", "Team", "Role", "Points"]
-    bw = PAGE_W - 2 * MARGIN
-    fan_cw = [0.34 * bw, 0.28 * bw, 0.22 * bw, 0.16 * bw]
-    fan_data = [_hdr_row(fan_cols)]
-    for p in leaderboard or []:
-        points = int(p.get("fantasy_score") or 0)
-        if points >= 40:
-            rating = "Elite"
-        elif points >= 20:
-            rating = "Strong"
-        elif points >= 10:
-            rating = "Average"
-        else:
-            rating = "Below Avg"
-        fan_data.append([
-            Paragraph(f"<b>{p.get('player_name') or '?'}</b>", S_CELL_B),
-            Paragraph(p.get("team_name") or "", S_CELL_C),
-            Paragraph(str(p.get("role") or "").replace("_", " "), S_CELL_C),
-            Paragraph(f"<b>{points}</b> <font size='6' color='#6b7280'>({rating})</font>", S_CELL_BC),
-        ])
-    fan_tbl = Table(fan_data, colWidths=fan_cw, repeatRows=1)
-    fan_tbl.setStyle(TableStyle(BASE_TBL_STYLE[:] + _alt_rows(fan_data)))
-    elements.append(fan_tbl)
-    elements.append(Spacer(1, 5 * mm))
-    return elements
-
-
 def _revenue_section(entries):
     if not entries:
         return []
@@ -424,7 +394,6 @@ class ScorecardService:
                 story.extend(_team_section(section, fow, branding))
 
         story.append(HRFlowable(width="100%", thickness=1.5, color=C_ACCENT, spaceAfter=5))
-        story.extend(_fantasy_section(summary.get("fantasy_leaderboard")))
         story.extend(_revenue_section(finance_entries or []))
 
         story.append(Spacer(1, 5 * mm))

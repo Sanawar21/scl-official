@@ -105,22 +105,5 @@
     </section>
   {% endfor %}
 
-  <section class="card">
-    <div class="card-head"><h2>Fantasy points</h2></div>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Player</th><th>Team</th><th>Fantasy</th></tr></thead>
-        <tbody>
-          {% for p in summary.fantasy_leaderboard %}
-            <tr>
-              <td>{{ p.player_name }}</td>
-              <td class="muted">{{ p.team_name }}</td>
-              <td><b>{{ p.fantasy_score }}</b></td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </section>
 {% endif %}
 {% endblock %}

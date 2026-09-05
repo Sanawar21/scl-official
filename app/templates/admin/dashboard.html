@@ -312,7 +312,6 @@
                 <div class="stat-tile"><div class="stat-label">SR</div><div class="stat-value">{{ '%.2f'|format(state.current_player.stats.strike_rate) if state.current_player.stats.balls_faced else '—' }}</div></div>
                 <div class="stat-tile"><div class="stat-label">Wkts</div><div class="stat-value">{{ state.current_player.stats.wickets }}</div></div>
                 <div class="stat-tile"><div class="stat-label">Econ</div><div class="stat-value">{{ '%.2f'|format(state.current_player.stats.economy) if state.current_player.stats.balls_bowled else '—' }}</div></div>
-                <div class="stat-tile"><div class="stat-label">Fantasy</div><div class="stat-value">{{ state.current_player.stats.fantasy_score }}</div></div>
               </div>
             {% endif %}
           </div>

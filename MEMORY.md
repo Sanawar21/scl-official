@@ -1174,3 +1174,17 @@ Auto accounts now stay as LIQUID as possible (user decision):
 - NOTE: a plain force-unlock (`finances_unlock` + force) at season start would leave stale
   principal on positions and overpay later manual-harvest yields — use the auto-release
   button instead for pre-season unlocks.
+
+## Fantasy fully removed — DONE (2026-09-05)
+
+- Deleted the whole fantasy subsystem: scorer fantasy engine (constants, helpers,
+  per-ball points), `include_in_fantasy_points` upload flag, PDF "Fantasy points"
+  leaderboard section, fantasy tiles/columns across templates (leaderboards, match
+  summary, player/team profiles, auction lot card, app.js), career-stat fantasy
+  aggregation (auction + scorer leaderboards/team/player profiles), and schema
+  columns (match_stats.include_in_fantasy_points, match_team_stats.fantasy_points,
+  match_player_stats.fantasy_score/bat/bowl).
+- Legacy `scripts/import_prod.py` no longer imports fantasy columns.
+- Existing DBs keep the old columns dormant (harmless — code never reads/writes them);
+  fresh DBs get the clean schema. A manual VACUUM/rebuild is only needed if you ever
+  want to physically drop them.

@@ -304,7 +304,7 @@ def players_index():
         stats_by_pid = {}
         for r in conn.execute(
             "SELECT player_id, COUNT(*) AS matches, SUM(runs) AS runs, SUM(wickets) AS wickets, "
-            "SUM(sixes) AS sixes, SUM(fantasy_score) AS fantasy "
+            "SUM(sixes) AS sixes "
             "FROM match_player_stats WHERE player_id IS NOT NULL AND player_id != '' "
             "GROUP BY player_id").fetchall():
             stats_by_pid[r["player_id"]] = r
@@ -335,7 +335,6 @@ def players_index():
             "runs": int(stats["runs"] or 0) if stats else 0,
             "wickets": int(stats["wickets"] or 0) if stats else 0,
             "sixes": int(stats["sixes"] or 0) if stats else 0,
-            "fantasy": int(stats["fantasy"] or 0) if stats else 0,
         })
     players.sort(key=lambda p: p["name"].lower())
     return render_template("players/index.html", players=players)
@@ -464,7 +463,6 @@ def admin_scorer_import():
             match_date=(request.form.get("match_date") or "").strip(),
             uploaded_by=session.get("user", {}).get("username", "admin"),
             confirm_overwrite=(request.form.get("confirm_overwrite") or "").strip().lower() in {"1", "on", "true", "yes"},
-            include_in_fantasy_points=(request.form.get("include_in_fantasy_points") or "").strip().lower() not in {"0", "off", "no"},
         )
         match_id = (derived.get("match_row") or {}).get("match_id") or "match"
         finance = _finance_service().on_match_finalized(season_id, match_id)

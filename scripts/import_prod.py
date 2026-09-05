@@ -6,7 +6,7 @@ and a rebuilt published snapshot. Manager *user accounts* are NOT imported
 Phase 2 (stats): match registry + scorer stats (team/player match rows), the
 teams.global_team_id backfill, and a league-table cross-check vs the old
 aggregates. Run `--phase stats` after core (or after a fresh core import).
-Finance/fantasy data is deferred until their schema tables exist
+Finance data is deferred until their schema tables exist
 (see PROD_IMPORT_PLAN.md).
 
 Usage:
@@ -254,14 +254,13 @@ TEAM_STATS_COLUMNS = (
     "wides_faced", "noballs_faced", "runs_conceded", "balls_bowled",
     "wickets_taken", "wides_bowled", "noballs_bowled", "overs_faced",
     "overs_bowled", "run_rate_for", "run_rate_against", "result", "wins",
-    "losses", "ties", "no_results", "fantasy_points",
+    "losses", "ties", "no_results",
 )
 
 PLAYER_STATS_COLUMNS = (
     "matches", "innings_batted", "not_out", "dismissed", "runs", "balls_faced",
     "fours", "sixes", "innings_bowled", "balls_bowled", "runs_conceded",
-    "wickets", "wides", "noballs", "strike_rate", "economy", "fantasy_score",
-    "fantasy_bat_points", "fantasy_bowl_points",
+    "wickets", "wides", "noballs", "strike_rate", "economy",
 )
 
 
@@ -325,14 +324,13 @@ def import_stats(db: Database, data_dir: Path) -> dict:
             conn.execute(
                 "INSERT INTO match_stats (match_key, season_id, match_id, result, toss, "
                 "winner_team_id, delivery_rows, team_rows, player_rows, source_file, "
-                "uploaded_by, uploaded_at, include_in_fantasy_points) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "uploaded_by, uploaded_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (s["match_key"], SEASON_ID, s["match_id"], s.get("result") or "",
                  s.get("toss") or "", s.get("winner_team_id") or "",
                  int(s.get("delivery_rows") or 0), int(s.get("team_rows") or 0),
                  int(s.get("player_rows") or 0), s.get("source_file") or "",
-                 s.get("uploaded_by") or "admin", s.get("uploaded_at") or _now(),
-                 _int_bool(s.get("include_in_fantasy_points", True))),
+                 s.get("uploaded_by") or "admin", s.get("uploaded_at") or _now()),
             )
 
         # 3. team match stats (verbatim; already global ids)

@@ -40,13 +40,13 @@ def _career_stats(conn, global_player_id: str):
         return None
     rows = conn.execute(
         "SELECT matches, runs, balls_faced, dismissed, wickets, balls_bowled, "
-        "runs_conceded, fours, sixes, fantasy_score FROM match_player_stats "
+        "runs_conceded, fours, sixes FROM match_player_stats "
         "WHERE player_id = ?", (global_player_id,)).fetchall()
     if not rows:
         return None
     agg = {"matches": 0, "runs": 0, "balls_faced": 0, "dismissed": 0,
            "wickets": 0, "balls_bowled": 0, "runs_conceded": 0,
-           "fours": 0, "sixes": 0, "fantasy_score": 0}
+           "fours": 0, "sixes": 0}
     for r in rows:
         agg["matches"] += r["matches"] or 1
         agg["runs"] += r["runs"] or 0
@@ -57,7 +57,6 @@ def _career_stats(conn, global_player_id: str):
         agg["runs_conceded"] += r["runs_conceded"] or 0
         agg["fours"] += r["fours"] or 0
         agg["sixes"] += r["sixes"] or 0
-        agg["fantasy_score"] += r["fantasy_score"] or 0
     agg["strike_rate"] = round(agg["runs"] * 100.0 / agg["balls_faced"], 2) if agg["balls_faced"] else 0.0
     agg["batting_average"] = round(agg["runs"] / agg["dismissed"], 2) if agg["dismissed"] else 0.0
     agg["economy"] = round(agg["runs_conceded"] * 6.0 / agg["balls_bowled"], 2) if agg["balls_bowled"] else 0.0

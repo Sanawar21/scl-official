@@ -17,7 +17,6 @@
     <div class="stat-tile"><div class="stat-label">SR</div><div class="stat-value">{{ '%.2f'|format(profile.global_stats.strike_rate) if profile.global_stats.balls_faced else '—' }}</div></div>
     <div class="stat-tile"><div class="stat-label">Wickets</div><div class="stat-value">{{ profile.global_stats.wickets }}</div></div>
     <div class="stat-tile"><div class="stat-label">Econ</div><div class="stat-value">{{ '%.2f'|format(profile.global_stats.economy) if profile.global_stats.balls_bowled else '—' }}</div></div>
-    <div class="stat-tile"><div class="stat-label">Fantasy</div><div class="stat-value">{{ profile.global_stats.fantasy_score }}</div></div>
   </div>
 </section>
 
@@ -26,10 +25,10 @@
   <div class="card-head"><h2>By season</h2></div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Season</th><th>M</th><th>Runs</th><th>Wkts</th><th>Fantasy</th></tr></thead>
+      <thead><tr><th>Season</th><th>M</th><th>Runs</th><th>Wkts</th></tr></thead>
       <tbody>
         {% for season, s in profile.per_season %}
-          <tr><td>{{ season }}</td><td>{{ s.matches }}</td><td>{{ s.runs }}</td><td>{{ s.wickets }}</td><td>{{ s.fantasy_score }}</td></tr>
+          <tr><td>{{ season }}</td><td>{{ s.matches }}</td><td>{{ s.runs }}</td><td>{{ s.wickets }}</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -42,7 +41,7 @@
   <div class="card-head"><h2>Match log</h2></div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Season</th><th>Team</th><th>Bat</th><th>Bowl</th><th>Fantasy</th></tr></thead>
+      <thead><tr><th>Season</th><th>Team</th><th>Bat</th><th>Bowl</th></tr></thead>
       <tbody>
         {% for m in profile.matches %}
           <tr>
@@ -50,7 +49,6 @@
             <td>{{ m.team_name }}</td>
             <td>{{ m.runs }} ({{ m.balls_faced }}b){% if m.dismissed %}*{% endif %}</td>
             <td>{{ m.wickets }}/{{ m.runs_conceded }} ({{ m.balls_bowled }}b)</td>
-            <td><b>{{ m.fantasy_score }}</b></td>
           </tr>
         {% endfor %}
       </tbody>

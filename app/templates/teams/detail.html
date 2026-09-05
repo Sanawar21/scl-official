@@ -34,7 +34,7 @@
   <div class="card-head"><h2>By season</h2></div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Season</th><th>P</th><th>W</th><th>L</th><th>Pts</th><th>NRR</th><th>Fantasy</th></tr></thead>
+      <thead><tr><th>Season</th><th>P</th><th>W</th><th>L</th><th>Pts</th><th>NRR</th></tr></thead>
       <tbody>
         {% for s in profile.season_stats %}
           <tr>
@@ -44,7 +44,6 @@
             <td>{{ s.losses }}</td>
             <td><b>{{ s.points }}</b></td>
             <td>{{ s.nrr_display }}</td>
-            <td>{{ s.fantasy_points }}</td>
           </tr>
         {% endfor %}
       </tbody>
