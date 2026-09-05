@@ -31,14 +31,6 @@
   <a href="{{ url_for('matches.league_table') }}">Table</a>
   <a href="{{ url_for('matches.leaderboards') }}">Top</a>
   <a href="{{ url_for('matches.finances_index') }}">Finances</a>
-  {% if not flat %}
-    <div class="nav-more" id="nav-more">
-      <button type="button" class="nav-more-btn" id="nav-more-btn" aria-expanded="false">More ▾</button>
-      <div class="nav-more-menu" id="nav-more-menu">
-        {{ more_links() }}
-      </div>
-    </div>
-  {% endif %}
   {% if role == 'manager' %}
     <a href="{{ url_for('manager.dashboard') }}">My Team</a>
   {% endif %}
@@ -52,6 +44,16 @@
     <a href="{{ url_for('wagers.admin') }}">Wagers</a>
   {% elif role != 'anon' %}
     <a href="{{ url_for('wagers.board') }}">Wagers</a>
+  {% endif %}
+  {% if not flat %}
+    <div class="nav-more" id="nav-more">
+      <button type="button" class="nav-more-btn" id="nav-more-btn" aria-expanded="false">More ▾</button>
+      <div class="nav-more-menu" id="nav-more-menu">
+        {{ more_links() }}
+      </div>
+    </div>
+  {% else %}
+    {{ more_links() }}
   {% endif %}
 {% endmacro %}
 
@@ -95,7 +97,7 @@
         <a class="muted" href="{{ url_for('auth.logout') }}">Logout</a>
       {% else %}
         <a href="{{ url_for('auth.login_page') }}">Login</a>
-        <a class="btn btn-primary btn-small" href="{{ url_for('auth.signup_page') }}">Sign up</a>
+        <a class="btn btn-volt btn-small" href="{{ url_for('auth.signup_page') }}">Sign up</a>
       {% endif %}
     </div>
     <button class="nav-toggle" id="nav-toggle" aria-label="Open menu" aria-expanded="false">☰</button>
@@ -119,7 +121,7 @@
       <a class="muted" href="{{ url_for('auth.logout') }}">Logout</a>
     {% else %}
       <a href="{{ url_for('auth.login_page') }}">Login</a>
-      <a class="btn btn-primary btn-block" href="{{ url_for('auth.signup_page') }}">Sign up</a>
+      <a class="btn btn-primary btn-block" href="{{ url_for('auth.signup_page') }}" style="background:var(--primary);border-color:var(--primary);color:#fff">Sign up</a>
     {% endif %}
   </div>
 </aside>
